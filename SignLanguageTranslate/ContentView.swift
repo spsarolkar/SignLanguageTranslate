@@ -2,20 +2,44 @@
 //  ContentView.swift
 //  SignLanguageTranslate
 //
-//  Created by SunilS on 03/01/26.
+//  Created by Sunil Sarolkar
 //
 
 import SwiftUI
 
 struct ContentView: View {
     var body: some View {
-        VStack {
-            Image(systemName: "globe")
-                .imageScale(.large)
-                .foregroundStyle(.tint)
-            Text("Hello, world!")
+        TabView {
+            DashboardView()
+                .tabItem {
+                    Label("Dashboard", systemImage: "house")
+                }
+            
+            DatasetManagerView()
+                .tabItem {
+                    Label("Dataset Manager", systemImage: "folder")
+                }
+            
+            PipelineView()
+                .tabItem {
+                    Label("Data Pipeline", systemImage: "gearshape")
+                }
+            
+            TrainingView()
+                .tabItem {
+                    Label("Model Training", systemImage: "chart.line.uptrend.xyaxis")
+                }
+            
+            AboutView()
+                .tabItem {
+                    Label("About", systemImage: "info.circle")
+                }
         }
-        .padding()
+        .onAppear {
+            // Initialize core managers
+            _ = PersistenceController.shared
+            _ = BackgroundManager.shared
+        }
     }
 }
 

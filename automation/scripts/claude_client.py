@@ -58,51 +58,105 @@ class ClaudeClient:
         full_prompt = prompt
         if context:
             full_prompt = f"{context}\n\n---\n\n{prompt}"
-        
+
+        # Log prompt size for visibility
+        prompt_chars = len(full_prompt)
+        prompt_lines = full_prompt.count('\n') + 1
+        self.logger.info(f"Sending prompt to Claude CLI: {prompt_chars:,} chars, {prompt_lines} lines")
+
         try:
             # Claude CLI: pipe prompt via stdin with --print flag for non-interactive output
             # The --print flag outputs response directly without interactive mode
             cmd = ["claude", "--print"]
-            
+
             self.logger.debug(f"Running Claude CLI with --print flag")
-            
+
             process = await asyncio.create_subprocess_exec(
                 *cmd,
                 stdin=asyncio.subprocess.PIPE,
                 stdout=asyncio.subprocess.PIPE,
                 stderr=asyncio.subprocess.PIPE
             )
-            
-            # Send prompt via stdin
-            stdout, stderr = await process.communicate(input=full_prompt.encode('utf-8'))
-            
+
+            # Track timing
+            import time
+            start_time = time.time()
+
+            # Log that we're waiting
+            self.logger.info("Waiting for Claude response... (this may take 1-5 minutes)")
+
+            # Create a progress indicator task
+            async def log_progress():
+                elapsed = 0
+                while True:
+                    await asyncio.sleep(30)
+                    elapsed += 30
+                    self.logger.info(f"Still waiting for Claude... ({elapsed}s elapsed)")
+
+            progress_task = asyncio.create_task(log_progress())
+
+            try:
+                # Set a timeout (10 minutes max)
+                timeout = self.claude_config.get("timeout_seconds", 600)
+                stdout, stderr = await asyncio.wait_for(
+                    process.communicate(input=full_prompt.encode('utf-8')),
+                    timeout=timeout
+                )
+            except asyncio.TimeoutError:
+                process.kill()
+                progress_task.cancel()
+                self.logger.error(f"Claude CLI timed out after {timeout}s")
+                return ClaudeResponse(
+                    success=False,
+                    content="",
+                    error=f"Timeout after {timeout} seconds",
+                    model=self.model
+                )
+            finally:
+                progress_task.cancel()
+                try:
+                    await progress_task
+                except asyncio.CancelledError:
+                    pass
+
+            elapsed_time = time.time() - start_time
+
             stdout_text = stdout.decode('utf-8', errors='replace')
             stderr_text = stderr.decode('utf-8', errors='replace')
-            
+
+            # Log response stats
+            response_chars = len(stdout_text)
+            response_lines = stdout_text.count('\n') + 1
+            self.logger.info(f"Claude responded in {elapsed_time:.1f}s: {response_chars:,} chars, {response_lines} lines")
+
             # Check for rate limit
             if "rate limit" in stderr_text.lower() or "rate_limit" in stderr_text.lower():
                 retry_after = self._parse_retry_after(stderr_text)
+                self.logger.warning(f"Rate limit hit. Retry after: {retry_after}s")
                 raise RateLimitError("Rate limit exceeded", retry_after=retry_after)
-            
+
             if process.returncode != 0:
-                self.logger.error(f"Claude CLI error: {stderr_text}")
+                self.logger.error(f"Claude CLI error (exit code {process.returncode}): {stderr_text[:500]}")
                 return ClaudeResponse(
                     success=False,
                     content="",
                     error=stderr_text,
                     model=self.model
                 )
-            
+
             # Parse response for file changes
             files = self._extract_file_changes(stdout_text)
-            
+            self.logger.info(f"Extracted {len(files)} file changes from response")
+            for f in files:
+                self.logger.debug(f"  - {f.path} ({len(f.content):,} chars)")
+
             return ClaudeResponse(
                 success=True,
                 content=stdout_text,
                 files=files,
                 model=self.model
             )
-            
+
         except FileNotFoundError:
             self.logger.error("Claude CLI not found. Make sure 'claude' is installed and in PATH.")
             return ClaudeResponse(

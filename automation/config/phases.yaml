@@ -1,0 +1,195 @@
+# Phase definitions for SignLanguageTranslate
+# Each phase represents a discrete unit of work in the development process
+
+modules:
+  - id: module1
+    name: "Project Foundation"
+    description: "Core setup, SwiftData models, and persistence layer"
+    
+    phases:
+      - id: "1.1"
+        name: "Xcode Project Setup"
+        prompt_file: "module1/phase_1.1.md"
+        description: "Create project structure and basic app shell"
+        expected_files:
+          - "App/SignLanguageTranslateApp.swift"
+          - "Features/DatasetManager/Views/ContentView.swift"
+        tests_required: false
+        screenshot: true
+        
+      - id: "1.2"
+        name: "Core Extensions & Utilities"
+        prompt_file: "module1/phase_1.2.md"
+        description: "FileManager, String, URL extensions and utilities"
+        expected_files:
+          - "Core/Extensions/FileManager+Extensions.swift"
+          - "Core/Extensions/String+Extensions.swift"
+          - "Core/Extensions/URL+Extensions.swift"
+          - "Core/Utilities/Constants.swift"
+        tests_required: true
+        screenshot: false
+        
+      - id: "1.3"
+        name: "SwiftData Label Model"
+        prompt_file: "module1/phase_1.3.md"
+        description: "Label and LabelType SwiftData models"
+        expected_files:
+          - "Features/DatasetManager/Models/Label.swift"
+          - "Features/DatasetManager/Models/LabelType.swift"
+        tests_required: true
+        screenshot: false
+        
+      - id: "1.4"
+        name: "SwiftData VideoSample Model"
+        prompt_file: "module1/phase_1.4.md"
+        description: "VideoSample model with Label relationships"
+        expected_files:
+          - "Features/DatasetManager/Models/VideoSample.swift"
+        tests_required: true
+        screenshot: false
+        
+      - id: "1.5"
+        name: "SwiftData Dataset Model"
+        prompt_file: "module1/phase_1.5.md"
+        description: "Dataset, DatasetType, and DownloadStatus models"
+        expected_files:
+          - "Features/DatasetManager/Models/Dataset.swift"
+          - "Features/DatasetManager/Models/DatasetType.swift"
+          - "Features/DatasetManager/Models/DownloadStatus.swift"
+        tests_required: true
+        screenshot: false
+        
+      - id: "1.6"
+        name: "SwiftData Relationships & Container"
+        prompt_file: "module1/phase_1.6.md"
+        description: "PersistenceController and ModelQueries helpers"
+        expected_files:
+          - "Core/Persistence/PersistenceController.swift"
+          - "Core/Persistence/ModelQueries.swift"
+        tests_required: true
+        screenshot: true
+        
+      - id: "1.7"
+        name: "Unit Tests Consolidation"
+        prompt_file: "module1/phase_1.7.md"
+        description: "Comprehensive test coverage for all models"
+        expected_files:
+          - "SignLanguageTranslateTests/Utilities/TestHelpers.swift"
+          - "SignLanguageTranslateTests/Integration/ModelRelationshipTests.swift"
+        tests_required: true
+        screenshot: false
+
+  - id: module2
+    name: "Manifest & Download Queue"
+    description: "Download orchestration and queue management system"
+    
+    phases:
+      - id: "2.1"
+        name: "INCLUDE Manifest Definition"
+        prompt_file: "module2/phase_2.1.md"
+        description: "Manifest system for INCLUDE dataset (46 zip files)"
+        expected_files:
+          - "Features/DatasetManager/Manifest/CategoryManifest.swift"
+          - "Features/DatasetManager/Manifest/INCLUDEManifest.swift"
+          - "Features/DatasetManager/Manifest/ManifestEntry.swift"
+        tests_required: true
+        screenshot: false
+        
+      - id: "2.2"
+        name: "DownloadTask Model"
+        prompt_file: "module2/phase_2.2.md"
+        description: "Download task state tracking model"
+        expected_files:
+          - "Features/DatasetManager/Downloads/DownloadTask.swift"
+          - "Features/DatasetManager/Downloads/DownloadTaskStatus.swift"
+          - "Features/DatasetManager/Downloads/DownloadTaskGroup.swift"
+        tests_required: true
+        screenshot: false
+        
+      - id: "2.3"
+        name: "DownloadQueue Actor"
+        prompt_file: "module2/phase_2.3.md"
+        description: "Thread-safe queue management with Swift Actors"
+        expected_files:
+          - "Features/DatasetManager/Downloads/DownloadQueueActor.swift"
+          - "Features/DatasetManager/Downloads/DownloadQueueState.swift"
+          - "Features/DatasetManager/Downloads/DownloadQueueDelegate.swift"
+        tests_required: true
+        screenshot: false
+        
+      - id: "2.4"
+        name: "DownloadQueue Unit Tests"
+        prompt_file: "module2/phase_2.4.md"
+        description: "Comprehensive queue and task tests"
+        expected_files:
+          - "SignLanguageTranslateTests/Downloads/DownloadQueueActorTests.swift"
+          - "SignLanguageTranslateTests/Downloads/DownloadTaskTests.swift"
+        tests_required: true
+        screenshot: false
+        
+      - id: "2.5"
+        name: "DownloadManager Observable"
+        prompt_file: "module2/phase_2.5.md"
+        description: "SwiftUI integration wrapper for queue"
+        expected_files:
+          - "Features/DatasetManager/Downloads/DownloadManager.swift"
+          - "Features/DatasetManager/Downloads/DownloadManagerError.swift"
+        tests_required: true
+        screenshot: false
+        
+      - id: "2.6"
+        name: "Download Progress UI"
+        prompt_file: "module2/phase_2.6.md"
+        description: "Progress indicators and download list UI"
+        expected_files:
+          - "Features/DatasetManager/Views/Components/DownloadProgressView.swift"
+          - "Features/DatasetManager/Views/DownloadListView.swift"
+        tests_required: false
+        screenshot: true
+
+  - id: module3
+    name: "Basic UI Shell"
+    description: "Core navigation and UI structure"
+    
+    phases:
+      - id: "3.1"
+        name: "App Navigation Structure"
+        prompt_file: "module3/phase_3.1.md"
+        description: "NavigationSplitView for iPad"
+        tests_required: false
+        screenshot: true
+        
+      - id: "3.2"
+        name: "Dataset List Item View"
+        prompt_file: "module3/phase_3.2.md"
+        description: "Row view for dataset list"
+        tests_required: false
+        screenshot: true
+        
+      - id: "3.3"
+        name: "Dataset List View"
+        prompt_file: "module3/phase_3.3.md"
+        description: "Sidebar list of datasets"
+        tests_required: false
+        screenshot: true
+        
+      - id: "3.4"
+        name: "Integrate List into Split View"
+        prompt_file: "module3/phase_3.4.md"
+        description: "Connect list to navigation"
+        tests_required: false
+        screenshot: true
+        
+      - id: "3.5"
+        name: "Download Task Row View"
+        prompt_file: "module3/phase_3.5.md"
+        description: "Individual download task row"
+        tests_required: false
+        screenshot: true
+        
+      - id: "3.6"
+        name: "Download Tasks List Sheet"
+        prompt_file: "module3/phase_3.6.md"
+        description: "Sheet showing all downloads"
+        tests_required: false
+        screenshot: true

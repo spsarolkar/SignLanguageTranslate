@@ -334,7 +334,7 @@ final class ModelEdgeCaseTests: XCTestCase {
     // MARK: - Concurrent Modification Edge Cases
 
     /// Test adding and removing labels multiple times
-    func test_addingAndRemovingLabels_multipleT imes_maintainsConsistency() throws {
+    func test_addingAndRemovingLabels_multipleTimes_maintainsConsistency() throws {
         let sample = VideoSample(localPath: "test.mp4", datasetName: "TEST")
         let label = Label(name: "Test", type: .word)
 

@@ -1,0 +1,23 @@
+{
+  "/Volumes/T7/repo/github/SignLanguageTranslate/SignLanguageTranslate/Features/DatasetManager/Downloads/DownloadQueueState.swift" : {
+    "const-values" : "/Volumes/T7/repo/github/SignLanguageTranslate/build/SignLanguageTranslate.build/Debug/SignLanguageTranslate.build/Objects-normal/arm64/DownloadQueueState.swiftconstvalues",
+    "dependencies" : "/Volumes/T7/repo/github/SignLanguageTranslate/build/SignLanguageTranslate.build/Debug/SignLanguageTranslate.build/Objects-normal/arm64/DownloadQueueState.d",
+    "diagnostics" : "/Volumes/T7/repo/github/SignLanguageTranslate/build/SignLanguageTranslate.build/Debug/SignLanguageTranslate.build/Objects-normal/arm64/DownloadQueueState.dia",
+    "object" : "/Volumes/T7/repo/github/SignLanguageTranslate/build/SignLanguageTranslate.build/Debug/SignLanguageTranslate.build/Objects-normal/arm64/DownloadQueueState.o",
+    "swift-dependencies" : "/Volumes/T7/repo/github/SignLanguageTranslate/build/SignLanguageTranslate.build/Debug/SignLanguageTranslate.build/Objects-normal/arm64/DownloadQueueState.swiftdeps"
+  },
+  "/Volumes/T7/repo/github/SignLanguageTranslate/SignLanguageTranslate/Features/DatasetManager/Downloads/DownloadTask.swift" : {
+    "const-values" : "/Volumes/T7/repo/github/SignLanguageTranslate/build/SignLanguageTranslate.build/Debug/SignLanguageTranslate.build/Objects-normal/arm64/DownloadTask.swiftconstvalues",
+    "dependencies" : "/Volumes/T7/repo/github/SignLanguageTranslate/build/SignLanguageTranslate.build/Debug/SignLanguageTranslate.build/Objects-normal/arm64/DownloadTask.d",
+    "diagnostics" : "/Volumes/T7/repo/github/SignLanguageTranslate/build/SignLanguageTranslate.build/Debug/SignLanguageTranslate.build/Objects-normal/arm64/DownloadTask.dia",
+    "object" : "/Volumes/T7/repo/github/SignLanguageTranslate/build/SignLanguageTranslate.build/Debug/SignLanguageTranslate.build/Objects-normal/arm64/DownloadTask.o",
+    "swift-dependencies" : "/Volumes/T7/repo/github/SignLanguageTranslate/build/SignLanguageTranslate.build/Debug/SignLanguageTranslate.build/Objects-normal/arm64/DownloadTask.swiftdeps"
+  },
+  "/Volumes/T7/repo/github/SignLanguageTranslate/SignLanguageTranslate/Features/DatasetManager/Downloads/DownloadTaskGroup.swift" : {
+    "const-values" : "/Volumes/T7/repo/github/SignLanguageTranslate/build/SignLanguageTranslate.build/Debug/SignLanguageTranslate.build/Objects-normal/arm64/DownloadTaskGroup.swiftconstvalues",
+    "dependencies" : "/Volumes/T7/repo/github/SignLanguageTranslate/build/SignLanguageTranslate.build/Debug/SignLanguageTranslate.build/Objects-normal/arm64/DownloadTaskGroup.d",
+    "diagnostics" : "/Volumes/T7/repo/github/SignLanguageTranslate/build/SignLanguageTranslate.build/Debug/SignLanguageTranslate.build/Objects-normal/arm64/DownloadTaskGroup.dia",
+    "object" : "/Volumes/T7/repo/github/SignLanguageTranslate/build/SignLanguageTranslate.build/Debug/SignLanguageTranslate.build/Objects-normal/arm64/DownloadTaskGroup.o",
+    "swift-dependencies" : "/Volumes/T7/repo/github/SignLanguageTranslate/build/SignLanguageTranslate.build/Debug/SignLanguageTranslate.build/Objects-normal/arm64/DownloadTaskGroup.swiftdeps"
+  }
+}

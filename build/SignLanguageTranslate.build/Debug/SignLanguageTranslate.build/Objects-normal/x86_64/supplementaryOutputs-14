@@ -1,0 +1,23 @@
+{
+  "/Volumes/T7/repo/github/SignLanguageTranslate/SignLanguageTranslate/Core/Extensions/URL+Extensions.swift" : {
+    "const-values" : "/Volumes/T7/repo/github/SignLanguageTranslate/build/SignLanguageTranslate.build/Debug/SignLanguageTranslate.build/Objects-normal/x86_64/URL+Extensions.swiftconstvalues",
+    "dependencies" : "/Volumes/T7/repo/github/SignLanguageTranslate/build/SignLanguageTranslate.build/Debug/SignLanguageTranslate.build/Objects-normal/x86_64/URL+Extensions.d",
+    "diagnostics" : "/Volumes/T7/repo/github/SignLanguageTranslate/build/SignLanguageTranslate.build/Debug/SignLanguageTranslate.build/Objects-normal/x86_64/URL+Extensions.dia",
+    "object" : "/Volumes/T7/repo/github/SignLanguageTranslate/build/SignLanguageTranslate.build/Debug/SignLanguageTranslate.build/Objects-normal/x86_64/URL+Extensions.o",
+    "swift-dependencies" : "/Volumes/T7/repo/github/SignLanguageTranslate/build/SignLanguageTranslate.build/Debug/SignLanguageTranslate.build/Objects-normal/x86_64/URL+Extensions.swiftdeps"
+  },
+  "/Volumes/T7/repo/github/SignLanguageTranslate/SignLanguageTranslate/Core/Persistence/ModelQueries.swift" : {
+    "const-values" : "/Volumes/T7/repo/github/SignLanguageTranslate/build/SignLanguageTranslate.build/Debug/SignLanguageTranslate.build/Objects-normal/x86_64/ModelQueries.swiftconstvalues",
+    "dependencies" : "/Volumes/T7/repo/github/SignLanguageTranslate/build/SignLanguageTranslate.build/Debug/SignLanguageTranslate.build/Objects-normal/x86_64/ModelQueries.d",
+    "diagnostics" : "/Volumes/T7/repo/github/SignLanguageTranslate/build/SignLanguageTranslate.build/Debug/SignLanguageTranslate.build/Objects-normal/x86_64/ModelQueries.dia",
+    "object" : "/Volumes/T7/repo/github/SignLanguageTranslate/build/SignLanguageTranslate.build/Debug/SignLanguageTranslate.build/Objects-normal/x86_64/ModelQueries.o",
+    "swift-dependencies" : "/Volumes/T7/repo/github/SignLanguageTranslate/build/SignLanguageTranslate.build/Debug/SignLanguageTranslate.build/Objects-normal/x86_64/ModelQueries.swiftdeps"
+  },
+  "/Volumes/T7/repo/github/SignLanguageTranslate/SignLanguageTranslate/Core/Persistence/PersistenceController.swift" : {
+    "const-values" : "/Volumes/T7/repo/github/SignLanguageTranslate/build/SignLanguageTranslate.build/Debug/SignLanguageTranslate.build/Objects-normal/x86_64/PersistenceController.swiftconstvalues",
+    "dependencies" : "/Volumes/T7/repo/github/SignLanguageTranslate/build/SignLanguageTranslate.build/Debug/SignLanguageTranslate.build/Objects-normal/x86_64/PersistenceController.d",
+    "diagnostics" : "/Volumes/T7/repo/github/SignLanguageTranslate/build/SignLanguageTranslate.build/Debug/SignLanguageTranslate.build/Objects-normal/x86_64/PersistenceController.dia",
+    "object" : "/Volumes/T7/repo/github/SignLanguageTranslate/build/SignLanguageTranslate.build/Debug/SignLanguageTranslate.build/Objects-normal/x86_64/PersistenceController.o",
+    "swift-dependencies" : "/Volumes/T7/repo/github/SignLanguageTranslate/build/SignLanguageTranslate.build/Debug/SignLanguageTranslate.build/Objects-normal/x86_64/PersistenceController.swiftdeps"
+  }
+}

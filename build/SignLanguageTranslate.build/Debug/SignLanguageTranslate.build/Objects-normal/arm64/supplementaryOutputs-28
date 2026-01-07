@@ -1,0 +1,23 @@
+{
+  "/Volumes/T7/repo/github/SignLanguageTranslate/SignLanguageTranslate/Features/DatasetManager/Models/VideoSample.swift" : {
+    "const-values" : "/Volumes/T7/repo/github/SignLanguageTranslate/build/SignLanguageTranslate.build/Debug/SignLanguageTranslate.build/Objects-normal/arm64/VideoSample.swiftconstvalues",
+    "dependencies" : "/Volumes/T7/repo/github/SignLanguageTranslate/build/SignLanguageTranslate.build/Debug/SignLanguageTranslate.build/Objects-normal/arm64/VideoSample.d",
+    "diagnostics" : "/Volumes/T7/repo/github/SignLanguageTranslate/build/SignLanguageTranslate.build/Debug/SignLanguageTranslate.build/Objects-normal/arm64/VideoSample.dia",
+    "object" : "/Volumes/T7/repo/github/SignLanguageTranslate/build/SignLanguageTranslate.build/Debug/SignLanguageTranslate.build/Objects-normal/arm64/VideoSample.o",
+    "swift-dependencies" : "/Volumes/T7/repo/github/SignLanguageTranslate/build/SignLanguageTranslate.build/Debug/SignLanguageTranslate.build/Objects-normal/arm64/VideoSample.swiftdeps"
+  },
+  "/Volumes/T7/repo/github/SignLanguageTranslate/SignLanguageTranslate/Features/DatasetManager/Views/ContentView.swift" : {
+    "const-values" : "/Volumes/T7/repo/github/SignLanguageTranslate/build/SignLanguageTranslate.build/Debug/SignLanguageTranslate.build/Objects-normal/arm64/ContentView.swiftconstvalues",
+    "dependencies" : "/Volumes/T7/repo/github/SignLanguageTranslate/build/SignLanguageTranslate.build/Debug/SignLanguageTranslate.build/Objects-normal/arm64/ContentView.d",
+    "diagnostics" : "/Volumes/T7/repo/github/SignLanguageTranslate/build/SignLanguageTranslate.build/Debug/SignLanguageTranslate.build/Objects-normal/arm64/ContentView.dia",
+    "object" : "/Volumes/T7/repo/github/SignLanguageTranslate/build/SignLanguageTranslate.build/Debug/SignLanguageTranslate.build/Objects-normal/arm64/ContentView.o",
+    "swift-dependencies" : "/Volumes/T7/repo/github/SignLanguageTranslate/build/SignLanguageTranslate.build/Debug/SignLanguageTranslate.build/Objects-normal/arm64/ContentView.swiftdeps"
+  },
+  "/Volumes/T7/repo/github/SignLanguageTranslate/build/SignLanguageTranslate.build/Debug/SignLanguageTranslate.build/DerivedSources/GeneratedAssetSymbols.swift" : {
+    "const-values" : "/Volumes/T7/repo/github/SignLanguageTranslate/build/SignLanguageTranslate.build/Debug/SignLanguageTranslate.build/Objects-normal/arm64/GeneratedAssetSymbols.swiftconstvalues",
+    "dependencies" : "/Volumes/T7/repo/github/SignLanguageTranslate/build/SignLanguageTranslate.build/Debug/SignLanguageTranslate.build/Objects-normal/arm64/GeneratedAssetSymbols.d",
+    "diagnostics" : "/Volumes/T7/repo/github/SignLanguageTranslate/build/SignLanguageTranslate.build/Debug/SignLanguageTranslate.build/Objects-normal/arm64/GeneratedAssetSymbols.dia",
+    "object" : "/Volumes/T7/repo/github/SignLanguageTranslate/build/SignLanguageTranslate.build/Debug/SignLanguageTranslate.build/Objects-normal/arm64/GeneratedAssetSymbols.o",
+    "swift-dependencies" : "/Volumes/T7/repo/github/SignLanguageTranslate/build/SignLanguageTranslate.build/Debug/SignLanguageTranslate.build/Objects-normal/arm64/GeneratedAssetSymbols.swiftdeps"
+  }
+}

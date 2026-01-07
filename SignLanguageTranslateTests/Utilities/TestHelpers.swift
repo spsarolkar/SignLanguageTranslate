@@ -262,7 +262,7 @@ extension XCTestCase {
     }
 
     /// Assert that two arrays contain the same elements (order-independent)
-    func assertArraysEqual<T: Equatable>(
+    func assertArraysEqual<T: Equatable & Hashable>(
         _ array1: [T],
         _ array2: [T],
         _ message: String = "Arrays should contain the same elements",

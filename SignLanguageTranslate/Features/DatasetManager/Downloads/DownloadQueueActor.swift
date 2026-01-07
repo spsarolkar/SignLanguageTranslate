@@ -71,7 +71,7 @@ actor DownloadQueueActor {
         self._delegate = delegate
     }
 
-    private func notifyDelegate(_ block: @MainActor @Sendable (any DownloadQueueDelegate) -> Void) {
+    private func notifyDelegate(_ block: @escaping @MainActor @Sendable (any DownloadQueueDelegate) -> Void) {
         guard let delegate = _delegate else { return }
         Task { @MainActor in
             block(delegate)
@@ -291,11 +291,14 @@ actor DownloadQueueActor {
             task.complete()
         }
 
+        // Check if all tasks are complete (must be done before notifying)
+        let allTasksCompleted = tasks.values.allSatisfy { $0.status == .completed }
+
         notifyDelegate { delegate in
             delegate.queueDidCompleteTask(task)
 
-            // Check if all tasks are complete
-            if self.tasks.values.allSatisfy({ $0.status == .completed }) {
+            // Notify if all tasks are complete
+            if allTasksCompleted {
                 delegate.queueDidComplete()
             }
         }

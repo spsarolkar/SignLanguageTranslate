@@ -83,10 +83,14 @@ final class DownloadQueueActorTests: XCTestCase {
         )
 
         await queue.enqueue(task)
-        XCTAssertEqual(await queue.getTotalCount(), 1)
+
+        let countAfterEnqueue = await queue.getTotalCount()
+        XCTAssertEqual(countAfterEnqueue, 1)
 
         await queue.remove(task.id)
-        XCTAssertEqual(await queue.getTotalCount(), 0)
+
+        let countAfterRemove = await queue.getTotalCount()
+        XCTAssertEqual(countAfterRemove, 0)
     }
 
     func test_clear_removesAllTasks() async throws {
@@ -109,10 +113,12 @@ final class DownloadQueueActorTests: XCTestCase {
         ]
 
         await queue.enqueueAll(tasks)
-        XCTAssertEqual(await queue.getTotalCount(), 2)
+        let countAfterEnqueueAll = await queue.getTotalCount()
+        XCTAssertEqual(countAfterEnqueueAll, 2)
 
         await queue.clear()
-        XCTAssertEqual(await queue.getTotalCount(), 0)
+        let countAfterClear = await queue.getTotalCount()
+        XCTAssertEqual(countAfterClear, 0)
     }
 
     func test_reorder_movesTaskToNewIndex() async throws {
@@ -227,8 +233,9 @@ final class DownloadQueueActorTests: XCTestCase {
         }
 
         let updated = await queue.getTask(task.id)
+        XCTAssertNotNil(updated)
         XCTAssertEqual(updated?.bytesDownloaded, 500_000_000)
-        XCTAssertEqual(updated?.progress, 0.5, accuracy: 0.01)
+        XCTAssertEqual(updated!.progress, 0.5, accuracy: 0.01)
     }
 
     // MARK: - Filtering Tests
@@ -365,8 +372,9 @@ final class DownloadQueueActorTests: XCTestCase {
         )
 
         let updated = await queue.getTask(task.id)
+        XCTAssertNotNil(updated)
         XCTAssertEqual(updated?.bytesDownloaded, 250_000_000)
-        XCTAssertEqual(updated?.progress, 0.25, accuracy: 0.01)
+        XCTAssertEqual(updated!.progress, 0.25, accuracy: 0.01)
     }
 
     func test_markDownloading_changesStatusAndSetsStartedAt() async throws {
@@ -504,7 +512,8 @@ final class DownloadQueueActorTests: XCTestCase {
     func test_canStartMoreDownloads_respectsLimit() async throws {
         let queue = DownloadQueueActor(maxConcurrentDownloads: 3)
 
-        XCTAssertTrue(await queue.canStartMoreDownloads())
+        let canStartBefore = await queue.canStartMoreDownloads()
+        XCTAssertTrue(canStartBefore)
 
         // Add 3 active tasks
         for i in 1...3 {
@@ -519,7 +528,8 @@ final class DownloadQueueActorTests: XCTestCase {
             await queue.enqueue(task)
         }
 
-        XCTAssertFalse(await queue.canStartMoreDownloads())
+        let canStartAfter = await queue.canStartMoreDownloads()
+        XCTAssertFalse(canStartAfter)
     }
 
     func test_globalPause_preventsGetNextPendingTask() async throws {
@@ -565,17 +575,20 @@ final class DownloadQueueActorTests: XCTestCase {
 
         let paused = await queue.getTask(task.id)
         XCTAssertEqual(paused?.status, .paused)
-        XCTAssertTrue(await queue.getIsPaused())
+        let isPausedAfterPause = await queue.getIsPaused()
+        XCTAssertTrue(isPausedAfterPause)
     }
 
     func test_resumeAll_clearsGlobalPause() async throws {
         let queue = DownloadQueueActor()
 
         await queue.pauseAll()
-        XCTAssertTrue(await queue.getIsPaused())
+        let isPausedAfterPause = await queue.getIsPaused()
+        XCTAssertTrue(isPausedAfterPause)
 
         await queue.resumeAll()
-        XCTAssertFalse(await queue.getIsPaused())
+        let isPausedAfterResume = await queue.getIsPaused()
+        XCTAssertFalse(isPausedAfterResume)
     }
 
     func test_retryFailed_resetsFailedTasks() async throws {
@@ -591,14 +604,16 @@ final class DownloadQueueActorTests: XCTestCase {
         )
 
         await queue.enqueue(task)
-        XCTAssertEqual(await queue.getFailedTasks().count, 1)
+        let failedBefore = await queue.getFailedTasks()
+        XCTAssertEqual(failedBefore.count, 1)
 
         await queue.retryFailed()
 
         let retried = await queue.getTask(task.id)
         XCTAssertEqual(retried?.status, .pending)
         XCTAssertNil(retried?.errorMessage)
-        XCTAssertEqual(await queue.getFailedTasks().count, 0)
+        let failedAfter = await queue.getFailedTasks()
+        XCTAssertEqual(failedAfter.count, 0)
     }
 
     func test_retryTask_resetsSpecificFailedTask() async throws {
@@ -766,7 +781,8 @@ final class DownloadQueueActorTests: XCTestCase {
 
         // Clear queue
         await queue.clear()
-        XCTAssertEqual(await queue.getTotalCount(), 0)
+        let totalAfterClear = await queue.getTotalCount()
+        XCTAssertEqual(totalAfterClear, 0)
 
         // Import
         try await queue.importState(data)
@@ -806,10 +822,12 @@ final class DownloadQueueActorTests: XCTestCase {
         let restored = await newQueue.getTask(task.id)
         XCTAssertEqual(restored?.id, task.id)
         XCTAssertEqual(restored?.status, task.status)
-        XCTAssertEqual(restored?.progress, task.progress, accuracy: 0.01)
+        XCTAssertEqual(restored?.progress ?? 0, task.progress ?? 0, accuracy: 0.01)
         XCTAssertEqual(restored?.bytesDownloaded, task.bytesDownloaded)
-        XCTAssertTrue(await newQueue.getIsPaused())
-        XCTAssertEqual(await newQueue.getMaxConcurrentDownloads(), 5)
+        let isPaused = await newQueue.getIsPaused()
+        XCTAssertTrue(isPaused)
+        let maxConcurrent = await newQueue.getMaxConcurrentDownloads()
+        XCTAssertEqual(maxConcurrent, 5)
     }
 
     // MARK: - Edge Case Tests
@@ -826,21 +844,32 @@ final class DownloadQueueActorTests: XCTestCase {
         await queue.markFailed(nonExistentID, error: "test")
 
         // No crash = success
-        XCTAssertEqual(await queue.getTotalCount(), 0)
+        let totalCount = await queue.getTotalCount()
+        XCTAssertEqual(totalCount, 0)
     }
 
     func test_emptyQueue_returnsSensibleDefaults() async throws {
         let queue = DownloadQueueActor()
 
-        XCTAssertEqual(await queue.getTotalCount(), 0)
-        XCTAssertEqual(await queue.getActiveCount(), 0)
-        XCTAssertEqual(await queue.getPendingCount(), 0)
-        XCTAssertEqual(await queue.getCompletedCount(), 0)
-        XCTAssertEqual(await queue.getOverallProgress(), 0.0)
-        XCTAssertEqual(await queue.getTotalBytes(), 0)
-        XCTAssertEqual(await queue.getDownloadedBytes(), 0)
-        XCTAssertNil(await queue.getNextPendingTask())
-        XCTAssertTrue(await queue.canStartMoreDownloads())
+        let totalCount = await queue.getTotalCount()
+        let activeCount = await queue.getActiveCount()
+        let pendingCount = await queue.getPendingCount()
+        let completedCount = await queue.getCompletedCount()
+        let overallProgress = await queue.getOverallProgress()
+        let totalBytes = await queue.getTotalBytes()
+        let downloadedBytes = await queue.getDownloadedBytes()
+        let nextTask = await queue.getNextPendingTask()
+        let canStart = await queue.canStartMoreDownloads()
+
+        XCTAssertEqual(totalCount, 0)
+        XCTAssertEqual(activeCount, 0)
+        XCTAssertEqual(pendingCount, 0)
+        XCTAssertEqual(completedCount, 0)
+        XCTAssertEqual(overallProgress, 0.0)
+        XCTAssertEqual(totalBytes, 0)
+        XCTAssertEqual(downloadedBytes, 0)
+        XCTAssertNil(nextTask)
+        XCTAssertTrue(canStart)
     }
 
     func test_progressWithZeroTotalBytes_doesNotCrash() async throws {
@@ -920,9 +949,14 @@ final class DownloadQueueActorTests: XCTestCase {
 
         await queue.enqueueAll(tasks)
 
-        XCTAssertEqual(await queue.getTotalCount(), 5)
-        XCTAssertEqual(await queue.getPendingCount(), 1)
-        XCTAssertEqual(await queue.getActiveCount(), 2) // downloading + extracting
-        XCTAssertEqual(await queue.getCompletedCount(), 1)
+        let totalCount = await queue.getTotalCount()
+        let pendingCount = await queue.getPendingCount()
+        let activeCount = await queue.getActiveCount()
+        let completedCount = await queue.getCompletedCount()
+
+        XCTAssertEqual(totalCount, 5)
+        XCTAssertEqual(pendingCount, 1)
+        XCTAssertEqual(activeCount, 2) // downloading + extracting
+        XCTAssertEqual(completedCount, 1)
     }
 }

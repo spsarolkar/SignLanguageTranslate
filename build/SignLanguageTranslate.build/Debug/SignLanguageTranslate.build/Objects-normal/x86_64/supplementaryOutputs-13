@@ -1,0 +1,30 @@
+{
+  "/Volumes/T7/repo/github/SignLanguageTranslate/SignLanguageTranslate/App/AppDelegate.swift" : {
+    "const-values" : "/Volumes/T7/repo/github/SignLanguageTranslate/build/SignLanguageTranslate.build/Debug/SignLanguageTranslate.build/Objects-normal/x86_64/AppDelegate.swiftconstvalues",
+    "dependencies" : "/Volumes/T7/repo/github/SignLanguageTranslate/build/SignLanguageTranslate.build/Debug/SignLanguageTranslate.build/Objects-normal/x86_64/AppDelegate.d",
+    "diagnostics" : "/Volumes/T7/repo/github/SignLanguageTranslate/build/SignLanguageTranslate.build/Debug/SignLanguageTranslate.build/Objects-normal/x86_64/AppDelegate.dia",
+    "object" : "/Volumes/T7/repo/github/SignLanguageTranslate/build/SignLanguageTranslate.build/Debug/SignLanguageTranslate.build/Objects-normal/x86_64/AppDelegate.o",
+    "swift-dependencies" : "/Volumes/T7/repo/github/SignLanguageTranslate/build/SignLanguageTranslate.build/Debug/SignLanguageTranslate.build/Objects-normal/x86_64/AppDelegate.swiftdeps"
+  },
+  "/Volumes/T7/repo/github/SignLanguageTranslate/SignLanguageTranslate/App/SignLanguageTranslateApp.swift" : {
+    "const-values" : "/Volumes/T7/repo/github/SignLanguageTranslate/build/SignLanguageTranslate.build/Debug/SignLanguageTranslate.build/Objects-normal/x86_64/SignLanguageTranslateApp.swiftconstvalues",
+    "dependencies" : "/Volumes/T7/repo/github/SignLanguageTranslate/build/SignLanguageTranslate.build/Debug/SignLanguageTranslate.build/Objects-normal/x86_64/SignLanguageTranslateApp.d",
+    "diagnostics" : "/Volumes/T7/repo/github/SignLanguageTranslate/build/SignLanguageTranslate.build/Debug/SignLanguageTranslate.build/Objects-normal/x86_64/SignLanguageTranslateApp.dia",
+    "object" : "/Volumes/T7/repo/github/SignLanguageTranslate/build/SignLanguageTranslate.build/Debug/SignLanguageTranslate.build/Objects-normal/x86_64/SignLanguageTranslateApp.o",
+    "swift-dependencies" : "/Volumes/T7/repo/github/SignLanguageTranslate/build/SignLanguageTranslate.build/Debug/SignLanguageTranslate.build/Objects-normal/x86_64/SignLanguageTranslateApp.swiftdeps"
+  },
+  "/Volumes/T7/repo/github/SignLanguageTranslate/SignLanguageTranslate/Core/Extensions/FileManager+Extensions.swift" : {
+    "const-values" : "/Volumes/T7/repo/github/SignLanguageTranslate/build/SignLanguageTranslate.build/Debug/SignLanguageTranslate.build/Objects-normal/x86_64/FileManager+Extensions.swiftconstvalues",
+    "dependencies" : "/Volumes/T7/repo/github/SignLanguageTranslate/build/SignLanguageTranslate.build/Debug/SignLanguageTranslate.build/Objects-normal/x86_64/FileManager+Extensions.d",
+    "diagnostics" : "/Volumes/T7/repo/github/SignLanguageTranslate/build/SignLanguageTranslate.build/Debug/SignLanguageTranslate.build/Objects-normal/x86_64/FileManager+Extensions.dia",
+    "object" : "/Volumes/T7/repo/github/SignLanguageTranslate/build/SignLanguageTranslate.build/Debug/SignLanguageTranslate.build/Objects-normal/x86_64/FileManager+Extensions.o",
+    "swift-dependencies" : "/Volumes/T7/repo/github/SignLanguageTranslate/build/SignLanguageTranslate.build/Debug/SignLanguageTranslate.build/Objects-normal/x86_64/FileManager+Extensions.swiftdeps"
+  },
+  "/Volumes/T7/repo/github/SignLanguageTranslate/SignLanguageTranslate/Core/Extensions/String+Extensions.swift" : {
+    "const-values" : "/Volumes/T7/repo/github/SignLanguageTranslate/build/SignLanguageTranslate.build/Debug/SignLanguageTranslate.build/Objects-normal/x86_64/String+Extensions.swiftconstvalues",
+    "dependencies" : "/Volumes/T7/repo/github/SignLanguageTranslate/build/SignLanguageTranslate.build/Debug/SignLanguageTranslate.build/Objects-normal/x86_64/String+Extensions.d",
+    "diagnostics" : "/Volumes/T7/repo/github/SignLanguageTranslate/build/SignLanguageTranslate.build/Debug/SignLanguageTranslate.build/Objects-normal/x86_64/String+Extensions.dia",
+    "object" : "/Volumes/T7/repo/github/SignLanguageTranslate/build/SignLanguageTranslate.build/Debug/SignLanguageTranslate.build/Objects-normal/x86_64/String+Extensions.o",
+    "swift-dependencies" : "/Volumes/T7/repo/github/SignLanguageTranslate/build/SignLanguageTranslate.build/Debug/SignLanguageTranslate.build/Objects-normal/x86_64/String+Extensions.swiftdeps"
+  }
+}

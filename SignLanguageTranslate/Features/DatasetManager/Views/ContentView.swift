@@ -231,7 +231,6 @@ struct StatsSheet: View {
                 }
             }
             .navigationTitle("Database Stats")
-            .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .confirmationAction) {
                     Button("Done") {

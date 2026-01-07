@@ -1,0 +1,112 @@
+/**
+ * SignLanguageTranslate Automation Dashboard
+ * Custom styles
+ */
+
+/* Custom scrollbar */
+::-webkit-scrollbar {
+    width: 8px;
+    height: 8px;
+}
+
+::-webkit-scrollbar-track {
+    background: #1f2937;
+}
+
+::-webkit-scrollbar-thumb {
+    background: #4b5563;
+    border-radius: 4px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+    background: #6b7280;
+}
+
+/* Smooth transitions */
+* {
+    transition-property: background-color, border-color, color, opacity;
+    transition-duration: 150ms;
+    transition-timing-function: ease-in-out;
+}
+
+/* Phase history item hover effect */
+#phase-history > div:hover {
+    background-color: rgba(75, 85, 99, 0.5);
+}
+
+/* Screenshot gallery hover effect */
+#screenshots-gallery img {
+    transition: transform 200ms ease-in-out;
+}
+
+#screenshots-gallery img:hover {
+    transform: scale(1.02);
+}
+
+/* Status banner pulse animation for running state */
+@keyframes pulse-border {
+    0%, 100% {
+        border-color: rgba(59, 130, 246, 0.5);
+    }
+    50% {
+        border-color: rgba(59, 130, 246, 1);
+    }
+}
+
+.status-running {
+    animation: pulse-border 2s ease-in-out infinite;
+}
+
+/* Progress bar animation */
+#progress-bar {
+    transition: width 500ms ease-in-out;
+}
+
+/* Live indicator pulse */
+@keyframes ping {
+    75%, 100% {
+        transform: scale(2);
+        opacity: 0;
+    }
+}
+
+.animate-ping {
+    animation: ping 1s cubic-bezier(0, 0, 0.2, 1) infinite;
+}
+
+/* Chart container responsive sizing */
+canvas {
+    max-height: 200px;
+}
+
+/* Mobile responsive adjustments */
+@media (max-width: 768px) {
+    .grid-cols-4 {
+        grid-template-columns: repeat(2, 1fr);
+    }
+    
+    #screenshots-gallery {
+        grid-template-columns: repeat(2, 1fr);
+    }
+}
+
+/* Loading skeleton animation */
+@keyframes shimmer {
+    0% {
+        background-position: -200px 0;
+    }
+    100% {
+        background-position: calc(200px + 100%) 0;
+    }
+}
+
+.skeleton {
+    background: linear-gradient(
+        90deg,
+        #374151 25%,
+        #4b5563 50%,
+        #374151 75%
+    );
+    background-size: 200px 100%;
+    animation: shimmer 1.5s infinite;
+}

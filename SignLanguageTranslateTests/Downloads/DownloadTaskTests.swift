@@ -777,6 +777,179 @@ final class DownloadTaskTests: XCTestCase {
         XCTAssertTrue(groups.contains { $0.category == "Seasons" && $0.totalCount == 1 })
     }
 
+    // MARK: - Additional Computed Properties Tests
+
+    func test_downloadTask_progressText_zeroBytes() {
+        let task = DownloadTask(
+            url: URL(string: "https://example.com/file.zip")!,
+            category: "Test",
+            partNumber: 1,
+            totalParts: 1,
+            datasetName: "TEST",
+            progress: 0.0,
+            bytesDownloaded: 0,
+            totalBytes: 0
+        )
+
+        // Should show "0%" when no bytes
+        XCTAssertEqual(task.progressText, "0%")
+    }
+
+    func test_downloadTask_progressText_withDownloadedButNoTotal() {
+        let task = DownloadTask(
+            url: URL(string: "https://example.com/file.zip")!,
+            category: "Test",
+            partNumber: 1,
+            totalParts: 1,
+            datasetName: "TEST",
+            progress: 0.0,
+            bytesDownloaded: 100_000_000,
+            totalBytes: 0
+        )
+
+        // Should show formatted bytes when downloaded but total unknown
+        let progressText = task.progressText
+        XCTAssertTrue(progressText.contains("MB") || progressText.contains("KB"))
+    }
+
+    func test_downloadTask_estimatedTimeRemaining_calculatesCorrectly() {
+        let startedAt = Date().addingTimeInterval(-60) // Started 60 seconds ago
+        var task = DownloadTask(
+            url: URL(string: "https://example.com/file.zip")!,
+            category: "Test",
+            partNumber: 1,
+            totalParts: 1,
+            datasetName: "TEST",
+            status: .downloading,
+            progress: 0.5,
+            bytesDownloaded: 500_000_000,
+            totalBytes: 1_000_000_000,
+            startedAt: startedAt
+        )
+
+        // Downloaded 500 MB in 60 seconds = ~8.3 MB/s
+        // 500 MB remaining at 8.3 MB/s = ~60 seconds
+        let timeRemaining = task.estimatedTimeRemaining
+        XCTAssertNotNil(timeRemaining)
+        if let time = timeRemaining {
+            XCTAssertGreaterThan(time, 0)
+            XCTAssertLessThan(time, 120) // Should be around 60 seconds
+        }
+    }
+
+    func test_downloadTask_estimatedTimeRemaining_returnsNilWhenNotDownloading() {
+        let task = DownloadTask(
+            url: URL(string: "https://example.com/file.zip")!,
+            category: "Test",
+            partNumber: 1,
+            totalParts: 1,
+            datasetName: "TEST",
+            status: .pending
+        )
+
+        XCTAssertNil(task.estimatedTimeRemaining)
+    }
+
+    func test_downloadTask_estimatedTimeRemainingText_formatsCorrectly() {
+        let startedAt = Date().addingTimeInterval(-60)
+        var task = DownloadTask(
+            url: URL(string: "https://example.com/file.zip")!,
+            category: "Test",
+            partNumber: 1,
+            totalParts: 1,
+            datasetName: "TEST",
+            status: .downloading,
+            progress: 0.5,
+            bytesDownloaded: 500_000_000,
+            totalBytes: 1_000_000_000,
+            startedAt: startedAt
+        )
+
+        let timeText = task.estimatedTimeRemainingText
+        XCTAssertNotNil(timeText)
+        if let text = timeText {
+            // Should contain either "m" for minutes or "s" for seconds
+            XCTAssertTrue(text.contains("m") || text.contains("s"))
+        }
+    }
+
+    // MARK: - Default Values Tests
+
+    func test_downloadTask_defaultValuesAreSensible() {
+        let task = DownloadTask(
+            url: URL(string: "https://example.com/file.zip")!,
+            category: "Test",
+            partNumber: 1,
+            totalParts: 1,
+            datasetName: "TEST"
+        )
+
+        XCTAssertEqual(task.status, .pending)
+        XCTAssertEqual(task.progress, 0.0)
+        XCTAssertEqual(task.bytesDownloaded, 0)
+        XCTAssertEqual(task.totalBytes, 0)
+        XCTAssertNil(task.errorMessage)
+        XCTAssertNil(task.resumeDataPath)
+        XCTAssertNil(task.startedAt)
+        XCTAssertNil(task.completedAt)
+    }
+
+    func test_downloadTask_creationFromManifestEntry_copiesAllProperties() {
+        let entry = ManifestEntry(
+            category: "Greetings",
+            partNumber: 2,
+            totalParts: 3,
+            filename: "Greetings_2of3.zip",
+            url: URL(string: "https://example.com/Greetings_2of3.zip")!,
+            estimatedSize: 2_500_000_000
+        )
+
+        let task = DownloadTask(from: entry, datasetName: "INCLUDE")
+
+        XCTAssertEqual(task.url, entry.url)
+        XCTAssertEqual(task.category, entry.category)
+        XCTAssertEqual(task.partNumber, entry.partNumber)
+        XCTAssertEqual(task.totalParts, entry.totalParts)
+        XCTAssertEqual(task.datasetName, "INCLUDE")
+        XCTAssertEqual(task.totalBytes, entry.estimatedSize)
+    }
+
+    // MARK: - Progress Edge Cases Tests
+
+    func test_downloadTask_updateProgress_handlesNegativeBytes() {
+        var task = DownloadTask(
+            url: URL(string: "https://example.com/file.zip")!,
+            category: "Test",
+            partNumber: 1,
+            totalParts: 1,
+            datasetName: "TEST",
+            totalBytes: 1_000_000_000
+        )
+
+        // Negative bytes should be handled gracefully
+        task.updateProgress(bytesDownloaded: -100, totalBytes: 1_000_000_000)
+
+        // Progress should be clamped to 0
+        XCTAssertEqual(task.progress, 0.0)
+    }
+
+    func test_downloadTask_updateProgress_updatesTotalBytesWhenHigher() {
+        var task = DownloadTask(
+            url: URL(string: "https://example.com/file.zip")!,
+            category: "Test",
+            partNumber: 1,
+            totalParts: 1,
+            datasetName: "TEST",
+            totalBytes: 1_000_000_000
+        )
+
+        // Update with higher total
+        task.updateProgress(bytesDownloaded: 500_000_000, totalBytes: 2_000_000_000)
+
+        XCTAssertEqual(task.totalBytes, 2_000_000_000)
+        XCTAssertEqual(task.progress, 0.25, accuracy: 0.01)
+    }
+
     // MARK: - Codable Tests
 
     func test_downloadTask_codable() throws {
@@ -801,5 +974,179 @@ final class DownloadTaskTests: XCTestCase {
         XCTAssertEqual(decoded.status, original.status)
         XCTAssertEqual(decoded.progress, original.progress)
         XCTAssertEqual(decoded.bytesDownloaded, original.bytesDownloaded)
+    }
+
+    func test_downloadTask_codable_preservesAllProperties() throws {
+        let createdAt = Date()
+        let startedAt = Date().addingTimeInterval(-60)
+        let completedAt = Date()
+
+        let original = DownloadTask(
+            id: UUID(),
+            url: URL(string: "https://example.com/file.zip")!,
+            category: "Test",
+            partNumber: 2,
+            totalParts: 5,
+            datasetName: "TEST",
+            status: .failed,
+            progress: 0.67,
+            bytesDownloaded: 670_000_000,
+            totalBytes: 1_000_000_000,
+            errorMessage: "Network error",
+            resumeDataPath: "/tmp/resume.data",
+            createdAt: createdAt,
+            startedAt: startedAt,
+            completedAt: completedAt
+        )
+
+        let encoded = try JSONEncoder().encode(original)
+        let decoded = try JSONDecoder().decode(DownloadTask.self, from: encoded)
+
+        XCTAssertEqual(decoded.id, original.id)
+        XCTAssertEqual(decoded.url, original.url)
+        XCTAssertEqual(decoded.category, original.category)
+        XCTAssertEqual(decoded.partNumber, original.partNumber)
+        XCTAssertEqual(decoded.totalParts, original.totalParts)
+        XCTAssertEqual(decoded.datasetName, original.datasetName)
+        XCTAssertEqual(decoded.status, original.status)
+        XCTAssertEqual(decoded.progress, original.progress)
+        XCTAssertEqual(decoded.bytesDownloaded, original.bytesDownloaded)
+        XCTAssertEqual(decoded.totalBytes, original.totalBytes)
+        XCTAssertEqual(decoded.errorMessage, original.errorMessage)
+        XCTAssertEqual(decoded.resumeDataPath, original.resumeDataPath)
+    }
+
+    func test_downloadTask_jsonRepresentation_isReasonable() throws {
+        let task = DownloadTask(
+            url: URL(string: "https://example.com/file.zip")!,
+            category: "Test",
+            partNumber: 1,
+            totalParts: 1,
+            datasetName: "TEST",
+            status: .downloading
+        )
+
+        let encoder = JSONEncoder()
+        encoder.outputFormatting = .prettyPrinted
+        let jsonData = try encoder.encode(task)
+        let jsonString = String(data: jsonData, encoding: .utf8)!
+
+        // Verify JSON contains expected fields
+        XCTAssertTrue(jsonString.contains("url"))
+        XCTAssertTrue(jsonString.contains("category"))
+        XCTAssertTrue(jsonString.contains("status"))
+        XCTAssertTrue(jsonString.contains("progress"))
+    }
+
+    // MARK: - Hashable/Equatable Tests
+
+    func test_downloadTask_hashable_sameIDHasSameHash() {
+        let id = UUID()
+        let task1 = DownloadTask(
+            id: id,
+            url: URL(string: "https://example.com/file.zip")!,
+            category: "Test",
+            partNumber: 1,
+            totalParts: 1,
+            datasetName: "TEST"
+        )
+        let task2 = DownloadTask(
+            id: id,
+            url: URL(string: "https://example.com/different.zip")!,
+            category: "Different",
+            partNumber: 2,
+            totalParts: 3,
+            datasetName: "OTHER"
+        )
+
+        XCTAssertEqual(task1.hashValue, task2.hashValue)
+    }
+
+    func test_downloadTask_equatable_sameIDIsEqual() {
+        let id = UUID()
+        let task1 = DownloadTask(
+            id: id,
+            url: URL(string: "https://example.com/file.zip")!,
+            category: "Test",
+            partNumber: 1,
+            totalParts: 1,
+            datasetName: "TEST"
+        )
+        let task2 = DownloadTask(
+            id: id,
+            url: URL(string: "https://example.com/file.zip")!,
+            category: "Test",
+            partNumber: 1,
+            totalParts: 1,
+            datasetName: "TEST"
+        )
+
+        XCTAssertEqual(task1, task2)
+    }
+
+    func test_downloadTask_equatable_differentIDIsNotEqual() {
+        let task1 = DownloadTask(
+            url: URL(string: "https://example.com/file.zip")!,
+            category: "Test",
+            partNumber: 1,
+            totalParts: 1,
+            datasetName: "TEST"
+        )
+        let task2 = DownloadTask(
+            url: URL(string: "https://example.com/file.zip")!,
+            category: "Test",
+            partNumber: 1,
+            totalParts: 1,
+            datasetName: "TEST"
+        )
+
+        XCTAssertNotEqual(task1, task2)
+    }
+
+    func test_downloadTask_canBeUsedInSet() {
+        let task1 = DownloadTask(
+            url: URL(string: "https://example.com/file1.zip")!,
+            category: "Test",
+            partNumber: 1,
+            totalParts: 2,
+            datasetName: "TEST"
+        )
+        let task2 = DownloadTask(
+            url: URL(string: "https://example.com/file2.zip")!,
+            category: "Test",
+            partNumber: 2,
+            totalParts: 2,
+            datasetName: "TEST"
+        )
+
+        let taskSet: Set<DownloadTask> = [task1, task2]
+
+        XCTAssertEqual(taskSet.count, 2)
+        XCTAssertTrue(taskSet.contains(task1))
+        XCTAssertTrue(taskSet.contains(task2))
+    }
+
+    func test_downloadTask_canBeUsedAsDictionaryKey() {
+        let task1 = DownloadTask(
+            url: URL(string: "https://example.com/file1.zip")!,
+            category: "Test",
+            partNumber: 1,
+            totalParts: 1,
+            datasetName: "TEST"
+        )
+        let task2 = DownloadTask(
+            url: URL(string: "https://example.com/file2.zip")!,
+            category: "Test",
+            partNumber: 2,
+            totalParts: 2,
+            datasetName: "TEST"
+        )
+
+        var taskDict: [DownloadTask: String] = [:]
+        taskDict[task1] = "First"
+        taskDict[task2] = "Second"
+
+        XCTAssertEqual(taskDict[task1], "First")
+        XCTAssertEqual(taskDict[task2], "Second")
     }
 }

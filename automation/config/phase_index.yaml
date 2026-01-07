@@ -1,0 +1,28 @@
+# Phase Index
+# This file provides a quick reference of all phases
+
+phases:
+  # Module 1: Project Foundation
+  - "1.1": "Xcode Project Setup"
+  - "1.2": "Core Extensions & Utilities"
+  - "1.3": "SwiftData Label Model"
+  - "1.4": "SwiftData VideoSample Model"
+  - "1.5": "SwiftData Dataset Model"
+  - "1.6": "SwiftData Relationships & Container"
+  - "1.7": "Unit Tests Consolidation"
+  
+  # Module 2: Manifest & Download Queue
+  - "2.1": "INCLUDE Manifest Definition"
+  - "2.2": "DownloadTask Model"
+  - "2.3": "DownloadQueue Actor"
+  - "2.4": "DownloadQueue Unit Tests"
+  - "2.5": "DownloadManager Observable"
+  - "2.6": "Download Progress UI"
+  
+  # Module 3: Basic UI Shell
+  - "3.1": "App Navigation Structure"
+  - "3.2": "Dataset List Item View"
+  - "3.3": "Dataset List View"
+  - "3.4": "Integrate List into Split View"
+  - "3.5": "Download Task Row View"
+  - "3.6": "Download Tasks List Sheet"

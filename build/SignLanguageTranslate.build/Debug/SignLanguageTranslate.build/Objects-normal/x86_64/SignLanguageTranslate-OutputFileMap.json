@@ -1,0 +1,259 @@
+{
+  "" : {
+    "diagnostics" : "/Volumes/T7/repo/github/SignLanguageTranslate/build/SignLanguageTranslate.build/Debug/SignLanguageTranslate.build/Objects-normal/x86_64/SignLanguageTranslate-primary.dia",
+    "emit-module-dependencies" : "/Volumes/T7/repo/github/SignLanguageTranslate/build/SignLanguageTranslate.build/Debug/SignLanguageTranslate.build/Objects-normal/x86_64/SignLanguageTranslate-primary-emit-module.d",
+    "emit-module-diagnostics" : "/Volumes/T7/repo/github/SignLanguageTranslate/build/SignLanguageTranslate.build/Debug/SignLanguageTranslate.build/Objects-normal/x86_64/SignLanguageTranslate-primary-emit-module.dia",
+    "pch" : "/Volumes/T7/repo/github/SignLanguageTranslate/build/SignLanguageTranslate.build/Debug/SignLanguageTranslate.build/Objects-normal/x86_64/SignLanguageTranslate-primary-Bridging-header.pch",
+    "swift-dependencies" : "/Volumes/T7/repo/github/SignLanguageTranslate/build/SignLanguageTranslate.build/Debug/SignLanguageTranslate.build/Objects-normal/x86_64/SignLanguageTranslate-primary.swiftdeps"
+  },
+  "/Volumes/T7/repo/github/SignLanguageTranslate/SignLanguageTranslate/App/AppDelegate.swift" : {
+    "const-values" : "/Volumes/T7/repo/github/SignLanguageTranslate/build/SignLanguageTranslate.build/Debug/SignLanguageTranslate.build/Objects-normal/x86_64/AppDelegate.swiftconstvalues",
+    "dependencies" : "/Volumes/T7/repo/github/SignLanguageTranslate/build/SignLanguageTranslate.build/Debug/SignLanguageTranslate.build/Objects-normal/x86_64/AppDelegate.d",
+    "diagnostics" : "/Volumes/T7/repo/github/SignLanguageTranslate/build/SignLanguageTranslate.build/Debug/SignLanguageTranslate.build/Objects-normal/x86_64/AppDelegate.dia",
+    "index-unit-output-path" : "/SignLanguageTranslate.build/Debug/SignLanguageTranslate.build/Objects-normal/x86_64/AppDelegate.o",
+    "llvm-bc" : "/Volumes/T7/repo/github/SignLanguageTranslate/build/SignLanguageTranslate.build/Debug/SignLanguageTranslate.build/Objects-normal/x86_64/AppDelegate.bc",
+    "object" : "/Volumes/T7/repo/github/SignLanguageTranslate/build/SignLanguageTranslate.build/Debug/SignLanguageTranslate.build/Objects-normal/x86_64/AppDelegate.o",
+    "swift-dependencies" : "/Volumes/T7/repo/github/SignLanguageTranslate/build/SignLanguageTranslate.build/Debug/SignLanguageTranslate.build/Objects-normal/x86_64/AppDelegate.swiftdeps",
+    "swiftmodule" : "/Volumes/T7/repo/github/SignLanguageTranslate/build/SignLanguageTranslate.build/Debug/SignLanguageTranslate.build/Objects-normal/x86_64/AppDelegate~partial.swiftmodule"
+  },
+  "/Volumes/T7/repo/github/SignLanguageTranslate/SignLanguageTranslate/App/SignLanguageTranslateApp.swift" : {
+    "const-values" : "/Volumes/T7/repo/github/SignLanguageTranslate/build/SignLanguageTranslate.build/Debug/SignLanguageTranslate.build/Objects-normal/x86_64/SignLanguageTranslateApp.swiftconstvalues",
+    "dependencies" : "/Volumes/T7/repo/github/SignLanguageTranslate/build/SignLanguageTranslate.build/Debug/SignLanguageTranslate.build/Objects-normal/x86_64/SignLanguageTranslateApp.d",
+    "diagnostics" : "/Volumes/T7/repo/github/SignLanguageTranslate/build/SignLanguageTranslate.build/Debug/SignLanguageTranslate.build/Objects-normal/x86_64/SignLanguageTranslateApp.dia",
+    "index-unit-output-path" : "/SignLanguageTranslate.build/Debug/SignLanguageTranslate.build/Objects-normal/x86_64/SignLanguageTranslateApp.o",
+    "llvm-bc" : "/Volumes/T7/repo/github/SignLanguageTranslate/build/SignLanguageTranslate.build/Debug/SignLanguageTranslate.build/Objects-normal/x86_64/SignLanguageTranslateApp.bc",
+    "object" : "/Volumes/T7/repo/github/SignLanguageTranslate/build/SignLanguageTranslate.build/Debug/SignLanguageTranslate.build/Objects-normal/x86_64/SignLanguageTranslateApp.o",
+    "swift-dependencies" : "/Volumes/T7/repo/github/SignLanguageTranslate/build/SignLanguageTranslate.build/Debug/SignLanguageTranslate.build/Objects-normal/x86_64/SignLanguageTranslateApp.swiftdeps",
+    "swiftmodule" : "/Volumes/T7/repo/github/SignLanguageTranslate/build/SignLanguageTranslate.build/Debug/SignLanguageTranslate.build/Objects-normal/x86_64/SignLanguageTranslateApp~partial.swiftmodule"
+  },
+  "/Volumes/T7/repo/github/SignLanguageTranslate/SignLanguageTranslate/Core/Extensions/FileManager+Extensions.swift" : {
+    "const-values" : "/Volumes/T7/repo/github/SignLanguageTranslate/build/SignLanguageTranslate.build/Debug/SignLanguageTranslate.build/Objects-normal/x86_64/FileManager+Extensions.swiftconstvalues",
+    "dependencies" : "/Volumes/T7/repo/github/SignLanguageTranslate/build/SignLanguageTranslate.build/Debug/SignLanguageTranslate.build/Objects-normal/x86_64/FileManager+Extensions.d",
+    "diagnostics" : "/Volumes/T7/repo/github/SignLanguageTranslate/build/SignLanguageTranslate.build/Debug/SignLanguageTranslate.build/Objects-normal/x86_64/FileManager+Extensions.dia",
+    "index-unit-output-path" : "/SignLanguageTranslate.build/Debug/SignLanguageTranslate.build/Objects-normal/x86_64/FileManager+Extensions.o",
+    "llvm-bc" : "/Volumes/T7/repo/github/SignLanguageTranslate/build/SignLanguageTranslate.build/Debug/SignLanguageTranslate.build/Objects-normal/x86_64/FileManager+Extensions.bc",
+    "object" : "/Volumes/T7/repo/github/SignLanguageTranslate/build/SignLanguageTranslate.build/Debug/SignLanguageTranslate.build/Objects-normal/x86_64/FileManager+Extensions.o",
+    "swift-dependencies" : "/Volumes/T7/repo/github/SignLanguageTranslate/build/SignLanguageTranslate.build/Debug/SignLanguageTranslate.build/Objects-normal/x86_64/FileManager+Extensions.swiftdeps",
+    "swiftmodule" : "/Volumes/T7/repo/github/SignLanguageTranslate/build/SignLanguageTranslate.build/Debug/SignLanguageTranslate.build/Objects-normal/x86_64/FileManager+Extensions~partial.swiftmodule"
+  },
+  "/Volumes/T7/repo/github/SignLanguageTranslate/SignLanguageTranslate/Core/Extensions/String+Extensions.swift" : {
+    "const-values" : "/Volumes/T7/repo/github/SignLanguageTranslate/build/SignLanguageTranslate.build/Debug/SignLanguageTranslate.build/Objects-normal/x86_64/String+Extensions.swiftconstvalues",
+    "dependencies" : "/Volumes/T7/repo/github/SignLanguageTranslate/build/SignLanguageTranslate.build/Debug/SignLanguageTranslate.build/Objects-normal/x86_64/String+Extensions.d",
+    "diagnostics" : "/Volumes/T7/repo/github/SignLanguageTranslate/build/SignLanguageTranslate.build/Debug/SignLanguageTranslate.build/Objects-normal/x86_64/String+Extensions.dia",
+    "index-unit-output-path" : "/SignLanguageTranslate.build/Debug/SignLanguageTranslate.build/Objects-normal/x86_64/String+Extensions.o",
+    "llvm-bc" : "/Volumes/T7/repo/github/SignLanguageTranslate/build/SignLanguageTranslate.build/Debug/SignLanguageTranslate.build/Objects-normal/x86_64/String+Extensions.bc",
+    "object" : "/Volumes/T7/repo/github/SignLanguageTranslate/build/SignLanguageTranslate.build/Debug/SignLanguageTranslate.build/Objects-normal/x86_64/String+Extensions.o",
+    "swift-dependencies" : "/Volumes/T7/repo/github/SignLanguageTranslate/build/SignLanguageTranslate.build/Debug/SignLanguageTranslate.build/Objects-normal/x86_64/String+Extensions.swiftdeps",
+    "swiftmodule" : "/Volumes/T7/repo/github/SignLanguageTranslate/build/SignLanguageTranslate.build/Debug/SignLanguageTranslate.build/Objects-normal/x86_64/String+Extensions~partial.swiftmodule"
+  },
+  "/Volumes/T7/repo/github/SignLanguageTranslate/SignLanguageTranslate/Core/Extensions/URL+Extensions.swift" : {
+    "const-values" : "/Volumes/T7/repo/github/SignLanguageTranslate/build/SignLanguageTranslate.build/Debug/SignLanguageTranslate.build/Objects-normal/x86_64/URL+Extensions.swiftconstvalues",
+    "dependencies" : "/Volumes/T7/repo/github/SignLanguageTranslate/build/SignLanguageTranslate.build/Debug/SignLanguageTranslate.build/Objects-normal/x86_64/URL+Extensions.d",
+    "diagnostics" : "/Volumes/T7/repo/github/SignLanguageTranslate/build/SignLanguageTranslate.build/Debug/SignLanguageTranslate.build/Objects-normal/x86_64/URL+Extensions.dia",
+    "index-unit-output-path" : "/SignLanguageTranslate.build/Debug/SignLanguageTranslate.build/Objects-normal/x86_64/URL+Extensions.o",
+    "llvm-bc" : "/Volumes/T7/repo/github/SignLanguageTranslate/build/SignLanguageTranslate.build/Debug/SignLanguageTranslate.build/Objects-normal/x86_64/URL+Extensions.bc",
+    "object" : "/Volumes/T7/repo/github/SignLanguageTranslate/build/SignLanguageTranslate.build/Debug/SignLanguageTranslate.build/Objects-normal/x86_64/URL+Extensions.o",
+    "swift-dependencies" : "/Volumes/T7/repo/github/SignLanguageTranslate/build/SignLanguageTranslate.build/Debug/SignLanguageTranslate.build/Objects-normal/x86_64/URL+Extensions.swiftdeps",
+    "swiftmodule" : "/Volumes/T7/repo/github/SignLanguageTranslate/build/SignLanguageTranslate.build/Debug/SignLanguageTranslate.build/Objects-normal/x86_64/URL+Extensions~partial.swiftmodule"
+  },
+  "/Volumes/T7/repo/github/SignLanguageTranslate/SignLanguageTranslate/Core/Persistence/ModelQueries.swift" : {
+    "const-values" : "/Volumes/T7/repo/github/SignLanguageTranslate/build/SignLanguageTranslate.build/Debug/SignLanguageTranslate.build/Objects-normal/x86_64/ModelQueries.swiftconstvalues",
+    "dependencies" : "/Volumes/T7/repo/github/SignLanguageTranslate/build/SignLanguageTranslate.build/Debug/SignLanguageTranslate.build/Objects-normal/x86_64/ModelQueries.d",
+    "diagnostics" : "/Volumes/T7/repo/github/SignLanguageTranslate/build/SignLanguageTranslate.build/Debug/SignLanguageTranslate.build/Objects-normal/x86_64/ModelQueries.dia",
+    "index-unit-output-path" : "/SignLanguageTranslate.build/Debug/SignLanguageTranslate.build/Objects-normal/x86_64/ModelQueries.o",
+    "llvm-bc" : "/Volumes/T7/repo/github/SignLanguageTranslate/build/SignLanguageTranslate.build/Debug/SignLanguageTranslate.build/Objects-normal/x86_64/ModelQueries.bc",
+    "object" : "/Volumes/T7/repo/github/SignLanguageTranslate/build/SignLanguageTranslate.build/Debug/SignLanguageTranslate.build/Objects-normal/x86_64/ModelQueries.o",
+    "swift-dependencies" : "/Volumes/T7/repo/github/SignLanguageTranslate/build/SignLanguageTranslate.build/Debug/SignLanguageTranslate.build/Objects-normal/x86_64/ModelQueries.swiftdeps",
+    "swiftmodule" : "/Volumes/T7/repo/github/SignLanguageTranslate/build/SignLanguageTranslate.build/Debug/SignLanguageTranslate.build/Objects-normal/x86_64/ModelQueries~partial.swiftmodule"
+  },
+  "/Volumes/T7/repo/github/SignLanguageTranslate/SignLanguageTranslate/Core/Persistence/PersistenceController.swift" : {
+    "const-values" : "/Volumes/T7/repo/github/SignLanguageTranslate/build/SignLanguageTranslate.build/Debug/SignLanguageTranslate.build/Objects-normal/x86_64/PersistenceController.swiftconstvalues",
+    "dependencies" : "/Volumes/T7/repo/github/SignLanguageTranslate/build/SignLanguageTranslate.build/Debug/SignLanguageTranslate.build/Objects-normal/x86_64/PersistenceController.d",
+    "diagnostics" : "/Volumes/T7/repo/github/SignLanguageTranslate/build/SignLanguageTranslate.build/Debug/SignLanguageTranslate.build/Objects-normal/x86_64/PersistenceController.dia",
+    "index-unit-output-path" : "/SignLanguageTranslate.build/Debug/SignLanguageTranslate.build/Objects-normal/x86_64/PersistenceController.o",
+    "llvm-bc" : "/Volumes/T7/repo/github/SignLanguageTranslate/build/SignLanguageTranslate.build/Debug/SignLanguageTranslate.build/Objects-normal/x86_64/PersistenceController.bc",
+    "object" : "/Volumes/T7/repo/github/SignLanguageTranslate/build/SignLanguageTranslate.build/Debug/SignLanguageTranslate.build/Objects-normal/x86_64/PersistenceController.o",
+    "swift-dependencies" : "/Volumes/T7/repo/github/SignLanguageTranslate/build/SignLanguageTranslate.build/Debug/SignLanguageTranslate.build/Objects-normal/x86_64/PersistenceController.swiftdeps",
+    "swiftmodule" : "/Volumes/T7/repo/github/SignLanguageTranslate/build/SignLanguageTranslate.build/Debug/SignLanguageTranslate.build/Objects-normal/x86_64/PersistenceController~partial.swiftmodule"
+  },
+  "/Volumes/T7/repo/github/SignLanguageTranslate/SignLanguageTranslate/Core/Utilities/Constants.swift" : {
+    "const-values" : "/Volumes/T7/repo/github/SignLanguageTranslate/build/SignLanguageTranslate.build/Debug/SignLanguageTranslate.build/Objects-normal/x86_64/Constants.swiftconstvalues",
+    "dependencies" : "/Volumes/T7/repo/github/SignLanguageTranslate/build/SignLanguageTranslate.build/Debug/SignLanguageTranslate.build/Objects-normal/x86_64/Constants.d",
+    "diagnostics" : "/Volumes/T7/repo/github/SignLanguageTranslate/build/SignLanguageTranslate.build/Debug/SignLanguageTranslate.build/Objects-normal/x86_64/Constants.dia",
+    "index-unit-output-path" : "/SignLanguageTranslate.build/Debug/SignLanguageTranslate.build/Objects-normal/x86_64/Constants.o",
+    "llvm-bc" : "/Volumes/T7/repo/github/SignLanguageTranslate/build/SignLanguageTranslate.build/Debug/SignLanguageTranslate.build/Objects-normal/x86_64/Constants.bc",
+    "object" : "/Volumes/T7/repo/github/SignLanguageTranslate/build/SignLanguageTranslate.build/Debug/SignLanguageTranslate.build/Objects-normal/x86_64/Constants.o",
+    "swift-dependencies" : "/Volumes/T7/repo/github/SignLanguageTranslate/build/SignLanguageTranslate.build/Debug/SignLanguageTranslate.build/Objects-normal/x86_64/Constants.swiftdeps",
+    "swiftmodule" : "/Volumes/T7/repo/github/SignLanguageTranslate/build/SignLanguageTranslate.build/Debug/SignLanguageTranslate.build/Objects-normal/x86_64/Constants~partial.swiftmodule"
+  },
+  "/Volumes/T7/repo/github/SignLanguageTranslate/SignLanguageTranslate/Features/DatasetManager/Downloads/DownloadQueueActor.swift" : {
+    "const-values" : "/Volumes/T7/repo/github/SignLanguageTranslate/build/SignLanguageTranslate.build/Debug/SignLanguageTranslate.build/Objects-normal/x86_64/DownloadQueueActor.swiftconstvalues",
+    "dependencies" : "/Volumes/T7/repo/github/SignLanguageTranslate/build/SignLanguageTranslate.build/Debug/SignLanguageTranslate.build/Objects-normal/x86_64/DownloadQueueActor.d",
+    "diagnostics" : "/Volumes/T7/repo/github/SignLanguageTranslate/build/SignLanguageTranslate.build/Debug/SignLanguageTranslate.build/Objects-normal/x86_64/DownloadQueueActor.dia",
+    "index-unit-output-path" : "/SignLanguageTranslate.build/Debug/SignLanguageTranslate.build/Objects-normal/x86_64/DownloadQueueActor.o",
+    "llvm-bc" : "/Volumes/T7/repo/github/SignLanguageTranslate/build/SignLanguageTranslate.build/Debug/SignLanguageTranslate.build/Objects-normal/x86_64/DownloadQueueActor.bc",
+    "object" : "/Volumes/T7/repo/github/SignLanguageTranslate/build/SignLanguageTranslate.build/Debug/SignLanguageTranslate.build/Objects-normal/x86_64/DownloadQueueActor.o",
+    "swift-dependencies" : "/Volumes/T7/repo/github/SignLanguageTranslate/build/SignLanguageTranslate.build/Debug/SignLanguageTranslate.build/Objects-normal/x86_64/DownloadQueueActor.swiftdeps",
+    "swiftmodule" : "/Volumes/T7/repo/github/SignLanguageTranslate/build/SignLanguageTranslate.build/Debug/SignLanguageTranslate.build/Objects-normal/x86_64/DownloadQueueActor~partial.swiftmodule"
+  },
+  "/Volumes/T7/repo/github/SignLanguageTranslate/SignLanguageTranslate/Features/DatasetManager/Downloads/DownloadQueueDelegate.swift" : {
+    "const-values" : "/Volumes/T7/repo/github/SignLanguageTranslate/build/SignLanguageTranslate.build/Debug/SignLanguageTranslate.build/Objects-normal/x86_64/DownloadQueueDelegate.swiftconstvalues",
+    "dependencies" : "/Volumes/T7/repo/github/SignLanguageTranslate/build/SignLanguageTranslate.build/Debug/SignLanguageTranslate.build/Objects-normal/x86_64/DownloadQueueDelegate.d",
+    "diagnostics" : "/Volumes/T7/repo/github/SignLanguageTranslate/build/SignLanguageTranslate.build/Debug/SignLanguageTranslate.build/Objects-normal/x86_64/DownloadQueueDelegate.dia",
+    "index-unit-output-path" : "/SignLanguageTranslate.build/Debug/SignLanguageTranslate.build/Objects-normal/x86_64/DownloadQueueDelegate.o",
+    "llvm-bc" : "/Volumes/T7/repo/github/SignLanguageTranslate/build/SignLanguageTranslate.build/Debug/SignLanguageTranslate.build/Objects-normal/x86_64/DownloadQueueDelegate.bc",
+    "object" : "/Volumes/T7/repo/github/SignLanguageTranslate/build/SignLanguageTranslate.build/Debug/SignLanguageTranslate.build/Objects-normal/x86_64/DownloadQueueDelegate.o",
+    "swift-dependencies" : "/Volumes/T7/repo/github/SignLanguageTranslate/build/SignLanguageTranslate.build/Debug/SignLanguageTranslate.build/Objects-normal/x86_64/DownloadQueueDelegate.swiftdeps",
+    "swiftmodule" : "/Volumes/T7/repo/github/SignLanguageTranslate/build/SignLanguageTranslate.build/Debug/SignLanguageTranslate.build/Objects-normal/x86_64/DownloadQueueDelegate~partial.swiftmodule"
+  },
+  "/Volumes/T7/repo/github/SignLanguageTranslate/SignLanguageTranslate/Features/DatasetManager/Downloads/DownloadQueueState.swift" : {
+    "const-values" : "/Volumes/T7/repo/github/SignLanguageTranslate/build/SignLanguageTranslate.build/Debug/SignLanguageTranslate.build/Objects-normal/x86_64/DownloadQueueState.swiftconstvalues",
+    "dependencies" : "/Volumes/T7/repo/github/SignLanguageTranslate/build/SignLanguageTranslate.build/Debug/SignLanguageTranslate.build/Objects-normal/x86_64/DownloadQueueState.d",
+    "diagnostics" : "/Volumes/T7/repo/github/SignLanguageTranslate/build/SignLanguageTranslate.build/Debug/SignLanguageTranslate.build/Objects-normal/x86_64/DownloadQueueState.dia",
+    "index-unit-output-path" : "/SignLanguageTranslate.build/Debug/SignLanguageTranslate.build/Objects-normal/x86_64/DownloadQueueState.o",
+    "llvm-bc" : "/Volumes/T7/repo/github/SignLanguageTranslate/build/SignLanguageTranslate.build/Debug/SignLanguageTranslate.build/Objects-normal/x86_64/DownloadQueueState.bc",
+    "object" : "/Volumes/T7/repo/github/SignLanguageTranslate/build/SignLanguageTranslate.build/Debug/SignLanguageTranslate.build/Objects-normal/x86_64/DownloadQueueState.o",
+    "swift-dependencies" : "/Volumes/T7/repo/github/SignLanguageTranslate/build/SignLanguageTranslate.build/Debug/SignLanguageTranslate.build/Objects-normal/x86_64/DownloadQueueState.swiftdeps",
+    "swiftmodule" : "/Volumes/T7/repo/github/SignLanguageTranslate/build/SignLanguageTranslate.build/Debug/SignLanguageTranslate.build/Objects-normal/x86_64/DownloadQueueState~partial.swiftmodule"
+  },
+  "/Volumes/T7/repo/github/SignLanguageTranslate/SignLanguageTranslate/Features/DatasetManager/Downloads/DownloadTask.swift" : {
+    "const-values" : "/Volumes/T7/repo/github/SignLanguageTranslate/build/SignLanguageTranslate.build/Debug/SignLanguageTranslate.build/Objects-normal/x86_64/DownloadTask.swiftconstvalues",
+    "dependencies" : "/Volumes/T7/repo/github/SignLanguageTranslate/build/SignLanguageTranslate.build/Debug/SignLanguageTranslate.build/Objects-normal/x86_64/DownloadTask.d",
+    "diagnostics" : "/Volumes/T7/repo/github/SignLanguageTranslate/build/SignLanguageTranslate.build/Debug/SignLanguageTranslate.build/Objects-normal/x86_64/DownloadTask.dia",
+    "index-unit-output-path" : "/SignLanguageTranslate.build/Debug/SignLanguageTranslate.build/Objects-normal/x86_64/DownloadTask.o",
+    "llvm-bc" : "/Volumes/T7/repo/github/SignLanguageTranslate/build/SignLanguageTranslate.build/Debug/SignLanguageTranslate.build/Objects-normal/x86_64/DownloadTask.bc",
+    "object" : "/Volumes/T7/repo/github/SignLanguageTranslate/build/SignLanguageTranslate.build/Debug/SignLanguageTranslate.build/Objects-normal/x86_64/DownloadTask.o",
+    "swift-dependencies" : "/Volumes/T7/repo/github/SignLanguageTranslate/build/SignLanguageTranslate.build/Debug/SignLanguageTranslate.build/Objects-normal/x86_64/DownloadTask.swiftdeps",
+    "swiftmodule" : "/Volumes/T7/repo/github/SignLanguageTranslate/build/SignLanguageTranslate.build/Debug/SignLanguageTranslate.build/Objects-normal/x86_64/DownloadTask~partial.swiftmodule"
+  },
+  "/Volumes/T7/repo/github/SignLanguageTranslate/SignLanguageTranslate/Features/DatasetManager/Downloads/DownloadTaskGroup.swift" : {
+    "const-values" : "/Volumes/T7/repo/github/SignLanguageTranslate/build/SignLanguageTranslate.build/Debug/SignLanguageTranslate.build/Objects-normal/x86_64/DownloadTaskGroup.swiftconstvalues",
+    "dependencies" : "/Volumes/T7/repo/github/SignLanguageTranslate/build/SignLanguageTranslate.build/Debug/SignLanguageTranslate.build/Objects-normal/x86_64/DownloadTaskGroup.d",
+    "diagnostics" : "/Volumes/T7/repo/github/SignLanguageTranslate/build/SignLanguageTranslate.build/Debug/SignLanguageTranslate.build/Objects-normal/x86_64/DownloadTaskGroup.dia",
+    "index-unit-output-path" : "/SignLanguageTranslate.build/Debug/SignLanguageTranslate.build/Objects-normal/x86_64/DownloadTaskGroup.o",
+    "llvm-bc" : "/Volumes/T7/repo/github/SignLanguageTranslate/build/SignLanguageTranslate.build/Debug/SignLanguageTranslate.build/Objects-normal/x86_64/DownloadTaskGroup.bc",
+    "object" : "/Volumes/T7/repo/github/SignLanguageTranslate/build/SignLanguageTranslate.build/Debug/SignLanguageTranslate.build/Objects-normal/x86_64/DownloadTaskGroup.o",
+    "swift-dependencies" : "/Volumes/T7/repo/github/SignLanguageTranslate/build/SignLanguageTranslate.build/Debug/SignLanguageTranslate.build/Objects-normal/x86_64/DownloadTaskGroup.swiftdeps",
+    "swiftmodule" : "/Volumes/T7/repo/github/SignLanguageTranslate/build/SignLanguageTranslate.build/Debug/SignLanguageTranslate.build/Objects-normal/x86_64/DownloadTaskGroup~partial.swiftmodule"
+  },
+  "/Volumes/T7/repo/github/SignLanguageTranslate/SignLanguageTranslate/Features/DatasetManager/Downloads/DownloadTaskStatus.swift" : {
+    "const-values" : "/Volumes/T7/repo/github/SignLanguageTranslate/build/SignLanguageTranslate.build/Debug/SignLanguageTranslate.build/Objects-normal/x86_64/DownloadTaskStatus.swiftconstvalues",
+    "dependencies" : "/Volumes/T7/repo/github/SignLanguageTranslate/build/SignLanguageTranslate.build/Debug/SignLanguageTranslate.build/Objects-normal/x86_64/DownloadTaskStatus.d",
+    "diagnostics" : "/Volumes/T7/repo/github/SignLanguageTranslate/build/SignLanguageTranslate.build/Debug/SignLanguageTranslate.build/Objects-normal/x86_64/DownloadTaskStatus.dia",
+    "index-unit-output-path" : "/SignLanguageTranslate.build/Debug/SignLanguageTranslate.build/Objects-normal/x86_64/DownloadTaskStatus.o",
+    "llvm-bc" : "/Volumes/T7/repo/github/SignLanguageTranslate/build/SignLanguageTranslate.build/Debug/SignLanguageTranslate.build/Objects-normal/x86_64/DownloadTaskStatus.bc",
+    "object" : "/Volumes/T7/repo/github/SignLanguageTranslate/build/SignLanguageTranslate.build/Debug/SignLanguageTranslate.build/Objects-normal/x86_64/DownloadTaskStatus.o",
+    "swift-dependencies" : "/Volumes/T7/repo/github/SignLanguageTranslate/build/SignLanguageTranslate.build/Debug/SignLanguageTranslate.build/Objects-normal/x86_64/DownloadTaskStatus.swiftdeps",
+    "swiftmodule" : "/Volumes/T7/repo/github/SignLanguageTranslate/build/SignLanguageTranslate.build/Debug/SignLanguageTranslate.build/Objects-normal/x86_64/DownloadTaskStatus~partial.swiftmodule"
+  },
+  "/Volumes/T7/repo/github/SignLanguageTranslate/SignLanguageTranslate/Features/DatasetManager/Manifest/CategoryManifest.swift" : {
+    "const-values" : "/Volumes/T7/repo/github/SignLanguageTranslate/build/SignLanguageTranslate.build/Debug/SignLanguageTranslate.build/Objects-normal/x86_64/CategoryManifest.swiftconstvalues",
+    "dependencies" : "/Volumes/T7/repo/github/SignLanguageTranslate/build/SignLanguageTranslate.build/Debug/SignLanguageTranslate.build/Objects-normal/x86_64/CategoryManifest.d",
+    "diagnostics" : "/Volumes/T7/repo/github/SignLanguageTranslate/build/SignLanguageTranslate.build/Debug/SignLanguageTranslate.build/Objects-normal/x86_64/CategoryManifest.dia",
+    "index-unit-output-path" : "/SignLanguageTranslate.build/Debug/SignLanguageTranslate.build/Objects-normal/x86_64/CategoryManifest.o",
+    "llvm-bc" : "/Volumes/T7/repo/github/SignLanguageTranslate/build/SignLanguageTranslate.build/Debug/SignLanguageTranslate.build/Objects-normal/x86_64/CategoryManifest.bc",
+    "object" : "/Volumes/T7/repo/github/SignLanguageTranslate/build/SignLanguageTranslate.build/Debug/SignLanguageTranslate.build/Objects-normal/x86_64/CategoryManifest.o",
+    "swift-dependencies" : "/Volumes/T7/repo/github/SignLanguageTranslate/build/SignLanguageTranslate.build/Debug/SignLanguageTranslate.build/Objects-normal/x86_64/CategoryManifest.swiftdeps",
+    "swiftmodule" : "/Volumes/T7/repo/github/SignLanguageTranslate/build/SignLanguageTranslate.build/Debug/SignLanguageTranslate.build/Objects-normal/x86_64/CategoryManifest~partial.swiftmodule"
+  },
+  "/Volumes/T7/repo/github/SignLanguageTranslate/SignLanguageTranslate/Features/DatasetManager/Manifest/INCLUDEManifest.swift" : {
+    "const-values" : "/Volumes/T7/repo/github/SignLanguageTranslate/build/SignLanguageTranslate.build/Debug/SignLanguageTranslate.build/Objects-normal/x86_64/INCLUDEManifest.swiftconstvalues",
+    "dependencies" : "/Volumes/T7/repo/github/SignLanguageTranslate/build/SignLanguageTranslate.build/Debug/SignLanguageTranslate.build/Objects-normal/x86_64/INCLUDEManifest.d",
+    "diagnostics" : "/Volumes/T7/repo/github/SignLanguageTranslate/build/SignLanguageTranslate.build/Debug/SignLanguageTranslate.build/Objects-normal/x86_64/INCLUDEManifest.dia",
+    "index-unit-output-path" : "/SignLanguageTranslate.build/Debug/SignLanguageTranslate.build/Objects-normal/x86_64/INCLUDEManifest.o",
+    "llvm-bc" : "/Volumes/T7/repo/github/SignLanguageTranslate/build/SignLanguageTranslate.build/Debug/SignLanguageTranslate.build/Objects-normal/x86_64/INCLUDEManifest.bc",
+    "object" : "/Volumes/T7/repo/github/SignLanguageTranslate/build/SignLanguageTranslate.build/Debug/SignLanguageTranslate.build/Objects-normal/x86_64/INCLUDEManifest.o",
+    "swift-dependencies" : "/Volumes/T7/repo/github/SignLanguageTranslate/build/SignLanguageTranslate.build/Debug/SignLanguageTranslate.build/Objects-normal/x86_64/INCLUDEManifest.swiftdeps",
+    "swiftmodule" : "/Volumes/T7/repo/github/SignLanguageTranslate/build/SignLanguageTranslate.build/Debug/SignLanguageTranslate.build/Objects-normal/x86_64/INCLUDEManifest~partial.swiftmodule"
+  },
+  "/Volumes/T7/repo/github/SignLanguageTranslate/SignLanguageTranslate/Features/DatasetManager/Manifest/ManifestEntry.swift" : {
+    "const-values" : "/Volumes/T7/repo/github/SignLanguageTranslate/build/SignLanguageTranslate.build/Debug/SignLanguageTranslate.build/Objects-normal/x86_64/ManifestEntry.swiftconstvalues",
+    "dependencies" : "/Volumes/T7/repo/github/SignLanguageTranslate/build/SignLanguageTranslate.build/Debug/SignLanguageTranslate.build/Objects-normal/x86_64/ManifestEntry.d",
+    "diagnostics" : "/Volumes/T7/repo/github/SignLanguageTranslate/build/SignLanguageTranslate.build/Debug/SignLanguageTranslate.build/Objects-normal/x86_64/ManifestEntry.dia",
+    "index-unit-output-path" : "/SignLanguageTranslate.build/Debug/SignLanguageTranslate.build/Objects-normal/x86_64/ManifestEntry.o",
+    "llvm-bc" : "/Volumes/T7/repo/github/SignLanguageTranslate/build/SignLanguageTranslate.build/Debug/SignLanguageTranslate.build/Objects-normal/x86_64/ManifestEntry.bc",
+    "object" : "/Volumes/T7/repo/github/SignLanguageTranslate/build/SignLanguageTranslate.build/Debug/SignLanguageTranslate.build/Objects-normal/x86_64/ManifestEntry.o",
+    "swift-dependencies" : "/Volumes/T7/repo/github/SignLanguageTranslate/build/SignLanguageTranslate.build/Debug/SignLanguageTranslate.build/Objects-normal/x86_64/ManifestEntry.swiftdeps",
+    "swiftmodule" : "/Volumes/T7/repo/github/SignLanguageTranslate/build/SignLanguageTranslate.build/Debug/SignLanguageTranslate.build/Objects-normal/x86_64/ManifestEntry~partial.swiftmodule"
+  },
+  "/Volumes/T7/repo/github/SignLanguageTranslate/SignLanguageTranslate/Features/DatasetManager/Models/Dataset.swift" : {
+    "const-values" : "/Volumes/T7/repo/github/SignLanguageTranslate/build/SignLanguageTranslate.build/Debug/SignLanguageTranslate.build/Objects-normal/x86_64/Dataset.swiftconstvalues",
+    "dependencies" : "/Volumes/T7/repo/github/SignLanguageTranslate/build/SignLanguageTranslate.build/Debug/SignLanguageTranslate.build/Objects-normal/x86_64/Dataset.d",
+    "diagnostics" : "/Volumes/T7/repo/github/SignLanguageTranslate/build/SignLanguageTranslate.build/Debug/SignLanguageTranslate.build/Objects-normal/x86_64/Dataset.dia",
+    "index-unit-output-path" : "/SignLanguageTranslate.build/Debug/SignLanguageTranslate.build/Objects-normal/x86_64/Dataset.o",
+    "llvm-bc" : "/Volumes/T7/repo/github/SignLanguageTranslate/build/SignLanguageTranslate.build/Debug/SignLanguageTranslate.build/Objects-normal/x86_64/Dataset.bc",
+    "object" : "/Volumes/T7/repo/github/SignLanguageTranslate/build/SignLanguageTranslate.build/Debug/SignLanguageTranslate.build/Objects-normal/x86_64/Dataset.o",
+    "swift-dependencies" : "/Volumes/T7/repo/github/SignLanguageTranslate/build/SignLanguageTranslate.build/Debug/SignLanguageTranslate.build/Objects-normal/x86_64/Dataset.swiftdeps",
+    "swiftmodule" : "/Volumes/T7/repo/github/SignLanguageTranslate/build/SignLanguageTranslate.build/Debug/SignLanguageTranslate.build/Objects-normal/x86_64/Dataset~partial.swiftmodule"
+  },
+  "/Volumes/T7/repo/github/SignLanguageTranslate/SignLanguageTranslate/Features/DatasetManager/Models/DatasetType.swift" : {
+    "const-values" : "/Volumes/T7/repo/github/SignLanguageTranslate/build/SignLanguageTranslate.build/Debug/SignLanguageTranslate.build/Objects-normal/x86_64/DatasetType.swiftconstvalues",
+    "dependencies" : "/Volumes/T7/repo/github/SignLanguageTranslate/build/SignLanguageTranslate.build/Debug/SignLanguageTranslate.build/Objects-normal/x86_64/DatasetType.d",
+    "diagnostics" : "/Volumes/T7/repo/github/SignLanguageTranslate/build/SignLanguageTranslate.build/Debug/SignLanguageTranslate.build/Objects-normal/x86_64/DatasetType.dia",
+    "index-unit-output-path" : "/SignLanguageTranslate.build/Debug/SignLanguageTranslate.build/Objects-normal/x86_64/DatasetType.o",
+    "llvm-bc" : "/Volumes/T7/repo/github/SignLanguageTranslate/build/SignLanguageTranslate.build/Debug/SignLanguageTranslate.build/Objects-normal/x86_64/DatasetType.bc",
+    "object" : "/Volumes/T7/repo/github/SignLanguageTranslate/build/SignLanguageTranslate.build/Debug/SignLanguageTranslate.build/Objects-normal/x86_64/DatasetType.o",
+    "swift-dependencies" : "/Volumes/T7/repo/github/SignLanguageTranslate/build/SignLanguageTranslate.build/Debug/SignLanguageTranslate.build/Objects-normal/x86_64/DatasetType.swiftdeps",
+    "swiftmodule" : "/Volumes/T7/repo/github/SignLanguageTranslate/build/SignLanguageTranslate.build/Debug/SignLanguageTranslate.build/Objects-normal/x86_64/DatasetType~partial.swiftmodule"
+  },
+  "/Volumes/T7/repo/github/SignLanguageTranslate/SignLanguageTranslate/Features/DatasetManager/Models/DownloadStatus.swift" : {
+    "const-values" : "/Volumes/T7/repo/github/SignLanguageTranslate/build/SignLanguageTranslate.build/Debug/SignLanguageTranslate.build/Objects-normal/x86_64/DownloadStatus.swiftconstvalues",
+    "dependencies" : "/Volumes/T7/repo/github/SignLanguageTranslate/build/SignLanguageTranslate.build/Debug/SignLanguageTranslate.build/Objects-normal/x86_64/DownloadStatus.d",
+    "diagnostics" : "/Volumes/T7/repo/github/SignLanguageTranslate/build/SignLanguageTranslate.build/Debug/SignLanguageTranslate.build/Objects-normal/x86_64/DownloadStatus.dia",
+    "index-unit-output-path" : "/SignLanguageTranslate.build/Debug/SignLanguageTranslate.build/Objects-normal/x86_64/DownloadStatus.o",
+    "llvm-bc" : "/Volumes/T7/repo/github/SignLanguageTranslate/build/SignLanguageTranslate.build/Debug/SignLanguageTranslate.build/Objects-normal/x86_64/DownloadStatus.bc",
+    "object" : "/Volumes/T7/repo/github/SignLanguageTranslate/build/SignLanguageTranslate.build/Debug/SignLanguageTranslate.build/Objects-normal/x86_64/DownloadStatus.o",
+    "swift-dependencies" : "/Volumes/T7/repo/github/SignLanguageTranslate/build/SignLanguageTranslate.build/Debug/SignLanguageTranslate.build/Objects-normal/x86_64/DownloadStatus.swiftdeps",
+    "swiftmodule" : "/Volumes/T7/repo/github/SignLanguageTranslate/build/SignLanguageTranslate.build/Debug/SignLanguageTranslate.build/Objects-normal/x86_64/DownloadStatus~partial.swiftmodule"
+  },
+  "/Volumes/T7/repo/github/SignLanguageTranslate/SignLanguageTranslate/Features/DatasetManager/Models/Label.swift" : {
+    "const-values" : "/Volumes/T7/repo/github/SignLanguageTranslate/build/SignLanguageTranslate.build/Debug/SignLanguageTranslate.build/Objects-normal/x86_64/Label.swiftconstvalues",
+    "dependencies" : "/Volumes/T7/repo/github/SignLanguageTranslate/build/SignLanguageTranslate.build/Debug/SignLanguageTranslate.build/Objects-normal/x86_64/Label.d",
+    "diagnostics" : "/Volumes/T7/repo/github/SignLanguageTranslate/build/SignLanguageTranslate.build/Debug/SignLanguageTranslate.build/Objects-normal/x86_64/Label.dia",
+    "index-unit-output-path" : "/SignLanguageTranslate.build/Debug/SignLanguageTranslate.build/Objects-normal/x86_64/Label.o",
+    "llvm-bc" : "/Volumes/T7/repo/github/SignLanguageTranslate/build/SignLanguageTranslate.build/Debug/SignLanguageTranslate.build/Objects-normal/x86_64/Label.bc",
+    "object" : "/Volumes/T7/repo/github/SignLanguageTranslate/build/SignLanguageTranslate.build/Debug/SignLanguageTranslate.build/Objects-normal/x86_64/Label.o",
+    "swift-dependencies" : "/Volumes/T7/repo/github/SignLanguageTranslate/build/SignLanguageTranslate.build/Debug/SignLanguageTranslate.build/Objects-normal/x86_64/Label.swiftdeps",
+    "swiftmodule" : "/Volumes/T7/repo/github/SignLanguageTranslate/build/SignLanguageTranslate.build/Debug/SignLanguageTranslate.build/Objects-normal/x86_64/Label~partial.swiftmodule"
+  },
+  "/Volumes/T7/repo/github/SignLanguageTranslate/SignLanguageTranslate/Features/DatasetManager/Models/LabelType.swift" : {
+    "const-values" : "/Volumes/T7/repo/github/SignLanguageTranslate/build/SignLanguageTranslate.build/Debug/SignLanguageTranslate.build/Objects-normal/x86_64/LabelType.swiftconstvalues",
+    "dependencies" : "/Volumes/T7/repo/github/SignLanguageTranslate/build/SignLanguageTranslate.build/Debug/SignLanguageTranslate.build/Objects-normal/x86_64/LabelType.d",
+    "diagnostics" : "/Volumes/T7/repo/github/SignLanguageTranslate/build/SignLanguageTranslate.build/Debug/SignLanguageTranslate.build/Objects-normal/x86_64/LabelType.dia",
+    "index-unit-output-path" : "/SignLanguageTranslate.build/Debug/SignLanguageTranslate.build/Objects-normal/x86_64/LabelType.o",
+    "llvm-bc" : "/Volumes/T7/repo/github/SignLanguageTranslate/build/SignLanguageTranslate.build/Debug/SignLanguageTranslate.build/Objects-normal/x86_64/LabelType.bc",
+    "object" : "/Volumes/T7/repo/github/SignLanguageTranslate/build/SignLanguageTranslate.build/Debug/SignLanguageTranslate.build/Objects-normal/x86_64/LabelType.o",
+    "swift-dependencies" : "/Volumes/T7/repo/github/SignLanguageTranslate/build/SignLanguageTranslate.build/Debug/SignLanguageTranslate.build/Objects-normal/x86_64/LabelType.swiftdeps",
+    "swiftmodule" : "/Volumes/T7/repo/github/SignLanguageTranslate/build/SignLanguageTranslate.build/Debug/SignLanguageTranslate.build/Objects-normal/x86_64/LabelType~partial.swiftmodule"
+  },
+  "/Volumes/T7/repo/github/SignLanguageTranslate/SignLanguageTranslate/Features/DatasetManager/Models/VideoSample.swift" : {
+    "const-values" : "/Volumes/T7/repo/github/SignLanguageTranslate/build/SignLanguageTranslate.build/Debug/SignLanguageTranslate.build/Objects-normal/x86_64/VideoSample.swiftconstvalues",
+    "dependencies" : "/Volumes/T7/repo/github/SignLanguageTranslate/build/SignLanguageTranslate.build/Debug/SignLanguageTranslate.build/Objects-normal/x86_64/VideoSample.d",
+    "diagnostics" : "/Volumes/T7/repo/github/SignLanguageTranslate/build/SignLanguageTranslate.build/Debug/SignLanguageTranslate.build/Objects-normal/x86_64/VideoSample.dia",
+    "index-unit-output-path" : "/SignLanguageTranslate.build/Debug/SignLanguageTranslate.build/Objects-normal/x86_64/VideoSample.o",
+    "llvm-bc" : "/Volumes/T7/repo/github/SignLanguageTranslate/build/SignLanguageTranslate.build/Debug/SignLanguageTranslate.build/Objects-normal/x86_64/VideoSample.bc",
+    "object" : "/Volumes/T7/repo/github/SignLanguageTranslate/build/SignLanguageTranslate.build/Debug/SignLanguageTranslate.build/Objects-normal/x86_64/VideoSample.o",
+    "swift-dependencies" : "/Volumes/T7/repo/github/SignLanguageTranslate/build/SignLanguageTranslate.build/Debug/SignLanguageTranslate.build/Objects-normal/x86_64/VideoSample.swiftdeps",
+    "swiftmodule" : "/Volumes/T7/repo/github/SignLanguageTranslate/build/SignLanguageTranslate.build/Debug/SignLanguageTranslate.build/Objects-normal/x86_64/VideoSample~partial.swiftmodule"
+  },
+  "/Volumes/T7/repo/github/SignLanguageTranslate/SignLanguageTranslate/Features/DatasetManager/Views/ContentView.swift" : {
+    "const-values" : "/Volumes/T7/repo/github/SignLanguageTranslate/build/SignLanguageTranslate.build/Debug/SignLanguageTranslate.build/Objects-normal/x86_64/ContentView.swiftconstvalues",
+    "dependencies" : "/Volumes/T7/repo/github/SignLanguageTranslate/build/SignLanguageTranslate.build/Debug/SignLanguageTranslate.build/Objects-normal/x86_64/ContentView.d",
+    "diagnostics" : "/Volumes/T7/repo/github/SignLanguageTranslate/build/SignLanguageTranslate.build/Debug/SignLanguageTranslate.build/Objects-normal/x86_64/ContentView.dia",
+    "index-unit-output-path" : "/SignLanguageTranslate.build/Debug/SignLanguageTranslate.build/Objects-normal/x86_64/ContentView.o",
+    "llvm-bc" : "/Volumes/T7/repo/github/SignLanguageTranslate/build/SignLanguageTranslate.build/Debug/SignLanguageTranslate.build/Objects-normal/x86_64/ContentView.bc",
+    "object" : "/Volumes/T7/repo/github/SignLanguageTranslate/build/SignLanguageTranslate.build/Debug/SignLanguageTranslate.build/Objects-normal/x86_64/ContentView.o",
+    "swift-dependencies" : "/Volumes/T7/repo/github/SignLanguageTranslate/build/SignLanguageTranslate.build/Debug/SignLanguageTranslate.build/Objects-normal/x86_64/ContentView.swiftdeps",
+    "swiftmodule" : "/Volumes/T7/repo/github/SignLanguageTranslate/build/SignLanguageTranslate.build/Debug/SignLanguageTranslate.build/Objects-normal/x86_64/ContentView~partial.swiftmodule"
+  },
+  "/Volumes/T7/repo/github/SignLanguageTranslate/build/SignLanguageTranslate.build/Debug/SignLanguageTranslate.build/DerivedSources/GeneratedAssetSymbols.swift" : {
+    "const-values" : "/Volumes/T7/repo/github/SignLanguageTranslate/build/SignLanguageTranslate.build/Debug/SignLanguageTranslate.build/Objects-normal/x86_64/GeneratedAssetSymbols.swiftconstvalues",
+    "dependencies" : "/Volumes/T7/repo/github/SignLanguageTranslate/build/SignLanguageTranslate.build/Debug/SignLanguageTranslate.build/Objects-normal/x86_64/GeneratedAssetSymbols.d",
+    "diagnostics" : "/Volumes/T7/repo/github/SignLanguageTranslate/build/SignLanguageTranslate.build/Debug/SignLanguageTranslate.build/Objects-normal/x86_64/GeneratedAssetSymbols.dia",
+    "index-unit-output-path" : "/SignLanguageTranslate.build/Debug/SignLanguageTranslate.build/Objects-normal/x86_64/GeneratedAssetSymbols.o",
+    "llvm-bc" : "/Volumes/T7/repo/github/SignLanguageTranslate/build/SignLanguageTranslate.build/Debug/SignLanguageTranslate.build/Objects-normal/x86_64/GeneratedAssetSymbols.bc",
+    "object" : "/Volumes/T7/repo/github/SignLanguageTranslate/build/SignLanguageTranslate.build/Debug/SignLanguageTranslate.build/Objects-normal/x86_64/GeneratedAssetSymbols.o",
+    "swift-dependencies" : "/Volumes/T7/repo/github/SignLanguageTranslate/build/SignLanguageTranslate.build/Debug/SignLanguageTranslate.build/Objects-normal/x86_64/GeneratedAssetSymbols.swiftdeps",
+    "swiftmodule" : "/Volumes/T7/repo/github/SignLanguageTranslate/build/SignLanguageTranslate.build/Debug/SignLanguageTranslate.build/Objects-normal/x86_64/GeneratedAssetSymbols~partial.swiftmodule"
+  }
+}

@@ -6,10 +6,8 @@ class AppDelegate: NSObject, UIApplicationDelegate {
     // This will be used to handle background URL session completion events
     // for dataset downloads when the app is not in the foreground
 
-    func application(
-        _ application: UIApplication,
-        didFinishLaunchingWithOptions launchOptions: [UIApplication.LaunchOptionsKey : Any]? = nil
-    ) -> Bool {
+    func application(_ application: UIApplication, didFinishLaunchingWithOptions launchOptions: [UIApplication.LaunchOptionsKey: Any]?) -> Bool {
+        // Application setup
         return true
     }
 }

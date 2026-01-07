@@ -7,6 +7,8 @@ import json
 import os
 import re
 import tempfile
+import time
+import uuid
 from pathlib import Path
 from typing import Optional
 
@@ -35,6 +37,36 @@ class ClaudeClient:
         
         self.logger = get_logger()
         self._api_client = None
+        
+        # Session management for CLI mode
+        self._session_id: Optional[str] = None
+        self._session_started: bool = False
+    
+    def start_session(self, session_id: str = None) -> str:
+        """
+        Start a new Claude session.
+        
+        Args:
+            session_id: Optional specific session ID, or generate a new one
+            
+        Returns:
+            The session ID being used
+        """
+        self._session_id = session_id or str(uuid.uuid4())
+        self._session_started = False  # Will be set True after first successful call
+        self.logger.info(f"New Claude session initialized: {self._session_id[:8]}...")
+        return self._session_id
+    
+    def end_session(self):
+        """End the current session and reset state."""
+        if self._session_id:
+            self.logger.info(f"Ending Claude session: {self._session_id[:8]}...")
+        self._session_id = None
+        self._session_started = False
+    
+    def get_session_id(self) -> Optional[str]:
+        """Get current session ID."""
+        return self._session_id
     
     async def send_prompt(self, prompt: str, context: str = None) -> ClaudeResponse:
         """
@@ -65,11 +97,11 @@ class ClaudeClient:
         self.logger.info(f"Sending prompt to Claude CLI: {prompt_chars:,} chars, {prompt_lines} lines")
 
         try:
-            # Claude CLI: pipe prompt via stdin with --print flag for non-interactive output
-            # The --print flag outputs response directly without interactive mode
+            # Build CLI command - use simple --print mode without session persistence
+            # Session persistence via --session-id causes issues when sessions aren't cleaned up
             cmd = ["claude", "--print"]
 
-            self.logger.debug(f"Running Claude CLI with --print flag")
+            self.logger.debug(f"Running Claude CLI with flags: {' '.join(cmd[1:])}")
 
             process = await asyncio.create_subprocess_exec(
                 *cmd,
@@ -79,7 +111,6 @@ class ClaudeClient:
             )
 
             # Track timing
-            import time
             start_time = time.time()
 
             # Log that we're waiting
@@ -129,18 +160,24 @@ class ClaudeClient:
             response_lines = stdout_text.count('\n') + 1
             self.logger.info(f"Claude responded in {elapsed_time:.1f}s: {response_chars:,} chars, {response_lines} lines")
 
-            # Check for rate limit
-            if "rate limit" in stderr_text.lower() or "rate_limit" in stderr_text.lower():
-                retry_after = self._parse_retry_after(stderr_text)
-                self.logger.warning(f"Rate limit hit. Retry after: {retry_after}s")
+            # Check for rate limit - check both stderr and stdout
+            if self._is_rate_limit_error(stderr_text, stdout_text):
+                retry_after = self._parse_retry_after(stderr_text) or self._parse_retry_after(stdout_text)
+                # Default to 60 seconds if we can't parse a specific time
+                if retry_after is None:
+                    retry_after = 60
+                    self.logger.warning(f"Rate limit hit but couldn't parse wait time, defaulting to {retry_after}s")
+                else:
+                    self.logger.warning(f"Rate limit hit. Will retry after {retry_after}s")
                 raise RateLimitError("Rate limit exceeded", retry_after=retry_after)
 
             if process.returncode != 0:
-                self.logger.error(f"Claude CLI error (exit code {process.returncode}): {stderr_text[:500]}")
+                error_msg = stderr_text[:500] if stderr_text else "Unknown error"
+                self.logger.error(f"Claude CLI error (exit code {process.returncode}): {error_msg}")
                 return ClaudeResponse(
                     success=False,
                     content="",
-                    error=stderr_text,
+                    error=stderr_text or f"Exit code {process.returncode}",
                     model=self.model
                 )
 
@@ -238,18 +275,51 @@ class ClaudeClient:
     
     def _parse_retry_after(self, error_text: str) -> Optional[int]:
         """Try to parse retry-after value from error message."""
+        error_lower = error_text.lower()
+
+        # Common patterns for rate limit reset time
         patterns = [
             r'retry.?after[:\s]+(\d+)',
             r'wait[:\s]+(\d+)\s*second',
             r'(\d+)\s*seconds?\s*(?:before|until)',
+            r'try again in (\d+)\s*(?:second|minute|hour)',
+            r'reset(?:s|ting)?\s*(?:in|after)\s*(\d+)',
+            r'limit.*?(\d+)\s*(?:second|minute)',
+            r'please wait (\d+)',
+            r'available in (\d+)',
         ]
-        
+
         for pattern in patterns:
-            match = re.search(pattern, error_text.lower())
+            match = re.search(pattern, error_lower)
             if match:
-                return int(match.group(1))
-        
+                value = int(match.group(1))
+                # If it mentions minutes, convert to seconds
+                if 'minute' in error_lower[max(0, match.start()-20):match.end()+20]:
+                    value *= 60
+                # If it mentions hours, convert to seconds
+                elif 'hour' in error_lower[max(0, match.start()-20):match.end()+20]:
+                    value *= 3600
+                self.logger.debug(f"Parsed retry-after from error: {value}s")
+                return value
+
         return None
+
+    def _is_rate_limit_error(self, stderr_text: str, stdout_text: str = "") -> bool:
+        """Check if the error indicates a rate limit."""
+        combined = (stderr_text + stdout_text).lower()
+        rate_limit_indicators = [
+            'rate limit',
+            'rate_limit',
+            'too many requests',
+            'quota exceeded',
+            'throttl',
+            'overloaded',
+            'capacity',
+            '429',
+            'try again later',
+            'request limit',
+        ]
+        return any(indicator in combined for indicator in rate_limit_indicators)
     
     def _extract_file_changes(self, response_text: str) -> list[FileChange]:
         """Extract file changes from Claude's response."""

@@ -4,6 +4,8 @@ Coordinates the entire automation process.
 """
 
 import asyncio
+import sys
+import select
 from datetime import datetime
 from pathlib import Path
 from typing import Optional
@@ -74,6 +76,7 @@ class Orchestrator:
         automation_config = self.config.get("automation", {})
         self.max_retries_per_phase = automation_config.get("max_retries_per_phase", 15)
         self.pause_between_phases = automation_config.get("pause_between_phases_seconds", 5)
+        self.confirmation_timeout = automation_config.get("confirmation_timeout_seconds", 20)
     
     async def initialize(self):
         """Initialize all components."""
@@ -81,6 +84,76 @@ class Orchestrator:
         await self.state_manager.load_state()
         self.logger.info("Orchestrator initialized")
     
+    async def wait_for_user_confirmation(self, phase_name: str) -> bool:
+        """
+        Wait for user confirmation to continue or terminate.
+        
+        Returns:
+            True to continue with next phase, False to terminate
+        """
+        print(f"\n{'='*60}")
+        print(f"Phase '{phase_name}' completed successfully!")
+        print(f"Press 'q' + Enter to quit, or wait {self.confirmation_timeout}s to continue...")
+        print(f"{'='*60}")
+        
+        # Use asyncio to handle timeout
+        loop = asyncio.get_event_loop()
+        
+        def check_input():
+            if select.select([sys.stdin], [], [], 0)[0]:
+                return sys.stdin.readline().strip().lower()
+            return None
+        
+        start_time = asyncio.get_event_loop().time()
+        while asyncio.get_event_loop().time() - start_time < self.confirmation_timeout:
+            # Check for input in a non-blocking way
+            user_input = await loop.run_in_executor(None, check_input)
+            if user_input is not None:
+                if user_input in ['q', 'quit', 'exit', 'stop']:
+                    self.logger.info("User requested termination")
+                    return False
+                else:
+                    # Any other input (including Enter) continues
+                    return True
+            await asyncio.sleep(0.5)
+        
+        self.logger.info(f"No input after {self.confirmation_timeout}s, continuing...")
+        return True
+
+    async def _wait_with_countdown(self, wait_seconds: int, reason: str = "Waiting"):
+        """
+        Wait for specified time with countdown display.
+
+        Args:
+            wait_seconds: Total seconds to wait
+            reason: Reason for waiting (shown in display)
+        """
+        from datetime import timedelta
+
+        print(f"\n{'='*60}")
+        print(f"⏳ {reason}: waiting {wait_seconds}s before resuming...")
+        print(f"   Will auto-resume at: {(datetime.now() + timedelta(seconds=wait_seconds)).strftime('%H:%M:%S')}")
+        print(f"   Press Ctrl+C to abort")
+        print(f"{'='*60}")
+
+        # Show countdown every 30 seconds for long waits, every 10 seconds for shorter ones
+        interval = 30 if wait_seconds > 120 else 10
+
+        remaining = wait_seconds
+        while remaining > 0:
+            sleep_time = min(interval, remaining)
+            await asyncio.sleep(sleep_time)
+            remaining -= sleep_time
+
+            if remaining > 0:
+                mins, secs = divmod(remaining, 60)
+                if mins > 0:
+                    print(f"   ⏳ {int(mins)}m {int(secs)}s remaining...")
+                else:
+                    print(f"   ⏳ {int(secs)}s remaining...")
+
+        print(f"{'='*60}\n")
+
     def get_all_phases(self) -> list[PhaseConfig]:
         """Get flat list of all phases."""
         phases = []
@@ -116,7 +189,7 @@ class Orchestrator:
             self.logger.info("Starting fresh execution")
         
         await self.state_manager.start_execution()
-        
+
         all_phases = self.get_all_phases()
         
         for phase in all_phases:
@@ -131,6 +204,13 @@ class Orchestrator:
             if not result.success:
                 self.logger.error(f"Phase {phase.id} failed, stopping execution")
                 return False
+            
+            # Ask user to continue or terminate (with timeout)
+            should_continue = await self.wait_for_user_confirmation(phase.name)
+            if not should_continue:
+                self.logger.info("User requested termination after phase completion")
+                await self.state_manager.pause_execution()
+                return True  # Return True since phases completed successfully
             
             # Pause between phases
             if self.pause_between_phases > 0:
@@ -359,17 +439,18 @@ class Orchestrator:
             except RateLimitError as e:
                 wait_time = self.rate_limiter.record_hit(e.retry_after)
                 wait_until = self.rate_limiter.get_wait_until(wait_time)
-                
+
                 await self.state_manager.record_rate_limit(wait_until)
                 await self.analytics.record_rate_limit(phase_id, wait_time)
-                
+
                 state = await self.state_manager.get_state()
                 await self.dashboard.on_rate_limit(state, phase)
-                
-                self.logger.rate_limit(wait_time)
-                await asyncio.sleep(wait_time)
-                
+
+                # Show countdown for rate limit wait
+                await self._wait_with_countdown(wait_time, "Rate limit")
+
                 await self.state_manager.clear_rate_limit()
+                self.logger.info("Rate limit cleared, resuming...")
                 continue
             
             except KeyboardInterrupt:

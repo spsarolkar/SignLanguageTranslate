@@ -229,5 +229,28 @@ class StateManager:
             "iteration": state.iteration,
             "completed_count": len(state.completed_phases),
             "failed_count": len(state.failed_phases),
-            "status": state.status.value
+            "status": state.status.value,
+            "claude_session_id": state.claude_session_id
         }
+    
+    # Session management
+    
+    async def save_session_id(self, session_id: str):
+        """Save Claude session ID for persistence."""
+        state = await self.get_state()
+        state.claude_session_id = session_id
+        await self.save_state()
+        self.logger.debug(f"Saved Claude session ID: {session_id[:8]}...")
+    
+    async def get_session_id(self) -> Optional[str]:
+        """Get saved Claude session ID."""
+        state = await self.get_state()
+        return state.claude_session_id
+    
+    async def clear_session_id(self):
+        """Clear saved Claude session ID."""
+        state = await self.get_state()
+        if state.claude_session_id:
+            self.logger.debug(f"Clearing Claude session ID: {state.claude_session_id[:8]}...")
+        state.claude_session_id = None
+        await self.save_state()

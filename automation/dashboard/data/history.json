@@ -1,29 +1,3 @@
 {
-  "last_updated": "2026-01-07T16:44:33.166135",
-  "phases": [
-    {
-      "id": "1.1",
-      "module_id": "module1",
-      "name": "Xcode Project Setup",
-      "status": "failed",
-      "started_at": "2026-01-07T08:05:56.788665",
-      "completed_at": "2026-01-07T08:05:56.803157",
-      "total_iterations": 0,
-      "total_duration_seconds": 0.020979,
-      "build_errors": 0,
-      "test_failures": 0
-    },
-    {
-      "id": "2.6",
-      "module_id": "module2",
-      "name": "Download Progress UI",
-      "status": "completed",
-      "started_at": "2026-01-07T16:39:08.922671",
-      "completed_at": "2026-01-07T16:44:33.153377",
-      "total_iterations": 1,
-      "total_duration_seconds": 324.238809,
-      "build_errors": 23,
-      "test_failures": 0
-    }
-  ]
+  "phases": []
 }

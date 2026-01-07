@@ -295,6 +295,9 @@ class ExecutionState:
     total_test_failures: int = 0
     total_rate_limits: int = 0
     
+    # Claude session persistence
+    claude_session_id: Optional[str] = None
+    
     def to_dict(self) -> dict:
         return {
             "current_module": self.current_module,
@@ -314,7 +317,8 @@ class ExecutionState:
             "total_iterations": self.total_iterations,
             "total_build_errors": self.total_build_errors,
             "total_test_failures": self.total_test_failures,
-            "total_rate_limits": self.total_rate_limits
+            "total_rate_limits": self.total_rate_limits,
+            "claude_session_id": self.claude_session_id
         }
     
     @classmethod
@@ -338,6 +342,7 @@ class ExecutionState:
         state.total_build_errors = data.get("total_build_errors", 0)
         state.total_test_failures = data.get("total_test_failures", 0)
         state.total_rate_limits = data.get("total_rate_limits", 0)
+        state.claude_session_id = data.get("claude_session_id")
         return state
 
 

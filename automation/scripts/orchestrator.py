@@ -130,14 +130,44 @@ class Orchestrator:
         """
         from datetime import timedelta
 
+        resume_time = datetime.now() + timedelta(seconds=wait_seconds)
+        
+        # Format resume time - show full date if > 24 hours, otherwise just time
+        if wait_seconds > 86400:  # > 24 hours
+            resume_str = resume_time.strftime('%b %d at %I:%M%p')
+        elif wait_seconds > 3600:  # > 1 hour
+            resume_str = resume_time.strftime('today at %I:%M%p')
+        else:
+            resume_str = resume_time.strftime('%H:%M:%S')
+        
+        # Format wait duration human-readably
+        days, remainder = divmod(wait_seconds, 86400)
+        hours, remainder = divmod(remainder, 3600)
+        mins, secs = divmod(remainder, 60)
+        
+        if days > 0:
+            duration_str = f"{int(days)}d {int(hours)}h {int(mins)}m"
+        elif hours > 0:
+            duration_str = f"{int(hours)}h {int(mins)}m"
+        elif mins > 0:
+            duration_str = f"{int(mins)}m {int(secs)}s"
+        else:
+            duration_str = f"{int(secs)}s"
+
         print(f"\n{'='*60}")
-        print(f"⏳ {reason}: waiting {wait_seconds}s before resuming...")
-        print(f"   Will auto-resume at: {(datetime.now() + timedelta(seconds=wait_seconds)).strftime('%H:%M:%S')}")
+        print(f"⏳ {reason}: waiting {duration_str} before resuming...")
+        print(f"   Will auto-resume at: {resume_str}")
         print(f"   Press Ctrl+C to abort")
         print(f"{'='*60}")
 
         # Show countdown every 30 seconds for long waits, every 10 seconds for shorter ones
-        interval = 30 if wait_seconds > 120 else 10
+        # For very long waits (> 1 hour), show every 5 minutes
+        if wait_seconds > 3600:
+            interval = 300  # 5 minutes
+        elif wait_seconds > 120:
+            interval = 30
+        else:
+            interval = 10
 
         remaining = wait_seconds
         while remaining > 0:
@@ -146,8 +176,15 @@ class Orchestrator:
             remaining -= sleep_time
 
             if remaining > 0:
-                mins, secs = divmod(remaining, 60)
-                if mins > 0:
+                days, remainder = divmod(remaining, 86400)
+                hours, remainder = divmod(remainder, 3600)
+                mins, secs = divmod(remainder, 60)
+                
+                if days > 0:
+                    print(f"   ⏳ {int(days)}d {int(hours)}h {int(mins)}m remaining...")
+                elif hours > 0:
+                    print(f"   ⏳ {int(hours)}h {int(mins)}m remaining...")
+                elif mins > 0:
                     print(f"   ⏳ {int(mins)}m {int(secs)}s remaining...")
                 else:
                     print(f"   ⏳ {int(secs)}s remaining...")

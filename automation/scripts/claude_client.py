@@ -9,6 +9,7 @@ import re
 import tempfile
 import time
 import uuid
+from datetime import datetime
 from pathlib import Path
 from typing import Optional
 
@@ -277,6 +278,41 @@ class ClaudeClient:
         """Try to parse retry-after value from error message."""
         error_lower = error_text.lower()
 
+        # First, try to parse date-based reset messages like:
+        # "You've hit your limit · resets Jan 10 at 9:30am (Asia/Calcutta)"
+        date_pattern = r'resets?\s+([a-z]{3})\s+(\d{1,2})\s+at\s+(\d{1,2}):(\d{2})(am|pm)'
+        date_match = re.search(date_pattern, error_lower)
+        if date_match:
+            try:
+                month_str, day, hour, minute, ampm = date_match.groups()
+                
+                # Convert month name to number
+                months = {'jan': 1, 'feb': 2, 'mar': 3, 'apr': 4, 'may': 5, 'jun': 6,
+                          'jul': 7, 'aug': 8, 'sep': 9, 'oct': 10, 'nov': 11, 'dec': 12}
+                month = months.get(month_str, 1)
+                
+                # Convert hour to 24-hour format
+                hour = int(hour)
+                if ampm == 'pm' and hour != 12:
+                    hour += 12
+                elif ampm == 'am' and hour == 12:
+                    hour = 0
+                
+                # Build the reset datetime
+                now = datetime.now()
+                year = now.year
+                # If the date seems to be in the past, it's next year
+                reset_date = datetime(year, month, int(day), hour, int(minute))
+                if reset_date < now:
+                    reset_date = datetime(year + 1, month, int(day), hour, int(minute))
+                
+                # Calculate seconds until reset
+                seconds_until_reset = int((reset_date - now).total_seconds())
+                self.logger.info(f"Rate limit resets at {reset_date.strftime('%Y-%m-%d %H:%M')} ({seconds_until_reset}s from now)")
+                return max(seconds_until_reset, 60)  # At least 60 seconds
+            except Exception as e:
+                self.logger.debug(f"Failed to parse date-based reset time: {e}")
+
         # Common patterns for rate limit reset time
         patterns = [
             r'retry.?after[:\s]+(\d+)',
@@ -318,6 +354,9 @@ class ClaudeClient:
             '429',
             'try again later',
             'request limit',
+            'hit your limit',
+            "you've hit",
+            'resets',
         ]
         return any(indicator in combined for indicator in rate_limit_indicators)
     

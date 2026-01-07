@@ -1,29 +1,29 @@
 {
-  "last_updated": "2026-01-07T20:43:56.685109",
-  "current_phase": "3.2",
-  "current_phase_name": "Dataset List Item View",
+  "last_updated": "2026-01-07T21:34:50.100766",
+  "current_phase": "3.3",
+  "current_phase_name": "Dataset List View",
   "current_step": "generate",
   "current_iteration": 1,
-  "status": "running",
+  "status": "rate_limited",
   "overall_progress": {
-    "total_phases": 4,
-    "completed_phases": 2,
+    "total_phases": 5,
+    "completed_phases": 3,
     "failed_phases": 1,
-    "percentage": 50.0
+    "percentage": 60.0
   },
   "rate_limit_status": {
-    "is_limited": false,
-    "wait_until": null,
-    "consecutive_limits": 0,
-    "total_limits": 0
+    "is_limited": true,
+    "wait_until": "2026-01-10T09:29:59.078020",
+    "consecutive_limits": 2,
+    "total_limits": 2
   },
   "statistics": {
-    "total_iterations": 108,
-    "avg_iterations_per_phase": 54.0,
+    "total_iterations": 122,
+    "avg_iterations_per_phase": 40.67,
     "total_build_errors": 23,
     "total_test_failures": 0,
-    "total_rate_limits": 0,
-    "total_duration_minutes": 13.0,
+    "total_rate_limits": 2,
+    "total_duration_minutes": 20.2,
     "total_input_tokens": 0,
     "total_output_tokens": 0
   }

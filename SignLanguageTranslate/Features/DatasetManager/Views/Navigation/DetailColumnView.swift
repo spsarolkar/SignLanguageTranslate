@@ -1,5 +1,8 @@
 import SwiftUI
 import SwiftData
+#if os(iOS)
+import UIKit
+#endif
 
 /// Detail column that displays content based on the current selection.
 struct DetailColumnView: View {
@@ -40,217 +43,149 @@ struct DetailColumnView: View {
 // MARK: - Dataset Detail View
 
 /// Detailed view of a selected dataset.
+/// Uses section components for a modular, organized layout.
 struct DatasetDetailView: View {
-    let dataset: Dataset
+    @Bindable var dataset: Dataset
+    @Environment(\.modelContext) private var modelContext
 
-    @Query private var samples: [VideoSample]
-
-    init(dataset: Dataset) {
-        self.dataset = dataset
-        let datasetName = dataset.name
-        _samples = Query(
-            filter: #Predicate<VideoSample> { $0.datasetName == datasetName },
-            sort: [SortDescriptor(\VideoSample.localPath)]
-        )
-    }
+    @State private var showDeleteConfirmation = false
+    @State private var showFilesApp = false
 
     var body: some View {
-        List {
-            // Dataset Info Section
-            Section {
-                datasetInfoCard
-            }
+        ScrollView {
+            VStack(alignment: .leading, spacing: 24) {
+                // Header with icon, name, status
+                DatasetHeaderSection(dataset: dataset)
 
-            // Download Progress Section
-            if dataset.downloadStatus.isActive || dataset.downloadStatus == .paused {
-                Section("Download Progress") {
-                    downloadProgressView
+                // Statistics cards
+                DatasetStatsSection(dataset: dataset)
+
+                // Actions (Download, Browse, Delete)
+                DatasetActionsSection(
+                    dataset: dataset,
+                    onStartDownload: startDownload,
+                    onPauseDownload: pauseDownload,
+                    onResumeDownload: resumeDownload,
+                    onCancelDownload: cancelDownload,
+                    onBrowseSamples: browseSamples,
+                    onViewInFiles: viewInFiles,
+                    onDeleteDataset: { showDeleteConfirmation = true }
+                )
+
+                // Categories list (if downloaded)
+                if dataset.isReady {
+                    DatasetCategoriesSection(
+                        dataset: dataset,
+                        onCategorySelected: browseCategory
+                    )
                 }
             }
-
-            // Storage Section
-            Section("Storage") {
-                storageInfoView
-            }
-
-            // Actions Section
-            Section {
-                actionButtons
-            }
-
-            // Samples Section
-            if !samples.isEmpty {
-                Section("Samples (\(samples.count))") {
-                    samplesListView
-                }
-            }
+            .padding()
         }
-        .listStyle(.insetGrouped)
+        .background(Color(.systemGroupedBackground))
         .navigationTitle(dataset.name)
         #if os(iOS)
         .navigationBarTitleDisplayMode(.large)
         #endif
+        .toolbar {
+            toolbarContent
+        }
+        .confirmationDialog(
+            "Delete Dataset",
+            isPresented: $showDeleteConfirmation,
+            titleVisibility: .visible
+        ) {
+            Button("Delete", role: .destructive) {
+                deleteDataset()
+            }
+            Button("Cancel", role: .cancel) {}
+        } message: {
+            Text("Are you sure you want to delete \"\(dataset.name)\"? This will remove all downloaded files and cannot be undone.")
+        }
     }
 
-    // MARK: - Dataset Info Card
+    // MARK: - Toolbar
 
-    private var datasetInfoCard: some View {
-        VStack(alignment: .leading, spacing: 12) {
-            HStack(spacing: 16) {
-                Image(systemName: dataset.datasetType.iconName)
-                    .font(.largeTitle)
-                    .foregroundStyle(dataset.datasetType.color)
-                    .frame(width: 60, height: 60)
-                    .background(
-                        RoundedRectangle(cornerRadius: 12)
-                            .fill(dataset.datasetType.color.opacity(0.15))
-                    )
-
-                VStack(alignment: .leading, spacing: 4) {
-                    Text(dataset.datasetType.displayName)
-                        .font(.headline)
-
-                    Text(dataset.datasetType.description)
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
-
-                    statusBadge
+    @ToolbarContentBuilder
+    private var toolbarContent: some ToolbarContent {
+        ToolbarItem(placement: .primaryAction) {
+            Menu {
+                if dataset.hasLocalStorage {
+                    Button {
+                        viewInFiles()
+                    } label: {
+                        SwiftUI.Label("View in Files", systemImage: "folder")
+                    }
                 }
-            }
-        }
-        .padding(.vertical, 4)
-    }
 
-    private var statusBadge: some View {
-        HStack(spacing: 4) {
-            Image(systemName: dataset.downloadStatus.iconName)
-            Text(dataset.downloadStatus.displayName)
-        }
-        .font(.caption.weight(.medium))
-        .foregroundStyle(statusColor)
-        .padding(.horizontal, 8)
-        .padding(.vertical, 4)
-        .background(
-            Capsule()
-                .fill(statusColor.opacity(0.15))
-        )
-    }
+                if dataset.downloadStatus == .completed {
+                    Divider()
 
-    private var statusColor: Color {
-        switch dataset.downloadStatus {
-        case .completed: return .green
-        case .downloading: return .blue
-        case .paused: return .orange
-        case .failed: return .red
-        case .processing: return .purple
-        case .notStarted: return .secondary
-        }
-    }
-
-    // MARK: - Download Progress
-
-    private var downloadProgressView: some View {
-        VStack(alignment: .leading, spacing: 8) {
-            ProgressView(value: dataset.downloadProgress)
-                .progressViewStyle(.linear)
-
-            HStack {
-                Text("\(Int(dataset.downloadProgress * 100))%")
-                    .font(.caption.monospacedDigit())
-
-                Spacer()
-
-                Text("\(dataset.formattedDownloadedSize) / \(dataset.formattedTotalSize)")
-                    .font(.caption.monospacedDigit())
-                    .foregroundStyle(.secondary)
-            }
-        }
-    }
-
-    // MARK: - Storage Info
-
-    private var storageInfoView: some View {
-        Group {
-            LabeledContent("Total Size", value: dataset.formattedTotalSize)
-            LabeledContent("Downloaded", value: dataset.formattedDownloadedSize)
-            LabeledContent("Parts", value: dataset.partsProgressText)
-
-            if dataset.downloadStatus == .completed {
-                LabeledContent("Samples", value: "\(samples.count)")
-            }
-        }
-    }
-
-    // MARK: - Action Buttons
-
-    @ViewBuilder
-    private var actionButtons: some View {
-        switch dataset.downloadStatus {
-        case .notStarted:
-            Button {
-                // Start download action
+                    Button(role: .destructive) {
+                        showDeleteConfirmation = true
+                    } label: {
+                        SwiftUI.Label("Delete Dataset", systemImage: "trash")
+                    }
+                }
             } label: {
-                SwiftUI.Label("Start Download", systemImage: "arrow.down.circle.fill")
-            }
-
-        case .downloading:
-            Button {
-                // Pause download action
-            } label: {
-                SwiftUI.Label("Pause Download", systemImage: "pause.circle.fill")
-            }
-
-        case .paused:
-            Button {
-                // Resume download action
-            } label: {
-                SwiftUI.Label("Resume Download", systemImage: "play.circle.fill")
-            }
-
-        case .failed:
-            Button {
-                // Retry download action
-            } label: {
-                SwiftUI.Label("Retry Download", systemImage: "arrow.clockwise.circle.fill")
-            }
-
-            if let error = dataset.lastError {
-                Text(error)
-                    .font(.caption)
-                    .foregroundStyle(.red)
-            }
-
-        case .completed:
-            Button(role: .destructive) {
-                // Delete dataset action
-            } label: {
-                SwiftUI.Label("Delete Dataset", systemImage: "trash.fill")
-            }
-
-        case .processing:
-            HStack {
-                ProgressView()
-                    .padding(.trailing, 8)
-                Text("Processing downloaded files...")
-                    .foregroundStyle(.secondary)
+                Image(systemName: "ellipsis.circle")
             }
         }
     }
 
-    // MARK: - Samples List
+    // MARK: - Actions
 
-    private var samplesListView: some View {
-        Group {
-            ForEach(samples.prefix(20)) { sample in
-                SampleRowView(sample: sample)
-            }
+    private func startDownload() {
+        dataset.startDownload()
+    }
 
-            if samples.count > 20 {
-                Text("And \(samples.count - 20) more...")
-                    .foregroundStyle(.secondary)
-                    .italic()
-            }
+    private func pauseDownload() {
+        dataset.pauseDownload()
+    }
+
+    private func resumeDownload() {
+        dataset.startDownload()
+    }
+
+    private func cancelDownload() {
+        dataset.pauseDownload()
+        dataset.downloadedBytes = 0
+        dataset.downloadedParts = 0
+        dataset.statusRawValue = DownloadStatus.notStarted.rawValue
+    }
+
+    private func browseSamples() {
+        // Navigate to samples browser (to be implemented)
+    }
+
+    private func browseCategory(_ label: Label) {
+        // Navigate to category browser (to be implemented)
+    }
+
+    private func viewInFiles() {
+        #if os(iOS)
+        // Open the Files app to the dataset directory
+        let url = dataset.storageDirectory
+        if FileManager.default.fileExists(atPath: url.path) {
+            UIApplication.shared.open(url)
         }
+        #endif
+    }
+
+    private func deleteDataset() {
+        // Delete local files
+        if dataset.hasLocalStorage {
+            try? FileManager.default.removeItem(at: dataset.storageDirectory)
+        }
+
+        // Reset dataset to not started state
+        dataset.statusRawValue = DownloadStatus.notStarted.rawValue
+        dataset.downloadedBytes = 0
+        dataset.downloadedParts = 0
+        dataset.downloadedSamples = 0
+        dataset.downloadStartedAt = nil
+        dataset.downloadCompletedAt = nil
+        dataset.lastError = nil
     }
 }
 
@@ -384,12 +319,41 @@ struct SettingsDetailPlaceholder: View {
 
 // MARK: - Previews
 
-#Preview("Detail - Dataset Selected") {
+#Preview("Detail - Not Started") {
     NavigationStack {
-        DetailColumnView(
-            selectedSection: .datasets,
-            selectedDataset: Dataset.previewIncludeDownloading
-        )
+        DatasetDetailView(dataset: .previewIncludeNotStarted)
+    }
+    .modelContainer(PersistenceController.preview.container)
+    .environment(DownloadManager())
+}
+
+#Preview("Detail - Downloading") {
+    NavigationStack {
+        DatasetDetailView(dataset: .previewIncludeDownloading)
+    }
+    .modelContainer(PersistenceController.preview.container)
+    .environment(DownloadManager())
+}
+
+#Preview("Detail - Completed") {
+    NavigationStack {
+        DatasetDetailView(dataset: .previewIncludeCompleted)
+    }
+    .modelContainer(PersistenceController.preview.container)
+    .environment(DownloadManager())
+}
+
+#Preview("Detail - Paused") {
+    NavigationStack {
+        DatasetDetailView(dataset: .previewPaused)
+    }
+    .modelContainer(PersistenceController.preview.container)
+    .environment(DownloadManager())
+}
+
+#Preview("Detail - Failed") {
+    NavigationStack {
+        DatasetDetailView(dataset: .previewFailed)
     }
     .modelContainer(PersistenceController.preview.container)
     .environment(DownloadManager())

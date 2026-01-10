@@ -105,11 +105,30 @@ class ClaudeClient:
 
             self.logger.debug(f"Running Claude CLI with flags: {' '.join(cmd[1:])}")
 
+            # Get project root from config (SignLanguageTranslate directory)
+            # Config path is relative to automation dir, e.g., "../SignLanguageTranslate.xcodeproj"
+            # We need to resolve it to get the absolute project root
+            project_path = self.config.get("project", {}).get("path", "")
+            if project_path:
+                # Resolve the relative path from the config directory (automation/)
+                xcodeproj_path = Path(project_path).resolve()
+                # xcodeproj is at repo_root/SignLanguageTranslate.xcodeproj
+                # Project source is at repo_root/SignLanguageTranslate/
+                project_root = xcodeproj_path.parent / "SignLanguageTranslate"
+                if not project_root.exists():
+                    # Fallback to repo root
+                    project_root = xcodeproj_path.parent
+            else:
+                project_root = Path.cwd()
+
+            self.logger.info(f"Running Claude CLI in directory: {project_root}")
+
             process = await asyncio.create_subprocess_exec(
                 *cmd,
                 stdin=asyncio.subprocess.PIPE,
                 stdout=asyncio.subprocess.PIPE,
-                stderr=asyncio.subprocess.PIPE
+                stderr=asyncio.subprocess.PIPE,
+                cwd=str(project_root)
             )
 
             # Track timing

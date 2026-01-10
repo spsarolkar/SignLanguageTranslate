@@ -180,15 +180,17 @@ class Orchestrator:
                 hours, remainder = divmod(remainder, 3600)
                 mins, secs = divmod(remainder, 60)
                 
+                # Use \r to overwrite the same line for cleaner output
                 if days > 0:
-                    print(f"   ⏳ {int(days)}d {int(hours)}h {int(mins)}m remaining...")
+                    print(f"\r   ⏳ {int(days)}d {int(hours)}h {int(mins)}m remaining...   ", end="", flush=True)
                 elif hours > 0:
-                    print(f"   ⏳ {int(hours)}h {int(mins)}m remaining...")
+                    print(f"\r   ⏳ {int(hours)}h {int(mins)}m remaining...      ", end="", flush=True)
                 elif mins > 0:
-                    print(f"   ⏳ {int(mins)}m {int(secs)}s remaining...")
+                    print(f"\r   ⏳ {int(mins)}m {int(secs)}s remaining...       ", end="", flush=True)
                 else:
-                    print(f"   ⏳ {int(secs)}s remaining...")
+                    print(f"\r   ⏳ {int(secs)}s remaining...           ", end="", flush=True)
 
+        print()  # Final newline after countdown
         print(f"{'='*60}\n")
 
     def get_all_phases(self) -> list[PhaseConfig]:

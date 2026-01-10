@@ -40,13 +40,16 @@ automation:
 claude:
   # Use Claude CLI (claude command) or direct API
   use_cli: true
-  
+
   # Model selection - Sonnet 4.5 (good capability + better rate limits than Opus)
   model: claude-sonnet-4-5-20250929
-  
+
   # Token limits
   max_tokens: 16000
-  
+
+  # Timeout for Claude CLI response (seconds)
+  timeout_seconds: 1200
+
   # API configuration (only if use_cli is false)
   api_key_env: ANTHROPIC_API_KEY
   

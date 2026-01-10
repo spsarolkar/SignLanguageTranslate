@@ -1,4 +1,256 @@
 {
-  "modules": [],
-  "timeline": []
+  "exported_at": "2026-01-10T22:39:49.301894",
+  "overall": {
+    "total_phases": 10,
+    "completed_phases": 8,
+    "failed_phases": 1,
+    "completion_percentage": 80.0,
+    "total_iterations": 156,
+    "avg_iterations_per_phase": 19.5,
+    "total_build_errors": 36,
+    "total_test_failures": 0,
+    "total_rate_limits": 12,
+    "total_duration_seconds": 25909.317359999997,
+    "total_duration_minutes": 431.82195599999994,
+    "total_input_tokens": 0,
+    "total_output_tokens": 0
+  },
+  "phases": [
+    {
+      "id": "2.6",
+      "module_id": "module2",
+      "name": "Download Progress UI",
+      "status": "completed",
+      "started_at": "2026-01-07T16:39:08.922671",
+      "completed_at": "2026-01-07T16:44:33.153377",
+      "total_iterations": 1,
+      "total_duration_seconds": 324.238809,
+      "build_errors": 23,
+      "test_failures": 0
+    },
+    {
+      "id": "3.2",
+      "module_id": "module3",
+      "name": "Dataset List Item View",
+      "status": "completed",
+      "started_at": "2026-01-07T20:43:56.678097",
+      "completed_at": "2026-01-07T20:51:10.320577",
+      "total_iterations": 1,
+      "total_duration_seconds": 433.64955,
+      "build_errors": 0,
+      "test_failures": 0
+    },
+    {
+      "id": "3.3",
+      "module_id": "module3",
+      "name": "Dataset List View",
+      "status": "completed",
+      "started_at": "2026-01-10T06:57:34.037493",
+      "completed_at": "2026-01-10T09:38:02.106395",
+      "total_iterations": 1,
+      "total_duration_seconds": 9628.076755,
+      "build_errors": 0,
+      "test_failures": 0
+    },
+    {
+      "id": "3.4",
+      "module_id": "module3",
+      "name": "Integrate List into Split View",
+      "status": "completed",
+      "started_at": "2026-01-10T09:38:27.210420",
+      "completed_at": "2026-01-10T09:43:41.632813",
+      "total_iterations": 1,
+      "total_duration_seconds": 314.438492,
+      "build_errors": 0,
+      "test_failures": 0
+    },
+    {
+      "id": "3.5",
+      "module_id": "module3",
+      "name": "Download Task Row View",
+      "status": "completed",
+      "started_at": "2026-01-10T09:44:06.734731",
+      "completed_at": "2026-01-10T09:47:56.301517",
+      "total_iterations": 1,
+      "total_duration_seconds": 229.581338,
+      "build_errors": 0,
+      "test_failures": 0
+    },
+    {
+      "id": "3.6",
+      "module_id": "module3",
+      "name": "Download Tasks List Sheet",
+      "status": "completed",
+      "started_at": "2026-01-10T09:48:21.413435",
+      "completed_at": "2026-01-10T10:04:23.256978",
+      "total_iterations": 2,
+      "total_duration_seconds": 961.856734,
+      "build_errors": 0,
+      "test_failures": 0
+    },
+    {
+      "id": "1.1",
+      "module_id": "module1",
+      "name": "Xcode Project Setup",
+      "status": "failed",
+      "started_at": "2026-01-10T13:19:09.399948",
+      "completed_at": "2026-01-10T13:19:09.413831",
+      "total_iterations": 0,
+      "total_duration_seconds": 0.019982,
+      "build_errors": 0,
+      "test_failures": 0
+    },
+    {
+      "id": "4.1",
+      "module_id": "module4",
+      "name": "Background URLSession Configuration",
+      "status": "completed",
+      "started_at": "2026-01-10T13:20:33.126775",
+      "completed_at": "2026-01-10T13:37:29.899089",
+      "total_iterations": 2,
+      "total_duration_seconds": 1016.779728,
+      "build_errors": 0,
+      "test_failures": 0
+    },
+    {
+      "id": "4.2",
+      "module_id": "module4",
+      "name": "Download Engine Implementation",
+      "status": "running",
+      "started_at": "2026-01-10T13:37:55.013851",
+      "completed_at": null,
+      "total_iterations": 0,
+      "total_duration_seconds": 0.0,
+      "build_errors": 0,
+      "test_failures": 0
+    },
+    {
+      "id": "3.1",
+      "module_id": "module3",
+      "name": "App Navigation Structure",
+      "status": "completed",
+      "started_at": "2026-01-10T19:03:08.624137",
+      "completed_at": "2026-01-10T22:39:49.292490",
+      "total_iterations": 4,
+      "total_duration_seconds": 13000.675972,
+      "build_errors": 13,
+      "test_failures": 0
+    }
+  ],
+  "timeline": [
+    {
+      "type": "phase_start",
+      "phase_id": "2.6",
+      "name": "Download Progress UI",
+      "timestamp": "2026-01-07T16:39:08.922671"
+    },
+    {
+      "type": "phase_complete",
+      "phase_id": "2.6",
+      "name": "Download Progress UI",
+      "timestamp": "2026-01-07T16:44:33.153377"
+    },
+    {
+      "type": "phase_start",
+      "phase_id": "3.2",
+      "name": "Dataset List Item View",
+      "timestamp": "2026-01-07T20:43:56.678097"
+    },
+    {
+      "type": "phase_complete",
+      "phase_id": "3.2",
+      "name": "Dataset List Item View",
+      "timestamp": "2026-01-07T20:51:10.320577"
+    },
+    {
+      "type": "phase_start",
+      "phase_id": "3.3",
+      "name": "Dataset List View",
+      "timestamp": "2026-01-10T06:57:34.037493"
+    },
+    {
+      "type": "phase_complete",
+      "phase_id": "3.3",
+      "name": "Dataset List View",
+      "timestamp": "2026-01-10T09:38:02.106395"
+    },
+    {
+      "type": "phase_start",
+      "phase_id": "3.4",
+      "name": "Integrate List into Split View",
+      "timestamp": "2026-01-10T09:38:27.210420"
+    },
+    {
+      "type": "phase_complete",
+      "phase_id": "3.4",
+      "name": "Integrate List into Split View",
+      "timestamp": "2026-01-10T09:43:41.632813"
+    },
+    {
+      "type": "phase_start",
+      "phase_id": "3.5",
+      "name": "Download Task Row View",
+      "timestamp": "2026-01-10T09:44:06.734731"
+    },
+    {
+      "type": "phase_complete",
+      "phase_id": "3.5",
+      "name": "Download Task Row View",
+      "timestamp": "2026-01-10T09:47:56.301517"
+    },
+    {
+      "type": "phase_start",
+      "phase_id": "3.6",
+      "name": "Download Tasks List Sheet",
+      "timestamp": "2026-01-10T09:48:21.413435"
+    },
+    {
+      "type": "phase_complete",
+      "phase_id": "3.6",
+      "name": "Download Tasks List Sheet",
+      "timestamp": "2026-01-10T10:04:23.256978"
+    },
+    {
+      "type": "phase_start",
+      "phase_id": "1.1",
+      "name": "Xcode Project Setup",
+      "timestamp": "2026-01-10T13:19:09.399948"
+    },
+    {
+      "type": "phase_failed",
+      "phase_id": "1.1",
+      "name": "Xcode Project Setup",
+      "timestamp": "2026-01-10T13:19:09.413831"
+    },
+    {
+      "type": "phase_start",
+      "phase_id": "4.1",
+      "name": "Background URLSession Configuration",
+      "timestamp": "2026-01-10T13:20:33.126775"
+    },
+    {
+      "type": "phase_complete",
+      "phase_id": "4.1",
+      "name": "Background URLSession Configuration",
+      "timestamp": "2026-01-10T13:37:29.899089"
+    },
+    {
+      "type": "phase_start",
+      "phase_id": "4.2",
+      "name": "Download Engine Implementation",
+      "timestamp": "2026-01-10T13:37:55.013851"
+    },
+    {
+      "type": "phase_start",
+      "phase_id": "3.1",
+      "name": "App Navigation Structure",
+      "timestamp": "2026-01-10T19:03:08.624137"
+    },
+    {
+      "type": "phase_complete",
+      "phase_id": "3.1",
+      "name": "App Navigation Structure",
+      "timestamp": "2026-01-10T22:39:49.292490"
+    }
+  ]
 }

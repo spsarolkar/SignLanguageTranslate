@@ -54,63 +54,6 @@ struct ContentView: View {
     }
 }
 
-// MARK: - Dataset Row View
-
-struct DatasetRowView: View {
-    let dataset: Dataset
-
-    var body: some View {
-        HStack(spacing: 12) {
-            // Icon
-            Image(systemName: dataset.datasetType.iconName)
-                .font(.title2)
-                .foregroundStyle(dataset.datasetType.color)
-                .frame(width: 32)
-
-            // Info
-            VStack(alignment: .leading, spacing: 2) {
-                Text(dataset.name)
-                    .font(.headline)
-
-                Text(dataset.downloadStatus.displayName)
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-            }
-
-            Spacer()
-
-            // Status indicator
-            statusIndicator
-        }
-        .padding(.vertical, 4)
-    }
-
-    @ViewBuilder
-    private var statusIndicator: some View {
-        switch dataset.downloadStatus {
-        case .completed:
-            Image(systemName: "checkmark.circle.fill")
-                .foregroundStyle(.green)
-        case .downloading:
-            ProgressView(value: dataset.downloadProgress)
-                .progressViewStyle(.circular)
-                .frame(width: 24, height: 24)
-        case .paused:
-            Image(systemName: "pause.circle.fill")
-                .foregroundStyle(.orange)
-        case .failed:
-            Image(systemName: "exclamationmark.circle.fill")
-                .foregroundStyle(.red)
-        case .processing:
-            ProgressView()
-                .frame(width: 24, height: 24)
-        case .notStarted:
-            Image(systemName: "arrow.down.circle")
-                .foregroundStyle(.secondary)
-        }
-    }
-}
-
 // MARK: - Dataset Detail Placeholder
 
 struct DatasetDetailPlaceholder: View {

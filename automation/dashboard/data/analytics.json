@@ -1,17 +1,17 @@
 {
-  "exported_at": "2026-01-07T21:00:46.507337",
+  "exported_at": "2026-01-10T09:38:02.110606",
   "overall": {
     "total_phases": 5,
-    "completed_phases": 3,
-    "failed_phases": 2,
-    "completion_percentage": 60.0,
-    "total_iterations": 120,
-    "avg_iterations_per_phase": 40.0,
+    "completed_phases": 4,
+    "failed_phases": 1,
+    "completion_percentage": 80.0,
+    "total_iterations": 128,
+    "avg_iterations_per_phase": 32.0,
     "total_build_errors": 23,
     "total_test_failures": 0,
-    "total_rate_limits": 0,
-    "total_duration_seconds": 1765.89272,
-    "total_duration_minutes": 29.431545333333336,
+    "total_rate_limits": 6,
+    "total_duration_seconds": 10842.939122,
+    "total_duration_minutes": 180.71565203333333,
     "total_input_tokens": 0,
     "total_output_tokens": 0
   },
@@ -68,11 +68,11 @@
       "id": "3.3",
       "module_id": "module3",
       "name": "Dataset List View",
-      "status": "failed",
-      "started_at": "2026-01-07T20:51:35.480256",
-      "completed_at": "2026-01-07T21:00:46.505360",
-      "total_iterations": 0,
-      "total_duration_seconds": 551.030353,
+      "status": "completed",
+      "started_at": "2026-01-10T06:57:34.037493",
+      "completed_at": "2026-01-10T09:38:02.106395",
+      "total_iterations": 1,
+      "total_duration_seconds": 9628.076755,
       "build_errors": 0,
       "test_failures": 0
     }
@@ -130,13 +130,13 @@
       "type": "phase_start",
       "phase_id": "3.3",
       "name": "Dataset List View",
-      "timestamp": "2026-01-07T20:51:35.480256"
+      "timestamp": "2026-01-10T06:57:34.037493"
     },
     {
-      "type": "phase_failed",
+      "type": "phase_complete",
       "phase_id": "3.3",
       "name": "Dataset List View",
-      "timestamp": "2026-01-07T21:00:46.505360"
+      "timestamp": "2026-01-10T09:38:02.106395"
     }
   ]
 }

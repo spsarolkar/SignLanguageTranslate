@@ -1,17 +1,17 @@
 {
-  "exported_at": "2026-01-10T22:39:49.301894",
+  "exported_at": "2026-01-10T22:48:17.972413",
   "overall": {
     "total_phases": 10,
     "completed_phases": 8,
     "failed_phases": 1,
     "completion_percentage": 80.0,
-    "total_iterations": 156,
-    "avg_iterations_per_phase": 19.5,
-    "total_build_errors": 36,
+    "total_iterations": 162,
+    "avg_iterations_per_phase": 20.25,
+    "total_build_errors": 48,
     "total_test_failures": 0,
     "total_rate_limits": 12,
-    "total_duration_seconds": 25909.317359999997,
-    "total_duration_minutes": 431.82195599999994,
+    "total_duration_seconds": 25959.201585,
+    "total_duration_minutes": 432.65335975,
     "total_input_tokens": 0,
     "total_output_tokens": 0
   },
@@ -26,18 +26,6 @@
       "total_iterations": 1,
       "total_duration_seconds": 324.238809,
       "build_errors": 23,
-      "test_failures": 0
-    },
-    {
-      "id": "3.2",
-      "module_id": "module3",
-      "name": "Dataset List Item View",
-      "status": "completed",
-      "started_at": "2026-01-07T20:43:56.678097",
-      "completed_at": "2026-01-07T20:51:10.320577",
-      "total_iterations": 1,
-      "total_duration_seconds": 433.64955,
-      "build_errors": 0,
       "test_failures": 0
     },
     {
@@ -135,6 +123,18 @@
       "total_duration_seconds": 13000.675972,
       "build_errors": 13,
       "test_failures": 0
+    },
+    {
+      "id": "3.2",
+      "module_id": "module3",
+      "name": "Dataset List Item View",
+      "status": "completed",
+      "started_at": "2026-01-10T22:40:14.444764",
+      "completed_at": "2026-01-10T22:48:17.964108",
+      "total_iterations": 3,
+      "total_duration_seconds": 483.533775,
+      "build_errors": 12,
+      "test_failures": 0
     }
   ],
   "timeline": [
@@ -149,18 +149,6 @@
       "phase_id": "2.6",
       "name": "Download Progress UI",
       "timestamp": "2026-01-07T16:44:33.153377"
-    },
-    {
-      "type": "phase_start",
-      "phase_id": "3.2",
-      "name": "Dataset List Item View",
-      "timestamp": "2026-01-07T20:43:56.678097"
-    },
-    {
-      "type": "phase_complete",
-      "phase_id": "3.2",
-      "name": "Dataset List Item View",
-      "timestamp": "2026-01-07T20:51:10.320577"
     },
     {
       "type": "phase_start",
@@ -251,6 +239,18 @@
       "phase_id": "3.1",
       "name": "App Navigation Structure",
       "timestamp": "2026-01-10T22:39:49.292490"
+    },
+    {
+      "type": "phase_start",
+      "phase_id": "3.2",
+      "name": "Dataset List Item View",
+      "timestamp": "2026-01-10T22:40:14.444764"
+    },
+    {
+      "type": "phase_complete",
+      "phase_id": "3.2",
+      "name": "Dataset List Item View",
+      "timestamp": "2026-01-10T22:48:17.964108"
     }
   ]
 }

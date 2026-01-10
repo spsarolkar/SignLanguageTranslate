@@ -1,5 +1,5 @@
 {
-  "last_updated": "2026-01-10T22:39:49.304927",
+  "last_updated": "2026-01-10T22:48:17.975270",
   "phases": [
     {
       "id": "2.6",
@@ -11,18 +11,6 @@
       "total_iterations": 1,
       "total_duration_seconds": 324.238809,
       "build_errors": 23,
-      "test_failures": 0
-    },
-    {
-      "id": "3.2",
-      "module_id": "module3",
-      "name": "Dataset List Item View",
-      "status": "completed",
-      "started_at": "2026-01-07T20:43:56.678097",
-      "completed_at": "2026-01-07T20:51:10.320577",
-      "total_iterations": 1,
-      "total_duration_seconds": 433.64955,
-      "build_errors": 0,
       "test_failures": 0
     },
     {
@@ -119,6 +107,18 @@
       "total_iterations": 4,
       "total_duration_seconds": 13000.675972,
       "build_errors": 13,
+      "test_failures": 0
+    },
+    {
+      "id": "3.2",
+      "module_id": "module3",
+      "name": "Dataset List Item View",
+      "status": "completed",
+      "started_at": "2026-01-10T22:40:14.444764",
+      "completed_at": "2026-01-10T22:48:17.964108",
+      "total_iterations": 3,
+      "total_duration_seconds": 483.533775,
+      "build_errors": 12,
       "test_failures": 0
     }
   ]

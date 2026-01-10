@@ -98,9 +98,10 @@ class ClaudeClient:
         self.logger.info(f"Sending prompt to Claude CLI: {prompt_chars:,} chars, {prompt_lines} lines")
 
         try:
-            # Build CLI command - use simple --print mode without session persistence
-            # Session persistence via --session-id causes issues when sessions aren't cleaned up
-            cmd = ["claude", "--print"]
+            # Build CLI command with:
+            # --print: non-interactive output mode
+            # --permission-mode acceptEdits: auto-accept file edits so Claude can write project files
+            cmd = ["claude", "--print", "--permission-mode", "acceptEdits"]
 
             self.logger.debug(f"Running Claude CLI with flags: {' '.join(cmd[1:])}")
 

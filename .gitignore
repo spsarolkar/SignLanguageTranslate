@@ -7,19 +7,29 @@ xcuserdata/
 *.xcworkspace
 DerivedData/
 .build/
+build/
+XCBuildData/
+*.xccheckout
+*.xcscmblueprint
 
 # Swift Package Manager
 .swiftpm/
-*.xcodeproj/
 
 # Build artifacts
 *.app
 *.ipa
 *.dSYM.zip
 *.dSYM
+*.pcm
+*.o
+*.d
 
 # Provisioning
 *.mobileprovision
 *.cer
 *.p12
 *.certSigningRequest
+
+# Xcode build cache
+ModuleCache.noindex/
+SDKStatCaches.noindex/

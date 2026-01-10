@@ -1,17 +1,17 @@
 {
-  "exported_at": "2026-01-10T23:00:54.608028",
+  "exported_at": "2026-01-11T03:56:58.920597",
   "overall": {
     "total_phases": 10,
     "completed_phases": 8,
     "failed_phases": 1,
     "completion_percentage": 80.0,
-    "total_iterations": 170,
-    "avg_iterations_per_phase": 21.25,
-    "total_build_errors": 63,
+    "total_iterations": 176,
+    "avg_iterations_per_phase": 22.0,
+    "total_build_errors": 64,
     "total_test_failures": 0,
-    "total_rate_limits": 12,
-    "total_duration_seconds": 17062.616298,
-    "total_duration_minutes": 284.3769383,
+    "total_rate_limits": 13,
+    "total_duration_seconds": 34487.39419,
+    "total_duration_minutes": 574.7899031666667,
     "total_input_tokens": 0,
     "total_output_tokens": 0
   },
@@ -26,18 +26,6 @@
       "total_iterations": 1,
       "total_duration_seconds": 324.238809,
       "build_errors": 23,
-      "test_failures": 0
-    },
-    {
-      "id": "3.4",
-      "module_id": "module3",
-      "name": "Integrate List into Split View",
-      "status": "completed",
-      "started_at": "2026-01-10T09:38:27.210420",
-      "completed_at": "2026-01-10T09:43:41.632813",
-      "total_iterations": 1,
-      "total_duration_seconds": 314.438492,
-      "build_errors": 0,
       "test_failures": 0
     },
     {
@@ -135,6 +123,18 @@
       "total_duration_seconds": 731.491468,
       "build_errors": 15,
       "test_failures": 0
+    },
+    {
+      "id": "3.4",
+      "module_id": "module3",
+      "name": "Integrate List into Split View",
+      "status": "completed",
+      "started_at": "2026-01-10T23:01:19.715897",
+      "completed_at": "2026-01-11T03:56:58.916681",
+      "total_iterations": 3,
+      "total_duration_seconds": 17739.216384,
+      "build_errors": 1,
+      "test_failures": 0
     }
   ],
   "timeline": [
@@ -149,18 +149,6 @@
       "phase_id": "2.6",
       "name": "Download Progress UI",
       "timestamp": "2026-01-07T16:44:33.153377"
-    },
-    {
-      "type": "phase_start",
-      "phase_id": "3.4",
-      "name": "Integrate List into Split View",
-      "timestamp": "2026-01-10T09:38:27.210420"
-    },
-    {
-      "type": "phase_complete",
-      "phase_id": "3.4",
-      "name": "Integrate List into Split View",
-      "timestamp": "2026-01-10T09:43:41.632813"
     },
     {
       "type": "phase_start",
@@ -251,6 +239,18 @@
       "phase_id": "3.3",
       "name": "Dataset List View",
       "timestamp": "2026-01-10T23:00:54.599058"
+    },
+    {
+      "type": "phase_start",
+      "phase_id": "3.4",
+      "name": "Integrate List into Split View",
+      "timestamp": "2026-01-10T23:01:19.715897"
+    },
+    {
+      "type": "phase_complete",
+      "phase_id": "3.4",
+      "name": "Integrate List into Split View",
+      "timestamp": "2026-01-11T03:56:58.916681"
     }
   ]
 }

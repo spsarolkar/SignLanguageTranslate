@@ -278,9 +278,9 @@ class ClaudeClient:
         """Try to parse retry-after value from error message."""
         error_lower = error_text.lower()
 
-        # First, try to parse date-based reset messages like:
+        # Pattern 1: Date-based reset messages with full date
         # "You've hit your limit · resets Jan 10 at 9:30am (Asia/Calcutta)"
-        date_pattern = r'resets?\s+([a-z]{3})\s+(\d{1,2})\s+at\s+(\d{1,2}):(\d{2})(am|pm)'
+        date_pattern = r'resets?\s+([a-z]{3})\s+(\d{1,2})\s+(?:at\s+)?(\d{1,2}):(\d{2})(am|pm)'
         date_match = re.search(date_pattern, error_lower)
         if date_match:
             try:
@@ -306,12 +306,42 @@ class ClaudeClient:
                 if reset_date < now:
                     reset_date = datetime(year + 1, month, int(day), hour, int(minute))
                 
-                # Calculate seconds until reset
-                seconds_until_reset = int((reset_date - now).total_seconds())
-                self.logger.info(f"Rate limit resets at {reset_date.strftime('%Y-%m-%d %H:%M')} ({seconds_until_reset}s from now)")
+                # Calculate seconds until reset + 60s buffer to ensure limit is cleared
+                seconds_until_reset = int((reset_date - now).total_seconds()) + 60
+                self.logger.info(f"Rate limit resets at {reset_date.strftime('%Y-%m-%d %H:%M')} (waiting {seconds_until_reset}s = reset + 60s buffer)")
                 return max(seconds_until_reset, 60)  # At least 60 seconds
             except Exception as e:
                 self.logger.debug(f"Failed to parse date-based reset time: {e}")
+
+        # Pattern 2: Time-only reset messages (assumes today or tomorrow)
+        # "You've hit your limit · resets 9:30am (Asia/Calcutta)"
+        time_pattern = r'resets?\s+(\d{1,2}):(\d{2})(am|pm)'
+        time_match = re.search(time_pattern, error_lower)
+        if time_match:
+            try:
+                hour, minute, ampm = time_match.groups()
+                
+                # Convert hour to 24-hour format
+                hour = int(hour)
+                if ampm == 'pm' and hour != 12:
+                    hour += 12
+                elif ampm == 'am' and hour == 12:
+                    hour = 0
+                
+                # Build the reset datetime (today first, tomorrow if in past)
+                now = datetime.now()
+                reset_date = now.replace(hour=hour, minute=int(minute), second=0, microsecond=0)
+                if reset_date <= now:
+                    # Reset time is in the past today, so it must be tomorrow
+                    from datetime import timedelta
+                    reset_date = reset_date + timedelta(days=1)
+                
+                # Calculate seconds until reset + 60s buffer to ensure limit is cleared
+                seconds_until_reset = int((reset_date - now).total_seconds()) + 60
+                self.logger.info(f"Rate limit resets at {reset_date.strftime('%Y-%m-%d %H:%M')} (waiting {seconds_until_reset}s = reset + 60s buffer)")
+                return max(seconds_until_reset, 60)  # At least 60 seconds
+            except Exception as e:
+                self.logger.debug(f"Failed to parse time-based reset time: {e}")
 
         # Common patterns for rate limit reset time
         patterns = [

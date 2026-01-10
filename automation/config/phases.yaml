@@ -193,3 +193,118 @@ modules:
         description: "Sheet showing all downloads"
         tests_required: false
         screenshot: true
+
+  - id: module4
+    name: "Download Implementation"
+    description: "Actual download functionality with URLSession"
+
+    phases:
+      - id: "4.1"
+        name: "Background URLSession Configuration"
+        prompt_file: "module4/phase_4.1.md"
+        description: "Set up background download capabilities"
+        expected_files:
+          - "Features/DatasetManager/Downloads/BackgroundSessionManager.swift"
+          - "Features/DatasetManager/Downloads/DownloadCoordinator.swift"
+          - "Features/DatasetManager/Downloads/DownloadFileManager.swift"
+        tests_required: false
+        screenshot: false
+
+      - id: "4.2"
+        name: "Download Engine Implementation"
+        prompt_file: "module4/phase_4.2.md"
+        description: "Core download engine that processes the queue"
+        expected_files:
+          - "Features/DatasetManager/Downloads/DownloadEngine.swift"
+          - "Features/DatasetManager/Downloads/DownloadEngineDelegate.swift"
+          - "Core/Utilities/NetworkMonitor.swift"
+        tests_required: false
+        screenshot: false
+
+      - id: "4.3"
+        name: "Progress Tracking and Persistence"
+        prompt_file: "module4/phase_4.3.md"
+        description: "Robust progress tracking that survives app restarts"
+        expected_files:
+          - "Features/DatasetManager/Downloads/DownloadStatePersistence.swift"
+          - "Features/DatasetManager/Downloads/DownloadProgressTracker.swift"
+          - "Features/DatasetManager/Downloads/ResumeDataManager.swift"
+          - "Features/DatasetManager/Downloads/DownloadHistory.swift"
+        tests_required: false
+        screenshot: false
+
+      - id: "4.4"
+        name: "Download System Tests"
+        prompt_file: "module4/phase_4.4.md"
+        description: "Comprehensive tests for download system"
+        expected_files:
+          - "SignLanguageTranslateTests/Downloads/BackgroundSessionManagerTests.swift"
+          - "SignLanguageTranslateTests/Downloads/DownloadEngineTests.swift"
+          - "SignLanguageTranslateTests/Downloads/DownloadIntegrationTests.swift"
+          - "SignLanguageTranslateTests/Mocks/MockURLSession.swift"
+        tests_required: true
+        screenshot: false
+
+      - id: "4.5"
+        name: "Connect Download UI to Engine"
+        prompt_file: "module4/phase_4.5.md"
+        description: "Wire up UI components to real download engine"
+        tests_required: false
+        screenshot: true
+
+      - id: "4.6"
+        name: "Download Error Handling UI"
+        prompt_file: "module4/phase_4.6.md"
+        description: "Comprehensive error handling and recovery UI"
+        expected_files:
+          - "Features/DatasetManager/Views/Components/DownloadErrorView.swift"
+          - "Features/DatasetManager/Views/Components/DownloadErrorBanner.swift"
+          - "Features/DatasetManager/Views/DownloadErrorListView.swift"
+          - "Features/DatasetManager/Views/Components/StorageWarningView.swift"
+          - "Features/DatasetManager/Views/Components/NetworkErrorView.swift"
+        tests_required: false
+        screenshot: true
+
+  - id: module5
+    name: "Extraction and Ingestion"
+    description: "Zip extraction and video file ingestion"
+
+    phases:
+      - id: "5.1"
+        name: "Zip Extraction System"
+        prompt_file: "module5/phase_5.1.md"
+        description: "Implement zip file extraction for downloaded datasets"
+        expected_files:
+          - "Features/DatasetManager/Extraction/ZipExtractor.swift"
+          - "Features/DatasetManager/Extraction/ExtractionCoordinator.swift"
+          - "Features/DatasetManager/Extraction/MultiPartMerger.swift"
+          - "Features/DatasetManager/Extraction/ExtractionProgress.swift"
+          - "Features/DatasetManager/Extraction/ZipValidation.swift"
+        tests_required: false
+        screenshot: false
+
+      - id: "5.2"
+        name: "Video File Ingestion"
+        prompt_file: "module5/phase_5.2.md"
+        description: "Create VideoSample records from extracted video files"
+        expected_files:
+          - "Features/DatasetManager/Ingestion/VideoIngestionService.swift"
+          - "Features/DatasetManager/Ingestion/VideoFileScanner.swift"
+          - "Features/DatasetManager/Ingestion/VideoMetadataExtractor.swift"
+          - "Features/DatasetManager/Ingestion/INCLUDEIngestionStrategy.swift"
+          - "Features/DatasetManager/Ingestion/IngestionProgressTracker.swift"
+        tests_required: false
+        screenshot: false
+
+      - id: "5.3"
+        name: "Extraction UI and Integration"
+        prompt_file: "module5/phase_5.3.md"
+        description: "UI for extraction/ingestion progress and pipeline integration"
+        expected_files:
+          - "Features/DatasetManager/Views/Components/ExtractionProgressView.swift"
+          - "Features/DatasetManager/Views/Components/IngestionProgressView.swift"
+          - "Features/DatasetManager/Views/Components/DatasetProcessingView.swift"
+          - "Features/DatasetManager/Processing/DatasetProcessor.swift"
+          - "Features/DatasetManager/Views/Components/StatBadge.swift"
+        tests_required: false
+        screenshot: true

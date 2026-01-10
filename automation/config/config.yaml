@@ -21,7 +21,7 @@ automation:
   max_retries_per_phase: 10
   delay_between_claude_calls: 5    # seconds between API calls (proactive pacing)
   delay_after_failure: 10           # extra delay after failures before retry
-  build_timeout_seconds: 600
+  build_timeout_seconds: 1200
   test_timeout_seconds: 300
   screenshot_delay_seconds: 3
   
@@ -59,7 +59,7 @@ claude:
 git:
   enabled: true
   auto_commit: true
-  auto_push: false  # Set true to auto-push after each phase
+  auto_push: true  # Auto-push after each phase commit
   
   # Commit message template (supports Jinja2)
   commit_message_template: |

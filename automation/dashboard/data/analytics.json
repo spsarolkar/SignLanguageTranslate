@@ -1,17 +1,17 @@
 {
-  "exported_at": "2026-01-11T04:04:38.318324",
+  "exported_at": "2026-01-11T08:57:26.358292",
   "overall": {
     "total_phases": 10,
     "completed_phases": 8,
     "failed_phases": 1,
     "completion_percentage": 80.0,
-    "total_iterations": 180,
-    "avg_iterations_per_phase": 22.5,
-    "total_build_errors": 73,
+    "total_iterations": 185,
+    "avg_iterations_per_phase": 23.125,
+    "total_build_errors": 83,
     "total_test_failures": 0,
-    "total_rate_limits": 13,
-    "total_duration_seconds": 34692.06353,
-    "total_duration_minutes": 578.2010588333334,
+    "total_rate_limits": 14,
+    "total_duration_seconds": 34025.637836,
+    "total_duration_minutes": 567.0939639333334,
     "total_input_tokens": 0,
     "total_output_tokens": 0
   },
@@ -26,18 +26,6 @@
       "total_iterations": 1,
       "total_duration_seconds": 324.238809,
       "build_errors": 23,
-      "test_failures": 0
-    },
-    {
-      "id": "3.6",
-      "module_id": "module3",
-      "name": "Download Tasks List Sheet",
-      "status": "completed",
-      "started_at": "2026-01-10T09:48:21.413435",
-      "completed_at": "2026-01-10T10:04:23.256978",
-      "total_iterations": 2,
-      "total_duration_seconds": 961.856734,
-      "build_errors": 0,
       "test_failures": 0
     },
     {
@@ -135,6 +123,18 @@
       "total_duration_seconds": 434.250678,
       "build_errors": 9,
       "test_failures": 0
+    },
+    {
+      "id": "3.6",
+      "module_id": "module3",
+      "name": "Download Tasks List Sheet",
+      "status": "completed",
+      "started_at": "2026-01-11T08:52:30.928260",
+      "completed_at": "2026-01-11T08:57:26.352385",
+      "total_iterations": 1,
+      "total_duration_seconds": 295.43104,
+      "build_errors": 10,
+      "test_failures": 0
     }
   ],
   "timeline": [
@@ -149,18 +149,6 @@
       "phase_id": "2.6",
       "name": "Download Progress UI",
       "timestamp": "2026-01-07T16:44:33.153377"
-    },
-    {
-      "type": "phase_start",
-      "phase_id": "3.6",
-      "name": "Download Tasks List Sheet",
-      "timestamp": "2026-01-10T09:48:21.413435"
-    },
-    {
-      "type": "phase_complete",
-      "phase_id": "3.6",
-      "name": "Download Tasks List Sheet",
-      "timestamp": "2026-01-10T10:04:23.256978"
     },
     {
       "type": "phase_start",
@@ -251,6 +239,18 @@
       "phase_id": "3.5",
       "name": "Download Task Row View",
       "timestamp": "2026-01-11T04:04:38.314437"
+    },
+    {
+      "type": "phase_start",
+      "phase_id": "3.6",
+      "name": "Download Tasks List Sheet",
+      "timestamp": "2026-01-11T08:52:30.928260"
+    },
+    {
+      "type": "phase_complete",
+      "phase_id": "3.6",
+      "name": "Download Tasks List Sheet",
+      "timestamp": "2026-01-11T08:57:26.352385"
     }
   ]
 }

@@ -49,12 +49,30 @@ actor DownloadQueueActor {
     /// Optional delegate for queue events (stored as nonisolated unsafe for cross-actor access)
     private nonisolated(unsafe) weak var _delegate: (any DownloadQueueDelegate)?
 
+    /// Persistence actor for saving/loading state
+    private let persistence: DownloadStatePersistence
+
+    /// Resume data manager for managing resume data files
+    private let resumeDataManager: ResumeDataManager
+
+    /// Whether state has been modified since last save
+    private var isDirty: Bool = false
+
     // MARK: - Initialization
 
     /// Create a download queue actor
-    /// - Parameter maxConcurrentDownloads: Maximum concurrent downloads (default 3)
-    init(maxConcurrentDownloads: Int = 3) {
+    /// - Parameters:
+    ///   - maxConcurrentDownloads: Maximum concurrent downloads (default 3)
+    ///   - persistence: State persistence actor (default creates new instance)
+    ///   - resumeDataManager: Resume data manager (default creates new instance)
+    init(
+        maxConcurrentDownloads: Int = 3,
+        persistence: DownloadStatePersistence = DownloadStatePersistence(),
+        resumeDataManager: ResumeDataManager = ResumeDataManager()
+    ) {
         self.maxConcurrentDownloads = maxConcurrentDownloads
+        self.persistence = persistence
+        self.resumeDataManager = resumeDataManager
     }
 
     // MARK: - Delegate Management
@@ -88,20 +106,29 @@ actor DownloadQueueActor {
         notifyDelegate { delegate in
             delegate.queueDidEnqueueTask(task)
         }
+
+        markDirty()
     }
 
     /// Add multiple tasks to the queue
     /// - Parameter newTasks: Tasks to add
     func enqueueAll(_ newTasks: [DownloadTask]) {
+        var added = false
+
         for task in newTasks {
             guard tasks[task.id] == nil else { continue }
 
             tasks[task.id] = task
             queue.append(task.id)
+            added = true
 
             notifyDelegate { delegate in
                 delegate.queueDidEnqueueTask(task)
             }
+        }
+
+        if added {
+            markDirty()
         }
     }
 
@@ -110,22 +137,33 @@ actor DownloadQueueActor {
     func remove(_ id: UUID) {
         guard tasks[id] != nil else { return }
 
+        // Clean up resume data for this task
+        resumeDataManager.delete(for: id)
+
         tasks.removeValue(forKey: id)
         queue.removeAll { $0 == id }
 
         notifyDelegate { delegate in
             delegate.queueDidRemoveTask(id)
         }
+
+        markDirty()
     }
 
     /// Remove all tasks from the queue
     func clear() {
+        // Clean up all resume data
+        let taskIds = Array(tasks.keys)
+        resumeDataManager.delete(for: taskIds)
+
         tasks.removeAll()
         queue.removeAll()
 
         notifyDelegate { delegate in
             delegate.queueDidClear()
         }
+
+        markDirty()
     }
 
     /// Reorder a task to a specific index in the queue
@@ -543,6 +581,181 @@ actor DownloadQueueActor {
     /// Get max concurrent downloads
     func getMaxConcurrentDownloads() -> Int {
         maxConcurrentDownloads
+    }
+
+    // MARK: - Persistence Integration
+
+    /// Persist current state to disk
+    ///
+    /// This method is called automatically on significant state changes.
+    /// It uses debounced saving to avoid excessive disk I/O.
+    func persistState() async {
+        let state = DownloadQueueState(
+            tasks: Array(tasks.values),
+            queueOrder: queue,
+            isPaused: isPaused,
+            maxConcurrentDownloads: maxConcurrentDownloads
+        )
+
+        await persistence.scheduleSave(state: state)
+        isDirty = false
+    }
+
+    /// Force immediate state save
+    func persistStateImmediately() async throws {
+        let state = DownloadQueueState(
+            tasks: Array(tasks.values),
+            queueOrder: queue,
+            isPaused: isPaused,
+            maxConcurrentDownloads: maxConcurrentDownloads
+        )
+
+        try await persistence.save(state: state)
+        isDirty = false
+    }
+
+    /// Restore state from disk
+    ///
+    /// Called on app launch to recover download state.
+    /// This method also reconciles resume data with task state.
+    ///
+    /// - Returns: True if state was restored, false if no saved state
+    @discardableResult
+    func restoreState() async -> Bool {
+        // Load and validate persisted state
+        guard let state = await persistence.loadValidated() else {
+            return false
+        }
+
+        // Import the state
+        do {
+            try await importStateInternal(state)
+        } catch {
+            print("[DownloadQueueActor] Failed to restore state: \(error.localizedDescription)")
+            return false
+        }
+
+        // Reconcile resume data with task state
+        await reconcileResumeData()
+
+        // Clean up orphaned files
+        let validTaskIds = Set(tasks.keys)
+        resumeDataManager.cleanupOrphaned(validTaskIds: validTaskIds)
+
+        return true
+    }
+
+    /// Import state without validation (internal use)
+    private func importStateInternal(_ state: DownloadQueueState) async throws {
+        // Clear current state
+        tasks.removeAll()
+        queue.removeAll()
+
+        // Import new state
+        for task in state.tasks {
+            tasks[task.id] = task
+        }
+        queue = state.queueOrder
+        isPaused = state.isPaused
+        maxConcurrentDownloads = state.maxConcurrentDownloads
+
+        isDirty = false
+    }
+
+    /// Reconcile resume data files with task state
+    ///
+    /// Ensures tasks marked as paused have valid resume data,
+    /// and tasks without resume data are marked appropriately.
+    private func reconcileResumeData() async {
+        for (taskId, var task) in tasks {
+            if task.status == .paused || task.status == .downloading {
+                // Check if resume data exists
+                if resumeDataManager.hasResumeData(for: taskId) {
+                    // Verify resume data path is set
+                    if task.resumeDataPath == nil {
+                        task.resumeDataPath = resumeDataManager.filePath(for: taskId)
+                        tasks[taskId] = task
+                    }
+                } else {
+                    // No resume data - if downloading, reset to pending
+                    // If paused without resume data, reset to pending
+                    if task.status == .downloading || (task.status == .paused && task.resumeDataPath != nil) {
+                        task.status = .pending
+                        task.resumeDataPath = nil
+                        tasks[taskId] = task
+                    }
+                }
+            }
+        }
+    }
+
+    /// Check if state has unsaved changes
+    func hasUnsavedChanges() -> Bool {
+        isDirty
+    }
+
+    /// Clear persisted state from disk
+    func clearPersistedState() async throws {
+        try await persistence.clear()
+    }
+
+    /// Get the resume data manager
+    func getResumeDataManager() -> ResumeDataManager {
+        resumeDataManager
+    }
+
+    /// Mark state as dirty (needs saving)
+    private func markDirty() {
+        isDirty = true
+
+        // Schedule debounced save
+        Task {
+            await persistState()
+        }
+    }
+
+    /// Save resume data for a task
+    /// - Parameters:
+    ///   - data: Resume data from URLSession
+    ///   - taskId: Task identifier
+    /// - Throws: File system error
+    func saveResumeData(_ data: Data, for taskId: UUID) throws {
+        let url = try resumeDataManager.save(data, for: taskId)
+
+        // Update task with resume data path
+        updateTask(taskId) { task in
+            task.resumeDataPath = url.path
+        }
+    }
+
+    /// Load resume data for a task
+    /// - Parameter taskId: Task identifier
+    /// - Returns: Resume data if available
+    func loadResumeData(for taskId: UUID) throws -> Data? {
+        try resumeDataManager.load(for: taskId)
+    }
+
+    /// Delete resume data for a task
+    /// - Parameter taskId: Task identifier
+    func deleteResumeData(for taskId: UUID) {
+        resumeDataManager.delete(for: taskId)
+
+        // Clear resume data path from task
+        updateTask(taskId) { task in
+            task.resumeDataPath = nil
+        }
+    }
+
+    /// Check if resume data exists for a task
+    /// - Parameter taskId: Task identifier
+    /// - Returns: True if resume data exists
+    func hasResumeData(for taskId: UUID) -> Bool {
+        resumeDataManager.hasResumeData(for: taskId)
+    }
+
+    /// Get all task IDs that have resume data available
+    func getTasksWithResumeData() -> Set<UUID> {
+        Set(resumeDataManager.allTaskIds())
     }
 }
 

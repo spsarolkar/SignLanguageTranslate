@@ -261,6 +261,54 @@ final class BackgroundSessionManager: NSObject {
             taskIdMapping[sessionTaskId] = ourTaskId
         }
     }
+
+    // MARK: - Background Session Recovery
+
+    /// Get all pending/running download tasks from the background session
+    ///
+    /// This is used during app recovery to find downloads that continued
+    /// while the app was suspended or terminated.
+    ///
+    /// - Returns: Array of URLSessionDownloadTask objects still managed by the session
+    func getPendingTasks() async -> [URLSessionDownloadTask] {
+        await withCheckedContinuation { continuation in
+            session.getTasksWithCompletionHandler { _, _, downloadTasks in
+                continuation.resume(returning: downloadTasks)
+            }
+        }
+    }
+
+    /// Get all tasks (data, upload, download) from the background session
+    ///
+    /// - Returns: Tuple of (data tasks, upload tasks, download tasks)
+    func getAllTasks() async -> (
+        dataTasks: [URLSessionDataTask],
+        uploadTasks: [URLSessionUploadTask],
+        downloadTasks: [URLSessionDownloadTask]
+    ) {
+        await withCheckedContinuation { continuation in
+            session.getTasksWithCompletionHandler { dataTasks, uploadTasks, downloadTasks in
+                continuation.resume(returning: (dataTasks, uploadTasks, downloadTasks))
+            }
+        }
+    }
+
+    /// Invalidate and recreate the session
+    ///
+    /// Use this if you need to reset the background session state.
+    /// Note: This will cancel all pending downloads.
+    func resetSession() async {
+        lock.lock()
+        activeDownloads.removeAll()
+        taskIdMapping.removeAll()
+        lock.unlock()
+
+        // Invalidate existing session
+        session.invalidateAndCancel()
+
+        // Force recreation of session on next access
+        // (The lazy var will recreate it)
+    }
 }
 
 // MARK: - URLSessionDelegate

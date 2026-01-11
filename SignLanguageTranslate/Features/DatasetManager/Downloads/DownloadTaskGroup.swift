@@ -10,7 +10,7 @@ import Foundation
 /// - Display progress for multi-part downloads
 /// - Show category-level status in UI
 /// - Aggregate byte counts and completion status
-struct DownloadTaskGroup: Identifiable, Hashable, Equatable {
+struct DownloadTaskGroup: Identifiable, Hashable, Equatable, Sendable {
 
     // MARK: - Properties
 

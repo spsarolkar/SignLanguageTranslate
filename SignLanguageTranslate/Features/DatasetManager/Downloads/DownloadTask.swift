@@ -15,7 +15,7 @@ import Foundation
 /// - Pause (status: paused, saves resume data)
 /// - Fail (status: failed, stores error message)
 /// - Reset/Retry (back to pending)
-struct DownloadTask: Identifiable, Codable, Hashable, Equatable {
+struct DownloadTask: Identifiable, Codable, Hashable, Equatable, Sendable {
 
     // MARK: - Properties
 
@@ -289,10 +289,10 @@ struct DownloadTask: Identifiable, Codable, Hashable, Equatable {
     }
 
     /// Fail the download with an error
-    /// - Parameter error: Error message
-    mutating func fail(with error: String) {
+    /// - Parameter message: Error message describing the failure
+    mutating func fail(with message: String) {
         self.status = .failed
-        self.errorMessage = error
+        self.errorMessage = message
         self.resumeDataPath = nil
     }
 

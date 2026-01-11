@@ -8,7 +8,7 @@ import SwiftUI
 /// - downloading → paused → downloading (resume)
 /// - Any state → failed
 /// - failed/completed → pending (retry/reset)
-enum DownloadTaskStatus: String, Codable, CaseIterable, Hashable {
+enum DownloadTaskStatus: String, Codable, CaseIterable, Hashable, Sendable {
 
     // MARK: - Cases
 

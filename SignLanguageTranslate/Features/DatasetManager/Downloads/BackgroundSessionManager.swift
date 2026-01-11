@@ -80,6 +80,24 @@ final class BackgroundSessionManager: NSObject {
     /// Set by DownloadCoordinator during initialization
     weak var coordinator: DownloadCoordinator?
 
+    // MARK: - Callback Closures
+
+    /// Called when download progress is updated
+    /// Parameters: (taskId, bytesWritten, totalBytes)
+    var onProgress: ((UUID, Int64, Int64) -> Void)?
+
+    /// Called when download completes successfully
+    /// Parameters: (taskId, temporaryFileURL)
+    var onComplete: ((UUID, URL) -> Void)?
+
+    /// Called when download fails
+    /// Parameters: (taskId, error, resumeData)
+    var onFailed: ((UUID, Error, Data?) -> Void)?
+
+    /// Called when download is paused with resume data
+    /// Parameters: (taskId, resumeData)
+    var onPaused: ((UUID, Data?) -> Void)?
+
     // MARK: - Initialization
 
     private override init() {
@@ -282,6 +300,9 @@ extension BackgroundSessionManager: URLSessionDownloadDelegate {
             return
         }
 
+        // Invoke callback closure
+        onComplete?(taskId, location)
+
         // Notify coordinator on main actor
         Task { @MainActor in
             await coordinator?.handleDownloadComplete(taskId: taskId, tempFileURL: location)
@@ -299,6 +320,9 @@ extension BackgroundSessionManager: URLSessionDownloadDelegate {
         guard let taskId = getTaskId(for: downloadTask) else {
             return
         }
+
+        // Invoke callback closure
+        onProgress?(taskId, totalBytesWritten, totalBytesExpectedToWrite)
 
         // Notify coordinator on main actor
         Task { @MainActor in
@@ -366,12 +390,18 @@ extension BackgroundSessionManager: URLSessionTaskDelegate {
         if nsError.domain == NSURLErrorDomain && nsError.code == NSURLErrorCancelled {
             // User cancelled - don't report as failure if we have resume data
             if resumeData != nil {
+                // Invoke callback closure
+                onPaused?(taskId, resumeData)
+
                 Task { @MainActor in
                     await coordinator?.handleDownloadPaused(taskId: taskId, resumeData: resumeData)
                 }
                 return
             }
         }
+
+        // Invoke callback closure
+        onFailed?(taskId, error, resumeData)
 
         // Report failure to coordinator
         Task { @MainActor in

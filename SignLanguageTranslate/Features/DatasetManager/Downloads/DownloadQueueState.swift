@@ -21,7 +21,7 @@ import Foundation
 /// let state = try JSONDecoder().decode(DownloadQueueState.self, from: data)
 /// try await queue.importState(state)
 /// ```
-struct DownloadQueueState: Codable, Hashable, Equatable {
+struct DownloadQueueState: Codable, Hashable, Equatable, Sendable {
 
     // MARK: - Properties
 

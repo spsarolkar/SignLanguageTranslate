@@ -1,5 +1,5 @@
 {
-  "last_updated": "2026-01-11T08:57:26.362562",
+  "last_updated": "2026-01-11T09:04:02.525972",
   "phases": [
     {
       "id": "2.6",
@@ -22,18 +22,6 @@
       "completed_at": "2026-01-10T13:19:09.413831",
       "total_iterations": 0,
       "total_duration_seconds": 0.019982,
-      "build_errors": 0,
-      "test_failures": 0
-    },
-    {
-      "id": "4.1",
-      "module_id": "module4",
-      "name": "Background URLSession Configuration",
-      "status": "completed",
-      "started_at": "2026-01-10T13:20:33.126775",
-      "completed_at": "2026-01-10T13:37:29.899089",
-      "total_iterations": 2,
-      "total_duration_seconds": 1016.779728,
       "build_errors": 0,
       "test_failures": 0
     },
@@ -119,6 +107,18 @@
       "total_iterations": 1,
       "total_duration_seconds": 295.43104,
       "build_errors": 10,
+      "test_failures": 0
+    },
+    {
+      "id": "4.1",
+      "module_id": "module4",
+      "name": "Background URLSession Configuration",
+      "status": "completed",
+      "started_at": "2026-01-11T08:57:51.463730",
+      "completed_at": "2026-01-11T09:04:02.519540",
+      "total_iterations": 1,
+      "total_duration_seconds": 371.072222,
+      "build_errors": 0,
       "test_failures": 0
     }
   ]

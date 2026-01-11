@@ -1,17 +1,17 @@
 {
-  "exported_at": "2026-01-11T08:57:26.358292",
+  "exported_at": "2026-01-11T09:04:02.523606",
   "overall": {
     "total_phases": 10,
     "completed_phases": 8,
     "failed_phases": 1,
     "completion_percentage": 80.0,
-    "total_iterations": 185,
-    "avg_iterations_per_phase": 23.125,
+    "total_iterations": 187,
+    "avg_iterations_per_phase": 23.375,
     "total_build_errors": 83,
     "total_test_failures": 0,
     "total_rate_limits": 14,
-    "total_duration_seconds": 34025.637836,
-    "total_duration_minutes": 567.0939639333334,
+    "total_duration_seconds": 33379.930329999996,
+    "total_duration_minutes": 556.3321721666666,
     "total_input_tokens": 0,
     "total_output_tokens": 0
   },
@@ -37,18 +37,6 @@
       "completed_at": "2026-01-10T13:19:09.413831",
       "total_iterations": 0,
       "total_duration_seconds": 0.019982,
-      "build_errors": 0,
-      "test_failures": 0
-    },
-    {
-      "id": "4.1",
-      "module_id": "module4",
-      "name": "Background URLSession Configuration",
-      "status": "completed",
-      "started_at": "2026-01-10T13:20:33.126775",
-      "completed_at": "2026-01-10T13:37:29.899089",
-      "total_iterations": 2,
-      "total_duration_seconds": 1016.779728,
       "build_errors": 0,
       "test_failures": 0
     },
@@ -135,6 +123,18 @@
       "total_duration_seconds": 295.43104,
       "build_errors": 10,
       "test_failures": 0
+    },
+    {
+      "id": "4.1",
+      "module_id": "module4",
+      "name": "Background URLSession Configuration",
+      "status": "completed",
+      "started_at": "2026-01-11T08:57:51.463730",
+      "completed_at": "2026-01-11T09:04:02.519540",
+      "total_iterations": 1,
+      "total_duration_seconds": 371.072222,
+      "build_errors": 0,
+      "test_failures": 0
     }
   ],
   "timeline": [
@@ -161,18 +161,6 @@
       "phase_id": "1.1",
       "name": "Xcode Project Setup",
       "timestamp": "2026-01-10T13:19:09.413831"
-    },
-    {
-      "type": "phase_start",
-      "phase_id": "4.1",
-      "name": "Background URLSession Configuration",
-      "timestamp": "2026-01-10T13:20:33.126775"
-    },
-    {
-      "type": "phase_complete",
-      "phase_id": "4.1",
-      "name": "Background URLSession Configuration",
-      "timestamp": "2026-01-10T13:37:29.899089"
     },
     {
       "type": "phase_start",
@@ -251,6 +239,18 @@
       "phase_id": "3.6",
       "name": "Download Tasks List Sheet",
       "timestamp": "2026-01-11T08:57:26.352385"
+    },
+    {
+      "type": "phase_start",
+      "phase_id": "4.1",
+      "name": "Background URLSession Configuration",
+      "timestamp": "2026-01-11T08:57:51.463730"
+    },
+    {
+      "type": "phase_complete",
+      "phase_id": "4.1",
+      "name": "Background URLSession Configuration",
+      "timestamp": "2026-01-11T09:04:02.519540"
     }
   ]
 }

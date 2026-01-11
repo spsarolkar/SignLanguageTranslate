@@ -46,8 +46,8 @@ actor DownloadQueueActor {
     /// Whether the queue is globally paused
     private var isPaused: Bool = false
 
-    /// Optional delegate for queue events (weak reference handled via nonisolated)
-    private weak var _delegate: (any DownloadQueueDelegate)?
+    /// Optional delegate for queue events (stored as nonisolated unsafe for cross-actor access)
+    private nonisolated(unsafe) weak var _delegate: (any DownloadQueueDelegate)?
 
     // MARK: - Initialization
 
@@ -62,13 +62,7 @@ actor DownloadQueueActor {
     /// Set the delegate for queue events
     /// - Parameter delegate: Delegate to receive events
     nonisolated func setDelegate(_ delegate: (any DownloadQueueDelegate)?) {
-        Task { @MainActor in
-            await setDelegateInternal(delegate)
-        }
-    }
-
-    private func setDelegateInternal(_ delegate: (any DownloadQueueDelegate)?) {
-        self._delegate = delegate
+        _delegate = delegate
     }
 
     private func notifyDelegate(_ block: @escaping @MainActor @Sendable (any DownloadQueueDelegate) -> Void) {
@@ -190,7 +184,7 @@ actor DownloadQueueActor {
     /// - Parameters:
     ///   - id: Task ID
     ///   - transform: Closure to modify the task
-    func updateTask(_ id: UUID, transform: (inout DownloadTask) -> Void) {
+    func updateTask(_ id: UUID, transform: @Sendable (inout DownloadTask) -> Void) {
         guard var task = tasks[id] else { return }
 
         let previousActiveCount = getActiveCount()
@@ -287,8 +281,8 @@ actor DownloadQueueActor {
     func markCompleted(_ id: UUID) {
         guard let task = tasks[id] else { return }
 
-        updateTask(id) { task in
-            task.complete()
+        updateTask(id) { downloadTask in
+            downloadTask.complete()
         }
 
         // Check if all tasks are complete (must be done before notifying)
@@ -308,15 +302,26 @@ actor DownloadQueueActor {
     /// - Parameters:
     ///   - id: Task ID
     ///   - error: Error message
-    func markFailed(_ id: UUID, error: String) {
-        guard let task = tasks[id] else { return }
+    func markFailed(_ id: UUID, error errorMessage: String) {
+        guard var task = tasks[id] else { return }
 
-        updateTask(id) { task in
-            task.fail(with: error)
-        }
+        // Update the task directly instead of using updateTask closure
+        let previousActiveCount = getActiveCount()
+        task.fail(with: errorMessage)
+        tasks[id] = task
+
+        let newActiveCount = getActiveCount()
+        let updatedTask = task
+        let message = errorMessage
 
         notifyDelegate { delegate in
-            delegate.queueDidFailTask(task, error: error)
+            delegate.queueDidUpdateTask(updatedTask)
+
+            if previousActiveCount != newActiveCount {
+                delegate.queueDidChangeActiveCount(newActiveCount)
+            }
+
+            delegate.queueDidFailTask(updatedTask, error: message)
         }
     }
 
@@ -324,12 +329,12 @@ actor DownloadQueueActor {
     /// - Parameters:
     ///   - id: Task ID
     ///   - path: Path to resume data file (nil to clear)
-    func setResumeDataPath(_ id: UUID, path: String?) {
-        updateTask(id) { task in
-            if let path = path {
-                task.saveResumeData(at: path)
+    func setResumeDataPath(_ id: UUID, path resumeDataPath: String?) {
+        updateTask(id) { downloadTask in
+            if let filePath = resumeDataPath {
+                downloadTask.saveResumeData(at: filePath)
             } else {
-                task.clearResumeData()
+                downloadTask.clearResumeData()
             }
         }
     }
@@ -544,7 +549,7 @@ actor DownloadQueueActor {
 // MARK: - Errors
 
 /// Errors that can occur in download queue operations
-enum DownloadQueueError: LocalizedError {
+enum DownloadQueueError: LocalizedError, Sendable {
     case invalidState(errors: [String])
     case taskNotFound(id: UUID)
     case invalidOperation(message: String)

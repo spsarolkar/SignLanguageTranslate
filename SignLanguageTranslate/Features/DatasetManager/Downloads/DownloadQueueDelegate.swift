@@ -20,7 +20,7 @@ import Foundation
 /// }
 /// ```
 @MainActor
-protocol DownloadQueueDelegate: AnyObject, Sendable {
+protocol DownloadQueueDelegate: AnyObject {
 
     /// Called when a task's state changes (progress, status, etc.)
     /// - Parameter task: The updated task

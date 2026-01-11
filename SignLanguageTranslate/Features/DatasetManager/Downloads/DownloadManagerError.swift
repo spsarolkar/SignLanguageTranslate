@@ -1,11 +1,11 @@
 import Foundation
 
 /// Errors that can occur in DownloadManager operations
-enum DownloadManagerError: Error {
+enum DownloadManagerError: Error, Sendable {
     case manifestLoadFailed(reason: String)
     case taskNotFound(id: UUID)
-    case stateSaveFailed(underlying: Error)
-    case stateRestoreFailed(underlying: Error)
+    case stateSaveFailed(reason: String)
+    case stateRestoreFailed(reason: String)
     case alreadyDownloading
     case queueEmpty
 }
@@ -19,10 +19,10 @@ extension DownloadManagerError: LocalizedError {
             return "Failed to load download manifest: \(reason)"
         case .taskNotFound(let id):
             return "Download task not found: \(id.uuidString)"
-        case .stateSaveFailed(let error):
-            return "Failed to save download state: \(error.localizedDescription)"
-        case .stateRestoreFailed(let error):
-            return "Failed to restore download state: \(error.localizedDescription)"
+        case .stateSaveFailed(let reason):
+            return "Failed to save download state: \(reason)"
+        case .stateRestoreFailed(let reason):
+            return "Failed to restore download state: \(reason)"
         case .alreadyDownloading:
             return "Downloads are already in progress"
         case .queueEmpty:

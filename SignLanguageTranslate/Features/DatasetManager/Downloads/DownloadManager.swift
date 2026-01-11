@@ -2,13 +2,23 @@ import Foundation
 import Observation
 
 /// Observable wrapper for the download queue that bridges actor-based state to SwiftUI
+///
+/// The DownloadManager provides a SwiftUI-friendly interface to the download system:
+/// - Observable properties for binding to views
+/// - Methods for controlling downloads
+/// - Integration with DownloadEngine for actual download processing
 @MainActor
 @Observable
 final class DownloadManager {
 
     // MARK: - Properties
 
-    private let queue: DownloadQueueActor
+    /// The download engine for processing downloads
+    private let engine: DownloadEngine
+
+    /// The download queue actor for state management
+    private var queue: DownloadQueueActor { engine.queueActor }
+
     private(set) var tasks: [DownloadTask] = []
     private(set) var taskGroups: [DownloadTaskGroup] = []
     private(set) var overallProgress: Double = 0.0
@@ -21,13 +31,20 @@ final class DownloadManager {
     private(set) var totalCount: Int = 0
     private(set) var isPaused: Bool = false
 
-    var isDownloading: Bool { activeCount > 0 }
+    /// Whether the engine is currently running
+    var isEngineRunning: Bool { engine.isRunning }
+
+    /// Whether network is available
+    var isNetworkAvailable: Bool { engine.isNetworkAvailable }
+
+    var isDownloading: Bool { engine.isRunning && !engine.isPaused && activeCount > 0 }
     var isComplete: Bool { totalCount > 0 && completedCount == totalCount }
     var hasFailed: Bool { failedCount > 0 }
     var progressPercentage: Int { Int((overallProgress * 100).rounded()) }
 
     var statusText: String {
-        if isPaused { return "Paused" }
+        if !engine.isNetworkAvailable { return "No Network" }
+        else if isPaused { return "Paused" }
         else if isComplete { return "Completed" }
         else if activeCount > 0 { return "Downloading \(activeCount) of \(totalCount)" }
         else if failedCount > 0 { return "\(failedCount) failed" }
@@ -44,17 +61,18 @@ final class DownloadManager {
     // MARK: - Initialization
 
     init(maxConcurrentDownloads: Int = 3) {
-        self.queue = DownloadQueueActor(maxConcurrentDownloads: maxConcurrentDownloads)
+        self.engine = DownloadEngine(maxConcurrentDownloads: maxConcurrentDownloads)
         setupDelegation()
     }
 
-    init(queue: DownloadQueueActor) {
-        self.queue = queue
+    init(engine: DownloadEngine) {
+        self.engine = engine
         setupDelegation()
     }
 
     private func setupDelegation() {
         queue.setDelegate(self)
+        engine.delegate = self
     }
 
     // MARK: - State Synchronization
@@ -110,48 +128,83 @@ final class DownloadManager {
         await refresh()
     }
 
+    // MARK: - Engine Control
+
+    /// Start the download engine
+    func startDownloads() async {
+        await engine.start()
+        isPaused = false
+        await refresh()
+    }
+
+    /// Pause all active downloads
+    func pauseAllDownloads() async {
+        await engine.pause()
+        isPaused = true
+        await refresh()
+    }
+
+    /// Resume paused downloads
+    func resumeAllDownloads() async {
+        await engine.resume()
+        isPaused = false
+        await refresh()
+    }
+
+    /// Stop the download engine
+    func stopDownloads() async {
+        await engine.stop()
+        await refresh()
+    }
+
     // MARK: - Task Control
 
     func pauseAll() {
         Task {
-            await queue.pauseAll()
-            isPaused = await queue.getIsPaused()
-            await refresh()
+            await pauseAllDownloads()
         }
     }
 
     func resumeAll() {
         Task {
-            await queue.resumeAll()
-            isPaused = await queue.getIsPaused()
-            await refresh()
+            await resumeAllDownloads()
         }
     }
 
     func retryFailed() {
         Task {
-            await queue.retryFailed()
+            let failedTasks = await queue.getFailedTasks()
+            for task in failedTasks {
+                await engine.retryTask(task.id)
+            }
             await refresh()
         }
     }
 
     func retryTask(_ id: UUID) {
         Task {
-            await queue.retryTask(id)
+            await engine.retryTask(id)
             await refresh()
         }
     }
 
     func pauseTask(_ id: UUID) {
         Task {
-            await queue.markPaused(id)
+            await engine.pauseTask(id)
             await refresh()
         }
     }
 
     func resumeTask(_ id: UUID) {
         Task {
-            await queue.markDownloading(id)
+            await engine.resumeTask(id)
+            await refresh()
+        }
+    }
+
+    func cancelTask(_ id: UUID) {
+        Task {
+            await engine.cancelTask(id)
             await refresh()
         }
     }
@@ -177,56 +230,114 @@ final class DownloadManager {
         taskGroups.first { $0.category == category }
     }
 
+    /// Access to the underlying queue actor
     var queueActor: DownloadQueueActor { queue }
+
+    /// Access to the download engine
+    var downloadEngine: DownloadEngine { engine }
+
+    /// Get retry count for a specific task
+    func getRetryCount(for taskId: UUID) -> Int {
+        engine.getRetryCount(for: taskId)
+    }
+}
+
+// MARK: - DownloadEngineDelegate
+
+extension DownloadManager: DownloadEngineDelegate {
+
+    func downloadEngine(_ engine: DownloadEngine, didUpdateTask task: DownloadTask) {
+        if let index = tasks.firstIndex(where: { $0.id == task.id }) {
+            tasks[index] = task
+            updateDerivedState()
+        }
+    }
+
+    func downloadEngine(_ engine: DownloadEngine, didCompleteTask task: DownloadTask) {
+        Task {
+            await refresh()
+        }
+    }
+
+    func downloadEngine(_ engine: DownloadEngine, didFailTask task: DownloadTask, error: DownloadError) {
+        Task {
+            await refresh()
+        }
+    }
+
+    func downloadEngineDidFinishAllTasks(_ engine: DownloadEngine) {
+        Task {
+            await refresh()
+        }
+    }
+
+    func downloadEngine(_ engine: DownloadEngine, didChangeRunningState isRunning: Bool) {
+        Task {
+            await refresh()
+        }
+    }
+
+    func downloadEngine(_ engine: DownloadEngine, didChangePausedState isPaused: Bool) {
+        self.isPaused = isPaused
+    }
+
+    func downloadEngine(_ engine: DownloadEngine, didStartTask task: DownloadTask) {
+        if let index = tasks.firstIndex(where: { $0.id == task.id }) {
+            tasks[index] = task
+            updateDerivedState()
+        }
+    }
+
+    func downloadEngine(_ engine: DownloadEngine, networkStatusChanged isConnected: Bool) {
+        Task {
+            await refresh()
+        }
+    }
 }
 
 // MARK: - DownloadQueueDelegate
 
 extension DownloadManager: DownloadQueueDelegate {
 
-    nonisolated func queueDidEnqueueTask(_ task: DownloadTask) {
-        Task { @MainActor in await refresh() }
+    func queueDidEnqueueTask(_ task: DownloadTask) {
+        Task { await refresh() }
     }
 
-    nonisolated func queueDidRemoveTask(_ id: UUID) {
-        Task { @MainActor in await refresh() }
+    func queueDidRemoveTask(_ id: UUID) {
+        Task { await refresh() }
     }
 
-    nonisolated func queueDidUpdateTask(_ task: DownloadTask) {
-        Task { @MainActor in
-            if let index = tasks.firstIndex(where: { $0.id == task.id }) {
-                tasks[index] = task
-                updateDerivedState()
-            }
-        }
-    }
-
-    nonisolated func queueDidCompleteTask(_ task: DownloadTask) {
-        Task { @MainActor in await refresh() }
-    }
-
-    nonisolated func queueDidFailTask(_ task: DownloadTask, error: String) {
-        Task { @MainActor in await refresh() }
-    }
-
-    nonisolated func queueDidChangeActiveCount(_ count: Int) {
-        Task { @MainActor in activeCount = count }
-    }
-
-    nonisolated func queueDidChangePauseState(_ paused: Bool) {
-        Task { @MainActor in isPaused = paused }
-    }
-
-    nonisolated func queueDidClear() {
-        Task { @MainActor in
-            tasks = []
-            taskGroups = []
+    func queueDidUpdateTask(_ task: DownloadTask) {
+        if let index = tasks.firstIndex(where: { $0.id == task.id }) {
+            tasks[index] = task
             updateDerivedState()
         }
     }
 
-    nonisolated func queueDidComplete() {
-        Task { @MainActor in await refresh() }
+    func queueDidCompleteTask(_ task: DownloadTask) {
+        Task { await refresh() }
+    }
+
+    func queueDidFailTask(_ task: DownloadTask, error: String) {
+        Task { await refresh() }
+    }
+
+    func queueDidChangeActiveCount(_ count: Int) {
+        activeCount = count
+    }
+
+    func queueDidChangePauseState(_ paused: Bool) {
+        isPaused = paused
+    }
+
+    func queueDidClear() {
+        tasks = []
+        taskGroups = []
+        updateDerivedState()
+    }
+
+    func queueDidComplete() {
+        Task { await refresh() }
     }
 }
 

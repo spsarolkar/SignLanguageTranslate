@@ -21,7 +21,7 @@ import Foundation
 ///         ├── Greetings/
 ///         └── ...
 /// ```
-struct DownloadFileManager {
+struct DownloadFileManager: Sendable {
 
     // MARK: - Directory URLs
 

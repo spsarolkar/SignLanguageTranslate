@@ -128,6 +128,8 @@ final class BackgroundSessionManager: NSObject {
         activeDownloads[taskId] = downloadTask
         taskIdMapping[downloadTask.taskIdentifier] = taskId
 
+        print("[BackgroundSessionManager] Starting download for taskId=\(taskId), urlSessionTaskId=\(downloadTask.taskIdentifier), url=\(url.lastPathComponent)")
+
         downloadTask.resume()
 
         return downloadTask
@@ -253,12 +255,15 @@ final class BackgroundSessionManager: NSObject {
 
     /// Restore task mappings after app relaunch
     /// Called when the app is relaunched due to background session events
-    func restoreTaskMappings(tasks: [(sessionTaskId: Int, ourTaskId: UUID)]) {
+    /// Restore task mappings after app relaunch
+    /// Called when the app is relaunched due to background session events
+    func restoreTaskMappings(tasks: [(task: URLSessionDownloadTask, ourTaskId: UUID)]) {
         lock.lock()
         defer { lock.unlock() }
 
-        for (sessionTaskId, ourTaskId) in tasks {
-            taskIdMapping[sessionTaskId] = ourTaskId
+        for (sessionTask, ourTaskId) in tasks {
+            taskIdMapping[sessionTask.taskIdentifier] = ourTaskId
+            activeDownloads[ourTaskId] = sessionTask
         }
     }
 
@@ -348,12 +353,75 @@ extension BackgroundSessionManager: URLSessionDownloadDelegate {
             return
         }
 
+        // Check for HTTP errors
+        // Check for HTTP errors
+        if let httpResponse = downloadTask.response as? HTTPURLResponse,
+           !(200...299).contains(httpResponse.statusCode) {
+            print("[BackgroundSessionManager] Task \(taskId) failed with HTTP \(httpResponse.statusCode)")
+            
+            // Use specific DownloadError (passed through by DownloadError.from)
+            let error = DownloadError.serverError(statusCode: httpResponse.statusCode)
+            
+            // Invoke callback closure
+            onFailed?(taskId, error, nil)
+            
+            // Report failure to coordinator
+            Task { @MainActor in
+                await coordinator?.handleDownloadFailed(taskId: taskId, error: error, resumeData: nil)
+            }
+            return
+        }
+        
+        // Validate File Size (Suspiciously small files often indicate error pages)
+        do {
+            let attributes = try FileManager.default.attributesOfItem(atPath: location.path)
+            if let size = attributes[.size] as? Int64, size < 2048 { // < 2KB
+                print("[BackgroundSessionManager] Task \(taskId) file too small: \(size) bytes. Treating as failure.")
+                // Treat as 404 to prevent auto-retry logic (likely an error page)
+                let error = DownloadError.serverError(statusCode: 404)
+                
+                onFailed?(taskId, error, nil)
+                Task { @MainActor in
+                    await coordinator?.handleDownloadFailed(taskId: taskId, error: error, resumeData: nil)
+                }
+                return
+            }
+        } catch {
+            print("[BackgroundSessionManager] Failed to validate file size: \(error)")
+        }
+
         // Invoke callback closure
         onComplete?(taskId, location)
 
-        // Notify coordinator on main actor
-        Task { @MainActor in
-            await coordinator?.handleDownloadComplete(taskId: taskId, tempFileURL: location)
+        // Move the file to a safe temporary location immediately
+        // URLSession deletes the file at 'location' as soon as this method returns
+        let tempDir = FileManager.default.temporaryDirectory
+        let safeName = "download_\(taskId.uuidString)_\(UUID().uuidString).tmp"
+        let safeLocation = tempDir.appendingPathComponent(safeName)
+        
+        do {
+            // Remove any existing file at destination
+            if FileManager.default.fileExists(atPath: safeLocation.path) {
+                try FileManager.default.removeItem(at: safeLocation)
+            }
+            
+            // Move file to safe location
+            try FileManager.default.moveItem(at: location, to: safeLocation)
+            
+            let fileSize = (try? FileManager.default.attributesOfItem(atPath: safeLocation.path)[.size] as? Int64) ?? 0
+            print("[BackgroundSessionManager] Moved temp file to safe location: \(safeName) (\(fileSize) bytes)")
+            
+            // Notify coordinator on main actor with SAFE location
+            Task { @MainActor in
+                await coordinator?.handleDownloadComplete(taskId: taskId, tempFileURL: safeLocation)
+            }
+        } catch {
+            print("[BackgroundSessionManager] Failed to move temp file to safe location: \(error.localizedDescription)")
+            
+            // Report failure
+            Task { @MainActor in
+                await coordinator?.handleDownloadFailed(taskId: taskId, error: error, resumeData: nil)
+            }
         }
     }
 
@@ -366,11 +434,18 @@ extension BackgroundSessionManager: URLSessionDownloadDelegate {
         totalBytesExpectedToWrite: Int64
     ) {
         guard let taskId = getTaskId(for: downloadTask) else {
+            print("[BackgroundSessionManager] Progress received but no taskId mapping for sessionTaskId=\(downloadTask.taskIdentifier)")
             return
         }
 
+        print("[BackgroundSessionManager] Progress: taskId=\(taskId), bytes=\(totalBytesWritten)/\(totalBytesExpectedToWrite)")
+
         // Invoke callback closure
-        onProgress?(taskId, totalBytesWritten, totalBytesExpectedToWrite)
+        if let onProgress = onProgress {
+            onProgress(taskId, totalBytesWritten, totalBytesExpectedToWrite)
+        } else {
+            print("[BackgroundSessionManager] WARNING: onProgress callback is nil!")
+        }
 
         // Notify coordinator on main actor
         Task { @MainActor in

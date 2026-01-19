@@ -42,6 +42,9 @@ final class DownloadEngine {
 
     /// Whether the engine is paused
     private(set) var isPaused = false
+    
+    /// Whether the engine is currently processing the queue
+    private var isProcessing = false
 
     /// Whether network is available
     private(set) var isNetworkAvailable = true
@@ -146,12 +149,17 @@ final class DownloadEngine {
         self.fileManager = DownloadFileManager()
         self.coordinator = DownloadCoordinator(queue: queue, fileManager: fileManager)
         self.networkMonitor = NetworkMonitor.shared
+        
+        print("[DownloadEngine \(id)] Initialized")
 
         setupCallbacks()
         setupNetworkMonitoring()
     }
 
+    private let id = UUID().uuidString.prefix(8)
+
     deinit {
+        print("[DownloadEngine \(id)] Deinitialized")
         networkCancellable?.cancel()
     }
 
@@ -179,6 +187,11 @@ final class DownloadEngine {
                 await self.handleDownloadFailed(taskId: taskId, error: error, resumeData: resumeData)
             }
         }
+        
+        // Wire callbacks to BackgroundSessionManager
+        BackgroundSessionManager.shared.onProgress = onProgress
+        BackgroundSessionManager.shared.onComplete = onComplete
+        BackgroundSessionManager.shared.onFailed = onFailed
     }
 
     private func setupNetworkMonitoring() {
@@ -244,6 +257,12 @@ final class DownloadEngine {
 
         print("[DownloadEngine] Resumed")
     }
+    
+    /// Cancel all downloads
+    func cancelAll() async {
+        await coordinator.cancelAll()
+        print("[DownloadEngine] All downloads cancelled")
+    }
 
     /// Stop the download engine
     func stop() async {
@@ -281,8 +300,22 @@ final class DownloadEngine {
 
     /// Process the queue to start pending downloads
     private func processQueue() async {
-        guard isRunning && !isPaused && isNetworkAvailable else { return }
+        guard isRunning && !isPaused && isNetworkAvailable else {
+            print("[DownloadEngine \(id)] processQueue skipped: isRunning=\(isRunning), isPaused=\(isPaused), isNetworkAvailable=\(isNetworkAvailable)")
+            return
+        }
+        
+        // Prevent concurrent processing (re-entrancy protection)
+        guard !isProcessing else {
+            print("[DownloadEngine \(id)] processQueue: Already processing, skipping")
+            return
+        }
+        
+        isProcessing = true
+        defer { isProcessing = false }
 
+        print("[DownloadEngine \(id)] processQueue: Starting to process...")
+        
         // Keep starting downloads while we can
         while await startNextDownload() {
             // Continue starting downloads
@@ -290,6 +323,8 @@ final class DownloadEngine {
 
         // Check if all tasks are complete
         let tasks = await queue.getAllTasks()
+        print("[DownloadEngine] processQueue: Total tasks=\(tasks.count)")
+        
         let allComplete = tasks.allSatisfy { $0.status == .completed }
         let anyPending = tasks.contains { $0.status == .pending || $0.status == .downloading }
 
@@ -301,8 +336,16 @@ final class DownloadEngine {
     /// Start the next available download
     /// - Returns: True if a download was started, false otherwise
     private func startNextDownload() async -> Bool {
-        guard await queue.canStartMoreDownloads() else { return false }
-        guard let task = await queue.getNextPendingTask() else { return false }
+        let canStart = await queue.canStartMoreDownloads()
+        print("[DownloadEngine] startNextDownload: canStartMoreDownloads=\(canStart)")
+        guard canStart else { return false }
+        
+        guard let task = await queue.getNextPendingTask() else {
+            print("[DownloadEngine] startNextDownload: No pending task found")
+            return false
+        }
+        
+        print("[DownloadEngine] startNextDownload: Found pending task \(task.id) (\(task.displayName))")
 
         // Validate network
         guard isNetworkAvailable else {
@@ -322,10 +365,12 @@ final class DownloadEngine {
         }
 
         // Start the download
+        print("[DownloadEngine] startNextDownload: Calling coordinator.startTask(\(task.id))")
         await coordinator.startTask(task.id)
 
         // Notify delegate
         if let updatedTask = await queue.getTask(task.id) {
+            print("[DownloadEngine] startNextDownload: Task status after start = \(updatedTask.status)")
             delegate?.downloadEngine(self, didStartTask: updatedTask)
         }
 
@@ -472,6 +517,13 @@ final class DownloadEngine {
         retryCounts.removeValue(forKey: id)
 
         await processQueue()
+    }
+    
+    /// Abort a specific task's download (without removing from queue)
+    /// - Parameter id: Task ID to abort
+    func abortDownload(_ id: UUID) async {
+        await coordinator.abortDownload(id)
+        retryCounts.removeValue(forKey: id)
     }
 
     /// Retry a specific failed task

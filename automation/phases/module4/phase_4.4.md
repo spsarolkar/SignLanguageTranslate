@@ -15,210 +15,65 @@ We have:
 
 ## Test Files to Create
 
-### 1. SignLanguageTranslateTests/Downloads/BackgroundSessionManagerTests.swift
+### 1. `SignLanguageTranslateTests/Downloads/BackgroundSessionManagerTests.swift`
 
 Test URLSession management:
-- Session configuration is correct
-- Task creation and tracking
-- Pause with resume data
-- Resume from data
-- Cancel task
-- Multiple concurrent tasks
-- Background completion handler
+*   **Session Config**: Verify identifier and background settings.
+*   **Tasks**: Test `startDownload`, `cancelDownload`, and concurrent tasks.
+*   **State**: Verify `activeDownloadCount` and `isDownloading` tracking.
+*   **Callbacks**: Ensure progress and completion delegates are called.
 
-### 2. SignLanguageTranslateTests/Downloads/DownloadEngineTests.swift
+### 2. `SignLanguageTranslateTests/Downloads/DownloadEngineTests.swift`
 
 Test engine behavior:
-- Start processing queue
-- Respects max concurrent limit
-- Pause all downloads
-- Resume all downloads
-- Stop engine
-- Handles task completion
-- Handles task failure
-- Retries on retryable errors
-- Doesn't retry non-retryable errors
-- Engine state transitions
+*   **Control**: `start`, `pause`, `stop`, `resume`.
+*   **Concurrency**: Ensure it respects `maxConcurrentDownloads`.
+*   **Retry**: Verify retry logic for retryable vs non-retryable errors.
+*   **State**: Test state transitions (e.g. paused -> running).
 
-### 3. SignLanguageTranslateTests/Downloads/DownloadCoordinatorTests.swift
+### 3. `SignLanguageTranslateTests/Downloads/DownloadCoordinatorTests.swift`
 
-Test coordination:
-- Starts downloads from queue
-- Updates queue on progress
-- Handles completion correctly
-- Handles failure with resume data
-- Moves files to correct location
-- Cleans up temp files
+Test coordination between engine and file manager:
+*   **Flow**: Start -> Progress -> Complete -> File Move.
+*   **Failure**: Handling failures and resume data.
+*   **Cleanup**: Removing temp files on completion.
 
-### 4. SignLanguageTranslateTests/Downloads/DownloadFileManagerTests.swift
+### 4. `SignLanguageTranslateTests/Downloads/DownloadFileManagerTests.swift`
 
 Test file operations:
-- Move file to correct location
-- Handle name conflicts
-- Save resume data
-- Load resume data
-- Delete resume data
-- Calculate available space
-- Handle disk full scenario
+*   **Move**: Moving files from temp to permanent locations.
+*   **Resume Data**: saving, loading, and deleting resume blobs.
+*   **Storage**: Space calculation and handling disk full scenarios.
 
-### 5. SignLanguageTranslateTests/Downloads/DownloadStatePersistenceTests.swift
+### 5. `SignLanguageTranslateTests/Downloads/DownloadStatePersistenceTests.swift`
 
 Test state persistence:
-- Save state to file
-- Load state from file
-- Handle missing file
-- Handle corrupted file
-- Debounced saves
-- Clear state
+*   **CRUD**: Save and load full queue state.
+*   **Edge Cases**: Missing file, corrupted data.
+*   **Debounce**: Verify saves are not triggered too frequently.
 
-### 6. SignLanguageTranslateTests/Downloads/DownloadProgressTrackerTests.swift
+### 6. `SignLanguageTranslateTests/Downloads/DownloadIntegrationTests.swift`
 
-Test progress tracking:
-- Update single task progress
-- Calculate overall progress
-- Calculate download rate
-- Estimate time remaining
-- Handle completion
-- Handle failure
-- Reset tracking
+Integration tests covering the full flow (mocking only the network):
+1.  **Full Flow**: Load manifest -> Start -> Simulate Progress -> Simulate Completion -> Verify File Exists.
+2.  **Pause/Resume**: Start -> Pause -> Verify State -> Resume -> Complete.
+3.  **Failure/Retry**: Start -> Simulate Error -> Verify Retry Scheduled -> Retry -> Complete.
+4.  **Recovery**: Save state -> Re-instantiate Manager -> assert state restored.
 
-### 7. SignLanguageTranslateTests/Downloads/ResumeDataManagerTests.swift
+### 7. `SignLanguageTranslateTests/Mocks/MockURLSession.swift` (and helpers)
 
-Test resume data:
-- Save resume data
-- Load resume data
-- Check existence
-- Delete resume data
-- Cleanup orphaned data
-- Calculate total size
+Create necessary mocks:
+*   `MockURLSession` & `MockDownloadTask`: Intercept network calls to simulate progress, completion, and errors without real network.
+*   `TestHelpers.swift`: Factory methods for creating test tasks and manifest entries.
 
-### 8. SignLanguageTranslateTests/Downloads/DownloadIntegrationTests.swift
+## Performance Tests (Optional)
 
-Integration tests:
-
-```swift
-class DownloadIntegrationTests: XCTestCase {
-    var downloadManager: DownloadManager!
-    var mockSession: MockURLSession!
-    
-    func test_fullDownloadFlow() async {
-        // 1. Load manifest
-        await downloadManager.loadINCLUDEManifest()
-        
-        // 2. Start downloads
-        await downloadManager.startDownloads()
-        
-        // 3. Simulate progress
-        mockSession.simulateProgress(0.5)
-        
-        // 4. Verify state
-        XCTAssertEqual(downloadManager.activeCount, 3)
-        
-        // 5. Simulate completion
-        mockSession.simulateComplete(taskIndex: 0)
-        
-        // 6. Verify file moved
-        // 7. Verify next task started
-    }
-    
-    func test_pauseAndResume() async { ... }
-    func test_failureAndRetry() async { ... }
-    func test_stateRecoveryAfterRelaunch() async { ... }
-    func test_backgroundCompletion() async { ... }
-}
-```
-
-### 9. SignLanguageTranslateTests/Mocks/MockURLSession.swift
-
-Mock for testing without network:
-
-```swift
-class MockURLSession: URLSessionProtocol {
-    var downloadTasks: [MockDownloadTask] = []
-    var onTaskCreated: ((MockDownloadTask) -> Void)?
-    
-    func downloadTask(with url: URL) -> URLSessionDownloadTask {
-        let task = MockDownloadTask(url: url)
-        downloadTasks.append(task)
-        onTaskCreated?(task)
-        return task
-    }
-    
-    // Simulation methods
-    func simulateProgress(_ progress: Double, forTaskAt index: Int)
-    func simulateComplete(forTaskAt index: Int, fileURL: URL)
-    func simulateFailure(forTaskAt index: Int, error: Error)
-}
-
-class MockDownloadTask: URLSessionDownloadTask {
-    var mockState: URLSessionTask.State = .suspended
-    var resumeDataToReturn: Data?
-    
-    override func resume() { mockState = .running }
-    override func suspend() { mockState = .suspended }
-    override func cancel(byProducingResumeData: @escaping (Data?) -> Void) {
-        byProducingResumeData(resumeDataToReturn)
-    }
-}
-```
-
-### 10. SignLanguageTranslateTests/Downloads/NetworkMonitorTests.swift
-
-Test network monitoring:
-- Detects connection type
-- Notifies on disconnect
-- Notifies on reconnect
-- Handles WiFi to cellular switch
-
-## Test Helpers
-
-### TestDownloadHelpers.swift
-
-```swift
-extension XCTestCase {
-    func createTestDownloadTask(
-        status: DownloadTaskStatus = .pending,
-        progress: Double = 0
-    ) -> DownloadTask
-    
-    func createTestManifestEntry(
-        category: String = "Animals",
-        partNumber: Int = 1
-    ) -> ManifestEntry
-    
-    func createTempFile(size: Int) -> URL
-}
-```
-
-## Performance Tests
-
-```swift
-class DownloadPerformanceTests: XCTestCase {
-    func test_queueProcessingPerformance() {
-        measure {
-            // Process queue with 100 tasks
-        }
-    }
-    
-    func test_statePersistencePerformance() {
-        measure {
-            // Save/load state with 100 tasks
-        }
-    }
-    
-    func test_progressCalculationPerformance() {
-        measure {
-            // Calculate progress for 46 tasks
-        }
-    }
-}
-```
+*   Measure queue processing speed.
+*   Measure state save/load times with large queues.
 
 ## Requirements
 
-1. All tests pass
-2. No real network calls in unit tests
-3. Use mocks/stubs appropriately
-4. Test error cases thoroughly
-5. Test edge cases (empty queue, all failed, etc.)
-6. Integration tests cover main user flows
+1.  All tests must pass.
+2.  **No real network calls** in unit tests (use mocks).
+3.  Test error scenarios thoroughly (404, 500, disk full).
+4.  Integration tests must verify the end-to-end file persistence.

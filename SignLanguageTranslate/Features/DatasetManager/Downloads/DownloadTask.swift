@@ -68,7 +68,10 @@ struct DownloadTask: Identifiable, Codable, Hashable, Equatable, Sendable {
 
     /// Filename extracted from URL
     var filename: String {
-        url.lastPathComponent
+        if url.lastPathComponent == "content" {
+            return url.deletingLastPathComponent().lastPathComponent
+        }
+        return url.lastPathComponent
     }
 
     /// Display name for UI (e.g., "Animals Part 1 of 2" or "Seasons")
@@ -165,6 +168,16 @@ struct DownloadTask: Identifiable, Codable, Hashable, Equatable, Sendable {
         }
     }
 
+    /// Current download speed (bytes/second)
+    var downloadSpeed: Double {
+        guard status == .downloading,
+              let startedAt = startedAt,
+              bytesDownloaded > 0 else { return 0 }
+        
+        let elapsed = Date().timeIntervalSince(startedAt)
+        return elapsed > 0 ? Double(bytesDownloaded) / elapsed : 0
+    }
+
     // MARK: - Initialization
 
     /// Create a download task from a manifest entry
@@ -246,6 +259,14 @@ struct DownloadTask: Identifiable, Codable, Hashable, Equatable, Sendable {
             // Total unknown, can't calculate accurate progress
             self.progress = 0.0
         }
+    }
+
+    /// Set the exact file size (overriding any estimate)
+    /// - Parameter size: The actual file size in bytes
+    mutating func setFileSize(_ size: Int64) {
+        self.totalBytes = size
+        self.bytesDownloaded = size
+        self.progress = 1.0
     }
 
     /// Start the download

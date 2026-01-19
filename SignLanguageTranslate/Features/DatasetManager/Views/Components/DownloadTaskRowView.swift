@@ -70,34 +70,66 @@ struct DownloadTaskRowView: View {
                 // Title
                 Text(task.displayName)
                     .font(.headline)
-                    .lineLimit(1)
+                    .lineLimit(2)
+                    .truncationMode(.tail)
 
                 // Status and progress info
-                HStack(spacing: 8) {
+                HStack(alignment: .firstTextBaseline, spacing: 8) {
                     DownloadTaskStatusBadge(status: task.status, mode: .full)
+                        .layoutPriority(1) // Keep badge intact
+
+                    Spacer()
 
                     if task.isActive {
+                        VStack(alignment: .trailing, spacing: 2) {
+                            Text(task.progressText)
+                                .font(.caption)
+                                .foregroundStyle(.secondary)
+                                .monospacedDigit()
+                                .lineLimit(1)
+                                .layoutPriority(0) // Allow compression if needed
+
+                            HStack(spacing: 4) {
+                                if task.downloadSpeed > 0 {
+                                    Text(formatSpeed(task.downloadSpeed))
+                                }
+                                if let timeRemaining = task.estimatedTimeRemainingText {
+                                    Text("• \(timeRemaining)")
+                                }
+                            }
+                            .font(.caption2)
+                            .foregroundStyle(.tertiary)
+                            .monospacedDigit()
+                            .lineLimit(1)
+                        }
+                    } else if task.status == .failed, let error = task.errorMessage {
+                        HStack(spacing: 4) {
+                            Image(systemName: "exclamationmark.circle.fill")
+                                .font(.caption)
+                            Text(error)
+                                .lineLimit(1)
+                        }
+                        .font(.caption)
+                        .foregroundStyle(.red)
+                    } else if task.status == .completed {
+                        HStack(spacing: 4) {
+                            Image(systemName: "checkmark.circle.fill")
+                                .font(.caption)
+                            Text(task.progressText)
+                                .lineLimit(1)
+                        }
+                        .font(.caption)
+                        .foregroundStyle(.green)
+                    } else if task.status == .paused {
                         Text(task.progressText)
                             .font(.caption)
                             .foregroundStyle(.secondary)
                             .monospacedDigit()
-
-                        if let timeRemaining = task.estimatedTimeRemainingText {
-                            Text("• \(timeRemaining)")
-                                .font(.caption)
-                                .foregroundStyle(.tertiary)
-                                .monospacedDigit()
-                        }
-                    } else if task.status == .failed, let error = task.errorMessage {
-                        Text(error)
-                            .font(.caption)
-                            .foregroundStyle(.red)
-                            .lineLimit(1)
                     }
                 }
 
-                // Progress bar for downloading state
-                if task.status == .downloading {
+                // Progress bar for downloading and paused states
+                if task.status == .downloading || task.status == .paused {
                     progressBar
                 }
             }
@@ -114,7 +146,7 @@ struct DownloadTaskRowView: View {
         }
         .padding(.vertical, 8)
         .contentShape(Rectangle())
-        .background(isHovering ? Color.primary.opacity(0.05) : Color.clear)
+        .background(rowBackground)
         .onHover { hovering in
             withAnimation(.easeInOut(duration: 0.15)) {
                 isHovering = hovering
@@ -132,6 +164,20 @@ struct DownloadTaskRowView: View {
         .accessibilityHint(accessibilityHint)
         .accessibilityActions {
             accessibilityActionsContent
+        }
+    }
+
+    // MARK: - Row Background
+
+    private var rowBackground: some View {
+        Group {
+            if task.status == .failed {
+                Color.red.opacity(0.05)
+            } else if isHovering {
+                Color.primary.opacity(0.05)
+            } else {
+                Color.clear
+            }
         }
     }
 
@@ -332,6 +378,13 @@ struct DownloadTaskRowView: View {
         NSPasteboard.general.clearContents()
         NSPasteboard.general.setString(task.url.absoluteString, forType: .string)
         #endif
+    }
+
+    private func formatSpeed(_ bytesPerSec: Double) -> String {
+        let formatter = ByteCountFormatter()
+        formatter.allowedUnits = [.useMB, .useKB]
+        formatter.countStyle = .file
+        return "\(formatter.string(fromByteCount: Int64(bytesPerSec)))/s"
     }
 }
 

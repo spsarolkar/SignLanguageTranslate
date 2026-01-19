@@ -243,29 +243,70 @@ class XcodeManager:
         
         return errors, warnings
     
+    async def shutdown_all_other_simulators(self, keep_udid: Optional[str] = None):
+        """Shutdown all simulators except the one we need."""
+        try:
+            # First, shutdown ALL simulators
+            await self._run_command(["xcrun", "simctl", "shutdown", "all"], timeout=30)
+            self.logger.debug("All simulators shutdown")
+
+            # If we have a specific UDID to keep, boot only that one
+            if keep_udid:
+                await asyncio.sleep(2)  # Wait for shutdown to complete
+                await self._run_command(["xcrun", "simctl", "boot", keep_udid], timeout=30)
+                self.logger.debug(f"Booted simulator: {keep_udid}")
+        except Exception as e:
+            self.logger.warning(f"Failed to manage simulators: {e}")
+
+    async def _cleanup_after_tests(self):
+        """Cleanup simulators after tests to release disk resources."""
+        try:
+            # Shutdown all simulators
+            await self._run_command(["xcrun", "simctl", "shutdown", "all"], timeout=30)
+            self.logger.debug("Simulators shutdown after tests")
+        except Exception as e:
+            self.logger.warning(f"Cleanup failed: {e}")
+
     async def test(self) -> TestResult:
         """Run tests."""
         start_time = datetime.now()
-        
+
+        # Get simulator UDID to ensure we use exactly one simulator
+        udid = await self.get_simulator_udid()
+        if udid:
+            destination = f"id={udid}"
+            # IMPORTANT: Shutdown all other simulators before testing
+            await self.shutdown_all_other_simulators(keep_udid=udid)
+        else:
+            destination = self._get_destination()
+
+        # Use the main scheme for testing (not the test scheme)
+        # The test scheme may have platform configuration issues
         cmd = [
             "xcodebuild",
             "-project" if str(self.project_path).endswith(".xcodeproj") else "-workspace",
             str(self.project_path),
-            "-scheme", self.test_scheme,
-            "-destination", self._get_destination(),
+            "-scheme", self.scheme,  # Use main scheme, not test_scheme
+            "-destination", destination,
             "-configuration", "Debug",
+            "-disable-concurrent-destination-testing",  # Prevent multiple simulators
+            "-parallel-testing-enabled", "NO",  # Disable parallel testing
+            "-maximum-concurrent-test-simulator-destinations", "1",  # Only 1 simulator
             "test"
         ]
         
         try:
             returncode, stdout, stderr = await self._run_command(cmd, self.test_timeout)
             duration = (datetime.now() - start_time).total_seconds()
-            
+
             combined_output = stdout + "\n" + stderr
             failures, total, passed, failed, skipped = self._parse_test_output(combined_output)
-            
+
             success = returncode == 0 and failed == 0
-            
+
+            # Cleanup: shutdown simulator after tests
+            await self._cleanup_after_tests()
+
             return TestResult(
                 success=success,
                 output=stdout,
@@ -277,9 +318,10 @@ class XcodeManager:
                 skipped_tests=skipped,
                 failures=failures
             )
-            
+
         except TimeoutError:
             duration = (datetime.now() - start_time).total_seconds()
+            await self._cleanup_after_tests()  # Cleanup on timeout
             return TestResult(
                 success=False,
                 output="",
@@ -293,6 +335,7 @@ class XcodeManager:
             )
         except Exception as e:
             duration = (datetime.now() - start_time).total_seconds()
+            await self._cleanup_after_tests()  # Cleanup on exception
             return TestResult(
                 success=False,
                 output="",

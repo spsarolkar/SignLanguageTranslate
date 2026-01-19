@@ -1,5 +1,6 @@
 import Foundation
 import Observation
+import ZIPFoundation
 
 /// Observable wrapper for the download queue that bridges actor-based state to SwiftUI
 ///
@@ -216,14 +217,22 @@ final class DownloadManager {
         let backgroundTasks = await BackgroundSessionManager.shared.getPendingTasks()
         let allTasks = await queue.getAllTasks()
 
-        var mappings: [(sessionTaskId: Int, ourTaskId: UUID)] = []
+        var mappings: [(task: URLSessionDownloadTask, ourTaskId: UUID)] = []
 
         for sessionTask in backgroundTasks {
             guard let url = sessionTask.originalRequest?.url else { continue }
 
             // Find matching task by URL
             if let matchingTask = allTasks.first(where: { $0.url == url }) {
-                mappings.append((sessionTask.taskIdentifier, matchingTask.id))
+                mappings.append((sessionTask, matchingTask.id))
+                
+                // If background task is running but we have it as pending/paused, update it
+                if sessionTask.state == .running && matchingTask.status != .downloading {
+                    print("[DownloadManager] Syncing status for running background task: \(matchingTask.id)")
+                    await queue.updateTask(matchingTask.id) { task in
+                        task.status = .downloading
+                    }
+                }
             }
         }
 
@@ -284,6 +293,28 @@ final class DownloadManager {
     func clear() async {
         await queue.clear()
         await refresh()
+    }
+
+    // MARK: - Manifest Loading
+
+    /// Load the INCLUDE dataset manifest and enqueue all download tasks
+    /// - Parameter datasetName: Name of the dataset (default "INCLUDE")
+    func loadINCLUDEManifest(datasetName: String = "INCLUDE") async {
+        let entries = INCLUDEManifest.generateAllEntries()
+        let downloadTasks = entries.map { entry in
+            DownloadTask(
+                url: entry.url,
+                category: entry.category,
+                partNumber: entry.partNumber,
+                totalParts: entry.totalParts,
+                datasetName: datasetName,
+                status: .pending,
+                progress: 0,
+                bytesDownloaded: 0,
+                totalBytes: entry.estimatedSize ?? 0
+            )
+        }
+        await enqueueAll(downloadTasks)
     }
 
     // MARK: - Engine Control
@@ -373,6 +404,13 @@ final class DownloadManager {
             await refresh()
         }
     }
+    
+    /// Cancel all downloads and clear the queue
+    func cancelAll() async {
+        await engine.cancelAll()
+        await refresh()
+        print("[DownloadManager] All downloads cancelled and queue cleared")
+    }
 
     // MARK: - Task Access
 
@@ -407,6 +445,222 @@ final class DownloadManager {
     /// Get a snapshot of current progress
     func progressSnapshot() -> DownloadProgressTracker.Snapshot {
         progressTracker.snapshot()
+    }
+
+    // MARK: - Dataset Progress
+
+    /// Get aggregated progress for a specific dataset
+    /// - Parameter datasetName: Name of the dataset
+    /// - Returns: Tuple containing downloaded bytes, total bytes, progress (0-1), speed (bytes/sec), and time remaining (sec)
+    func getDatasetProgress(name: String) -> (downloaded: Int64, total: Int64, progress: Double, speed: Double, timeRemaining: TimeInterval?) {
+        let datasetTasks = tasks.filter { $0.datasetName == name }
+        
+        guard !datasetTasks.isEmpty else {
+            return (0, 0, 0, 0, nil)
+        }
+        
+        let downloaded = datasetTasks.reduce(0) { $0 + $1.bytesDownloaded }
+        let total = datasetTasks.reduce(0) { $0 + $1.totalBytes }
+        
+        let progress = total > 0 ? Double(downloaded) / Double(total) : 0
+        
+        // Calculate aggregate speed from active tasks
+        let activeTasks = datasetTasks.filter { $0.status == .downloading }
+        let speed = activeTasks.reduce(0.0) { result, task in 
+            result + task.downloadSpeed
+        }
+        
+        // Calculate ETA based on remaining bytes and current aggregate speed
+        var timeRemaining: TimeInterval?
+        if speed > 0 {
+            let remainingBytes = total - downloaded
+            // Only calc ETA if we have bytes to downlaod
+            if remainingBytes > 0 {
+                timeRemaining = TimeInterval(remainingBytes) / speed
+            }
+        }
+        
+        return (downloaded, total, progress, speed, timeRemaining)
+    }
+
+    /// Get aggregated status for a specific dataset
+    /// - Parameter name: Name of the dataset
+    /// - Returns: Computed status based on tasks
+    func getDatasetStatus(name: String) -> DownloadStatus {
+        let datasetTasks = tasks.filter { $0.datasetName == name }
+        
+        guard !datasetTasks.isEmpty else { return .notStarted }
+        
+        // Check for specific states in priority order
+        
+        // 1. If any task is failed -> Failed
+        if datasetTasks.contains(where: { $0.status == .failed }) {
+            return .failed
+        }
+        
+        // 2. If any task is downloading or extracting -> Downloading
+        if datasetTasks.contains(where: { $0.status == .downloading || $0.status == .extracting }) {
+            if isPaused {
+                return .paused
+            }
+            return .downloading
+        }
+        
+        // 3. If any task is pending -> Downloading (if active) or Paused (if paused)
+        if datasetTasks.contains(where: { $0.status == .pending }) {
+            // If we have pending tasks, we are technically "in progress"
+            // If the manager is paused, we are paused.
+            // If the manager is running, we are effectively downloading (waiting for queue)
+            return isPaused ? .paused : .downloading
+        }
+        
+        // 4. If all tasks are completed -> Completed
+        if datasetTasks.allSatisfy({ $0.status == .completed }) {
+            return .completed
+        }
+        
+        // 5. Default fallback (e.g. mixed paused/completed) -> Paused
+        return .paused
+    }
+
+    // MARK: - Manual Import
+    
+    /// Import a manually downloaded zip file containing dataset parts
+    /// - Parameter url: The URL of the zip file to import
+    /// - Throws: Error if import fails
+    // MARK: - Import State
+    
+    var isImporting = false
+    var importStatus = ""
+    
+    // MARK: - Manual Import
+    
+    /// Import a manually downloaded zip file containing dataset parts
+    /// - Parameter url: The URL of the zip file to import
+    /// - Throws: Error if import fails
+    func importFromLocalZip(url: URL) async throws {
+        print("[DownloadManager] Importing zip from: \(url.path)")
+        
+        // 1. Pause all active downloads
+        print("[DownloadManager] Pausing active downloads...")
+        print("[DownloadManager] Pausing active downloads...")
+        await pauseAll()
+        
+        // Ensure we reset importing state when finished (success or failure)
+        defer {
+            Task { @MainActor in
+                self.isImporting = false
+                self.importStatus = ""
+            }
+        }
+        
+        await MainActor.run {
+            self.isImporting = true
+            self.importStatus = "Preparing to unzip..."
+        }
+        
+        // Capture isolated state before detaching
+        let queue = self.queue
+        let validTasks = self.tasks.map { (id: $0.id, filename: $0.filename) }
+        let downloadFM = DownloadFileManager()
+        // Capture directory URL string to avoid actor isolation issues if DownloadFM is bound
+        let completedDownloadsURL = downloadFM.completedDownloadsDirectory
+        
+        // Run heavy lifting on background thread
+        try await Task.detached(priority: .userInitiated) {
+            // 2. Prepare temp directory for extraction
+            let fileManager = FileManager.default
+            let tempDir = fileManager.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+            try fileManager.createDirectory(at: tempDir, withIntermediateDirectories: true)
+            
+            defer {
+                 try? fileManager.removeItem(at: tempDir)
+            }
+            
+            // 3. Unzip the archive
+            await MainActor.run { self.importStatus = "Unzipping archive (this may take a while)..." }
+            print("[DownloadManager] Unzipping to \(tempDir.path)...")
+            
+            // Using ZIPFoundation extension
+            try fileManager.unzipItem(at: url, to: tempDir)
+
+            // 4. Scan for files
+            await MainActor.run { self.importStatus = "Scanning files..." }
+            print("[DownloadManager] Scanning extracted files...")
+            let resourceKeys: [URLResourceKey] = [.isRegularFileKey, .nameKey]
+            
+            // Create map of filenames to tasks to speed up lookup
+            let taskMap = Dictionary(grouping: validTasks, by: { $0.filename })
+
+            var localImportedCount = 0
+
+            // Manually traverse to avoid Sequence conformance issues in async context
+            if let enumerator = fileManager.enumerator(at: tempDir, includingPropertiesForKeys: resourceKeys, options: [.skipsHiddenFiles]) {
+                while let fileAny = enumerator.nextObject(), let fileURL = fileAny as? URL {
+                     guard let resourceValues = try? fileURL.resourceValues(forKeys: Set(resourceKeys)),
+                           let isRegularFile = resourceValues.isRegularFile, isRegularFile,
+                           let name = resourceValues.name else {
+                         continue
+                     }
+                    
+                    // Check if this file matches any task
+                    if let matchingTasks = taskMap[name], let taskInfo = matchingTasks.first {
+                        print("[DownloadManager] Found match for task: \(taskInfo.filename)")
+                        
+                        await MainActor.run { self.importStatus = "Importing \(taskInfo.filename)..." }
+                        
+                        // Explicitly abort any active download for this task
+                        // This bypasses status checks and kills the network connection
+                        await self.engine.abortDownload(taskInfo.id)
+                        
+                        // Destination Path logic
+                        let destinationFilename = "\(taskInfo.id.uuidString)_\(taskInfo.filename)"
+                        let destinationURL = completedDownloadsURL.appendingPathComponent(destinationFilename)
+                         
+                        // Remove existing if any
+                        if fileManager.fileExists(atPath: destinationURL.path) {
+                            try fileManager.removeItem(at: destinationURL)
+                        }
+                         
+                        // Move file
+                        try fileManager.moveItem(at: fileURL, to: destinationURL)
+                        
+                        // Update task progress to 100% with correct size
+                        let fileSize = (try? FileManager.default.attributesOfItem(atPath: destinationURL.path)[.size] as? Int64) ?? 0
+                        
+                        // Force update total size to match actual file size
+                        await queue.setFileSize(id: taskInfo.id, size: fileSize)
+                         
+                        // Mark task as completed
+                        await queue.markCompleted(taskInfo.id)
+                        
+                        // Clean up resume data since we have the full file
+                        await queue.deleteResumeData(for: taskInfo.id)
+                        
+                        localImportedCount += 1
+                    }
+                }
+            }
+            
+            let finalCount = localImportedCount
+            await MainActor.run { self.importStatus = "Imported \(finalCount) files total" }
+            
+            // Force save state immediately to ensure completions are persisted
+            // This prevents downloads from restarting if the app is killed
+            try? await queue.persistStateImmediately()
+            
+            print("[DownloadManager] Import finished. Imported \(finalCount) files.")
+            try? await Task.sleep(nanoseconds: 1 * 1_000_000_000) // Show success briefly
+        }.value
+
+    }
+    
+    /// Pause all active downloads
+    func pauseAll() async {
+        let activeTasks = tasks.filter { $0.status == .downloading || $0.status == .queued }
+        for task in activeTasks {
+            await pauseTask(task.id)
+        }
     }
 
     // MARK: - History Access
@@ -576,4 +830,6 @@ extension DownloadManager: DownloadQueueDelegate {
         Task { await refresh() }
     }
 }
+
+
 

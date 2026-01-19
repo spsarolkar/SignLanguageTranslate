@@ -4,6 +4,8 @@ import SwiftUI
 /// Displays total samples, categories/labels, storage used, and download date.
 struct DatasetStatsSection: View {
     let dataset: Dataset
+    var speed: Double = 0
+    var timeRemaining: TimeInterval? = nil
 
     private let columns = [
         GridItem(.flexible(), spacing: 12),

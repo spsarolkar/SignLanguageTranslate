@@ -223,6 +223,11 @@ enum DownloadError: LocalizedError, Equatable, Sendable {
 
     /// Create a DownloadError from an NSError (typically from URLSession)
     static func from(_ error: Error) -> DownloadError {
+        // If it's already a DownloadError, return it
+        if let downloadError = error as? DownloadError {
+            return downloadError
+        }
+
         let nsError = error as NSError
 
         // Handle URL errors

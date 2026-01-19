@@ -20,6 +20,10 @@ struct SignLanguageTranslateApp: App {
                     // Seed initial datasets if this is first launch
                     persistenceController.seedInitialDatasetsIfNeeded()
                 }
+                .task {
+                    // Recover any in-progress downloads from previous session
+                    await downloadManager.recoverDownloads()
+                }
         }
         .modelContainer(persistenceController.container)
         .environment(downloadManager)

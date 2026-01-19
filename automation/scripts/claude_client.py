@@ -148,8 +148,8 @@ class ClaudeClient:
             progress_task = asyncio.create_task(log_progress())
 
             try:
-                # Set a timeout (10 minutes max)
-                timeout = self.claude_config.get("timeout_seconds", 600)
+                # Set a timeout (5 minutes max - Claude should respond faster)
+                timeout = self.claude_config.get("timeout_seconds", 300)
                 stdout, stderr = await asyncio.wait_for(
                     process.communicate(input=full_prompt.encode('utf-8')),
                     timeout=timeout

@@ -82,6 +82,7 @@ struct DownloadTaskStatusBadge: View {
             Capsule()
                 .fill(status.color.opacity(0.15))
         )
+        .fixedSize(horizontal: true, vertical: false) // Prevent text compression
         .accessibilityElement(children: .combine)
         .accessibilityLabel("Status: \(status.displayName)")
     }

@@ -30,16 +30,40 @@ struct DownloadSummarySection: View {
                         Text(manager.statusText)
                             .font(.headline)
 
+                        // Progress info with optional speed and ETA
                         if manager.totalBytes > 0 {
-                            Text(manager.bytesProgressText)
-                                .font(.subheadline)
-                                .foregroundStyle(.secondary)
-                                .monospacedDigit()
+                            HStack(spacing: 6) {
+                                Text(manager.bytesProgressText)
+                                    .font(.subheadline)
+                                    .foregroundStyle(.secondary)
+                                    .monospacedDigit()
+
+                                // Show speed when actively downloading
+                                if manager.isDownloading && manager.currentDownloadRate > 0 {
+                                    Text("•")
+                                        .foregroundStyle(.tertiary)
+                                    Text(manager.formattedDownloadRate)
+                                        .font(.subheadline)
+                                        .foregroundStyle(.blue)
+                                        .monospacedDigit()
+                                }
+                            }
                         } else if manager.totalCount > 0 {
                             Text("\(manager.progressPercentage)% complete")
                                 .font(.subheadline)
                                 .foregroundStyle(.secondary)
                                 .monospacedDigit()
+                        }
+
+                        // Show ETA on separate line when downloading
+                        if manager.isDownloading, let eta = manager.formattedTimeRemaining {
+                            HStack(spacing: 4) {
+                                Image(systemName: "clock")
+                                    .font(.caption)
+                                Text(eta + " remaining")
+                                    .font(.caption)
+                            }
+                            .foregroundStyle(.secondary)
                         }
                     }
 

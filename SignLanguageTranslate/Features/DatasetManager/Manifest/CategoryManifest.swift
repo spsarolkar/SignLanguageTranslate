@@ -59,15 +59,17 @@ struct CategoryManifest: Codable, Hashable, Identifiable {
     /// Examples:
     /// - Single part: ["Seasons.zip"]
     /// - Multiple parts: ["Animals_1of2.zip", "Animals_2of2.zip"]
+    /// Generate filenames for all parts in this category
+    /// - Returns: Array of filenames
+    ///
+    /// Examples:
+    /// - Single part: ["Seasons_1of1.zip"]
+    /// - Multiple parts: ["Animals_1of2.zip", "Animals_2of2.zip"]
     func generateFilenames() -> [String] {
-        if partCount == 1 {
-            // Single file: just the category name
-            return ["\(name).zip"]
-        } else {
-            // Multiple parts: CategoryName_XofY.zip
-            return (1...partCount).map { partNumber in
-                "\(name)_\(partNumber)of\(partCount).zip"
-            }
+        // All files in INCLUDE dataset use the format Category_XofY.zip
+        // Even single files like Seasons use Seasons_1of1.zip
+        return (1...partCount).map { partNumber in
+            "\(name)_\(partNumber)of\(partCount).zip"
         }
     }
 
@@ -79,11 +81,7 @@ struct CategoryManifest: Codable, Hashable, Identifiable {
             return nil
         }
 
-        if partCount == 1 {
-            return "\(name).zip"
-        } else {
-            return "\(name)_\(partNumber)of\(partCount).zip"
-        }
+        return "\(name)_\(partNumber)of\(partCount).zip"
     }
 
     /// Generate manifest entries for all parts with given base URL
@@ -99,7 +97,12 @@ struct CategoryManifest: Codable, Hashable, Identifiable {
 
         return filenames.enumerated().map { index, filename in
             let partNumber = index + 1
-            let fileURL = baseURL.appendingPathComponent(filename)
+            
+            // Append /content to get the actual file download URL
+            // Zenodo API endpoint: .../files/Filename/content
+            let fileURL = baseURL
+                .appendingPathComponent(filename)
+                .appendingPathComponent("content")
 
             // Use provided size per part, or divide total size by part count
             let partSize: Int64?

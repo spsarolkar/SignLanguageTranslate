@@ -88,6 +88,27 @@ struct DownloadListView: View {
 
     private var downloadList: some View {
         List(selection: isMultiSelectMode ? $selectedTasks : nil) {
+            // Network warning banner (if no network)
+            if !downloadManager.isNetworkAvailable {
+                Section {
+                    HStack(spacing: 12) {
+                        Image(systemName: "wifi.exclamationmark")
+                            .font(.title2)
+                            .foregroundStyle(.orange)
+                        VStack(alignment: .leading, spacing: 2) {
+                            Text("No Network Connection")
+                                .font(.headline)
+                            Text("Downloads will resume automatically when connected")
+                                .font(.caption)
+                                .foregroundStyle(.secondary)
+                        }
+                        Spacer()
+                    }
+                    .padding(.vertical, 4)
+                }
+                .listRowBackground(Color.orange.opacity(0.1))
+            }
+
             // Summary section
             DownloadSummarySection(manager: downloadManager)
 
@@ -175,6 +196,20 @@ struct DownloadListView: View {
 
     @ToolbarContentBuilder
     private var toolbarContent: some ToolbarContent {
+        // Start Downloads button (when tasks are pending but not started)
+        ToolbarItem(placement: .primaryAction) {
+            if !downloadManager.isEngineRunning && downloadManager.pendingCount > 0 && !downloadManager.isDownloading {
+                Button {
+                    Task {
+                        await downloadManager.startDownloads()
+                    }
+                } label: {
+                    SwiftUI.Label("Start Downloads", systemImage: "arrow.down.circle.fill")
+                }
+                .help("Start downloading all pending tasks")
+            }
+        }
+
         // Pause/Resume All
         ToolbarItem(placement: .primaryAction) {
             if downloadManager.isPaused {

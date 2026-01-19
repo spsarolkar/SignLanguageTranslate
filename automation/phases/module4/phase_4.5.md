@@ -14,314 +14,78 @@ Now connect everything so UI reflects real download progress.
 
 ## Files to Update
 
-### 1. Update DownloadManager
+### 1. Update `Features/DatasetManager/Downloads/DownloadManager.swift`
 
-Remove simulation, connect to engine:
+Refactor the class to replace the simulated logic with the real `DownloadEngine`:
+1.  **Dependencies**: Initialize `DownloadQueueActor`, `DownloadEngine` (injected with queue), and `DownloadStatePersistence`.
+2.  **State Properties**: Expose published properties for the UI:
+    *   `tasks`: List of `DownloadTask`.
+    *   `isDownloading`: Boolean status.
+    *   `isPaused`: Boolean status.
+    *   `overallProgress`: Double (0-1).
+    *   `downloadedBytes` / `totalBytes`.
+    *   `downloadRate`: Double.
+    *   `estimatedTimeRemaining`: TimeInterval?.
+3.  **Engine Integration**:
+    *   Setup callbacks (`onTaskUpdated`, `onTaskCompleted`, `onTaskFailed`, etc.) to update the published state on the MainActor.
+    *   Implement public methods (`startDownloads`, `pauseAllDownloads`, `resumeAllDownloads`, `cancelAllDownloads`) that delegate to the `engine`.
+    *   Implement `loadINCLUDEManifest` to parse the manifest, convert entries to `DownloadTask`s, and enqueue them via the `queue`.
+    *   Implement task-specific actions (`pauseTask(id)`, `resumeTask(id)`, `cancelTask(id)`, `retryTask(id)`) delegating to the engine.
 
-```swift
-@Observable
-final class DownloadManager {
-    private let engine: DownloadEngine
-    private let queue: DownloadQueueActor
-    private let persistence: DownloadStatePersistence
-    
-    // Published state
-    private(set) var tasks: [DownloadTask] = []
-    private(set) var isDownloading = false
-    private(set) var isPaused = false
-    
-    // Progress
-    private(set) var overallProgress: Double = 0
-    private(set) var downloadedBytes: Int64 = 0
-    private(set) var totalBytes: Int64 = 0
-    private(set) var downloadRate: Double = 0
-    private(set) var estimatedTimeRemaining: TimeInterval?
-    
-    init() {
-        self.queue = DownloadQueueActor()
-        self.engine = DownloadEngine(queue: queue)
-        self.persistence = DownloadStatePersistence()
-        
-        // Setup engine callbacks
-        setupEngineCallbacks()
-    }
-    
-    private func setupEngineCallbacks() {
-        engine.onTaskUpdated = { [weak self] task in
-            await self?.handleTaskUpdate(task)
-        }
-        engine.onTaskCompleted = { [weak self] task in
-            await self?.handleTaskComplete(task)
-        }
-        // ... etc
-    }
-    
-    // MARK: - Public API
-    
-    func loadINCLUDEManifest() async {
-        let entries = INCLUDEManifest.allEntries()
-        let tasks = entries.map { DownloadTask(from: $0, datasetName: "INCLUDE") }
-        await queue.enqueueAll(tasks)
-        await refresh()
-    }
-    
-    func startDownloads() async {
-        await engine.start()
-        isDownloading = true
-    }
-    
-    func pauseAllDownloads() async {
-        await engine.pause()
-        isPaused = true
-    }
-    
-    func resumeAllDownloads() async {
-        await engine.resume()
-        isPaused = false
-    }
-    
-    // ... rest of API
-}
-```
+### 2. Update `Features/App/MainNavigationView.swift`
 
-### 2. Update MainNavigationView
+*   Inject the `DownloadManager` instance into the environment so it's accessible globally.
+*   Add a `.task` modifier to call `downloadManager.recoverDownloads()` on launch.
 
-Inject DownloadManager:
+### 3. Update `Features/DatasetManager/Views/DatasetDetailView.swift`
 
-```swift
-struct MainNavigationView: View {
-    @State private var downloadManager = DownloadManager()
-    
-    var body: some View {
-        NavigationSplitView { ... }
-            .environment(downloadManager)
-            .task {
-                await downloadManager.recoverDownloads()
-            }
-    }
-}
-```
+*   Consume `DownloadManager` from the environment.
+*   Update the `DatasetActionsSection` callbacks to trigger real downloads:
+    *   **On Download**: Update dataset status to `.downloading`, save context, load the manifest via manager, and start downloads.
+    *   **On Pause/Cancel**: Call respective manager methods.
 
-### 3. Update DatasetDetailView
+### 4. Update `Features/DatasetManager/Views/DownloadListView.swift`
 
-Add download actions:
+*   Connect the view to the real `DownloadManager` data.
+*   **Summary Section**: Bind to manager's `overallProgress`, `downloadeBytes`, etc.
+*   **Task List**: Display tasks grouped by category (use `manager.tasksGroupedByCategory` if available, or compute it).
+*   **Actions**: Wire up the "Pause All", "Resume All", and "Cancel All" buttons in the navigation bar/toolbar.
+*   **Refreshable**: Call `manager.refresh()` on pull-to-refresh.
 
-```swift
-struct DatasetDetailView: View {
-    @Bindable var dataset: Dataset
-    @Environment(DownloadManager.self) private var downloadManager
-    @Environment(\.modelContext) private var modelContext
-    
-    var body: some View {
-        // ...
-        
-        DatasetActionsSection(
-            dataset: dataset,
-            onDownload: startDownload,
-            onPause: pauseDownload,
-            onCancel: cancelDownload
-        )
-    }
-    
-    private func startDownload() {
-        Task {
-            // Update dataset status
-            dataset.startDownload()
-            try? modelContext.save()
-            
-            // Load manifest and start
-            await downloadManager.loadINCLUDEManifest()
-            await downloadManager.startDownloads()
-        }
-    }
-}
-```
+### 5. Update `Features/DatasetManager/Views/Components/DownloadTaskRowView.swift`
 
-### 4. Update DownloadListView
+*   **Primary Action**: specific simple button based on task status (e.g., Pause icon if downloading, Play if paused/pending, Retry if failed).
+*   **Swipe Actions**:
+    *   **Trailing**: "Cancel" (Destructive).
+    *   **Leading**: "Prioritize" (Orange) -> calls `manager.prioritizeTask`.
 
-Connect to real data:
+### 6. Create `Features/DatasetManager/Views/Components/DownloadNotificationBanner.swift`
 
-```swift
-struct DownloadListView: View {
-    @Environment(DownloadManager.self) private var manager
-    
-    var body: some View {
-        List {
-            DownloadSummarySection(
-                progress: manager.overallProgress,
-                statusText: manager.statusText,
-                progressText: manager.progressText,
-                activeCount: manager.activeCount,
-                pendingCount: manager.pendingCount,
-                completedCount: manager.completedCount,
-                failedCount: manager.failedCount
-            )
-            
-            ForEach(manager.tasksGroupedByCategory) { group in
-                DownloadCategorySection(
-                    group: group,
-                    onPause: { manager.pauseTask($0) },
-                    onResume: { manager.resumeTask($0) },
-                    onCancel: { manager.cancelTask($0) }
-                )
-            }
-        }
-        .refreshable {
-            await manager.refresh()
-        }
-    }
-}
-```
+*   Create a view that appears when `manager.isDownloading` is true.
+*   **Content**: Show a small progress bar, status text, and a button to open the full `DownloadSheet` (or navigate to DownloadListView).
+*   **Placement**: Typically placed at the bottom of the main navigation view or inside a `.overlay`.
 
-### 5. Update DownloadTaskRowView
+### 7. Update `SignLanguageTranslate/Models/Dataset.swift`
 
-Connect actions:
-
-```swift
-struct DownloadTaskRowView: View {
-    let task: DownloadTask
-    @Environment(DownloadManager.self) private var manager
-    
-    var body: some View {
-        HStack {
-            // ... content
-            
-            DownloadActionButton(task: task) {
-                handleAction()
-            }
-        }
-        .swipeActions(edge: .trailing) {
-            Button(role: .destructive) {
-                Task { await manager.cancelTask(task.id) }
-            } label: {
-                Label("Cancel", systemImage: "xmark")
-            }
-        }
-        .swipeActions(edge: .leading) {
-            Button {
-                Task { await manager.prioritizeTask(task.id) }
-            } label: {
-                Label("Priority", systemImage: "arrow.up")
-            }
-            .tint(.orange)
-        }
-    }
-    
-    private func handleAction() {
-        Task {
-            switch task.status {
-            case .pending, .paused:
-                await manager.resumeTask(task.id)
-            case .downloading:
-                await manager.pauseTask(task.id)
-            case .failed:
-                await manager.retryTask(task.id)
-            default:
-                break
-            }
-        }
-    }
-}
-```
-
-### 6. Create DownloadNotificationBanner
-
-Show download status in UI:
-
-```swift
-struct DownloadNotificationBanner: View {
-    @Environment(DownloadManager.self) private var manager
-    @State private var showingDownloadSheet = false
-    
-    var body: some View {
-        if manager.isDownloading {
-            Button {
-                showingDownloadSheet = true
-            } label: {
-                HStack {
-                    ProgressView(value: manager.overallProgress)
-                        .frame(width: 100)
-                    
-                    Text(manager.statusText)
-                        .font(.caption)
-                }
-                .padding(8)
-                .background(.ultraThinMaterial)
-                .cornerRadius(8)
-            }
-            .sheet(isPresented: $showingDownloadSheet) {
-                DownloadSheet()
-            }
-        }
-    }
-}
-```
-
-### 7. Update Dataset Model
-
-Sync with download state:
-
-```swift
-extension Dataset {
-    func syncWithDownloadManager(_ manager: DownloadManager) {
-        // Update dataset status based on download state
-        let tasks = manager.tasks.filter { $0.datasetName == self.name }
-        
-        if tasks.isEmpty { return }
-        
-        let completed = tasks.filter { $0.status == .completed }.count
-        let total = tasks.count
-        
-        self.downloadedParts = completed
-        self.totalParts = total
-        self.downloadedBytes = tasks.reduce(0) { $0 + $1.bytesDownloaded }
-        self.totalBytes = tasks.reduce(0) { $0 + $1.totalBytes }
-        
-        if tasks.allSatisfy({ $0.status == .completed }) {
-            self.completeDownload()
-        } else if tasks.contains(where: { $0.status == .failed }) {
-            self.failDownload(with: "Some downloads failed")
-        }
-    }
-}
-```
+*   Add a helper method `syncWithDownloadManager(_ manager: DownloadManager)`.
+*   **Logic**:
+    *   Filter manager's tasks for this dataset.
+    *   Update `downloadedParts`, `totalParts`, `downloadedBytes`, `totalBytes`.
+    *   Update status:
+        *   If all tasks `.completed` -> Mark dataset `.completed` / `.ready`.
+        *   If any task `.failed` -> Mark dataset `.failed`.
 
 ## Flow Verification
 
 Test the complete flow:
-
-1. **Start Download**
-   - Tap "Download INCLUDE" in dataset detail
-   - Manifest loads, tasks created
-   - Engine starts, first 3 downloads begin
-   - Progress updates in UI
-
-2. **View Progress**
-   - Open Downloads section
-   - See grouped tasks with progress
-   - Real-time updates as downloads progress
-
-3. **Pause/Resume**
-   - Tap pause on a task
-   - Resume data saved
-   - Tap resume
-   - Download continues from where it left off
-
-4. **Background**
-   - Send app to background
-   - Downloads continue
-   - Bring app back
-   - Progress is accurate
-
-5. **Completion**
-   - All downloads complete
-   - Dataset status updates to Ready
-   - Files in correct location
+1.  **Start**: "Download INCLUDE" -> Engine starts -> UI updates.
+2.  **Monitor**: Downloads tab shows real-time progress and speed.
+3.  **Control**: Pause/Resume individual tasks and all tasks.
+4.  **Persistence**: Restart app -> previous download state is recovered.
+5.  **Completion**: All tasks finish -> Dataset becomes "Ready".
 
 ## Requirements
 
-1. UI updates smoothly (no jank)
-2. All actions work correctly
-3. State syncs between engine and UI
-4. Background downloads reflected properly
-5. Error states displayed correctly
+1.  UI updates must be smooth (throttled updates if necessary).
+2.  Unidirectional data flow: View -> Manager -> Engine -> Callback -> Manager -> View.
+3.  Accurate handling of background/foreground transitions.

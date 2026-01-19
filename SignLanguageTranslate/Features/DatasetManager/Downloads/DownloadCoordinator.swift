@@ -60,9 +60,8 @@ actor DownloadCoordinator {
         Task { @MainActor in
             BackgroundSessionManager.shared.coordinator = self
         }
-
-        // Start queue processing
-        startProcessing()
+        // NOTE: Queue processing is handled by DownloadEngine, not here
+        // to avoid duplicate processing and race conditions
     }
 
     /// Stop the coordinator
@@ -73,16 +72,8 @@ actor DownloadCoordinator {
 
     // MARK: - Queue Processing
 
-    /// Start periodic queue processing
-    private func startProcessing() {
-        processingTask?.cancel()
-        processingTask = Task {
-            while !Task.isCancelled {
-                await processQueue()
-                try? await Task.sleep(nanoseconds: 500_000_000) // 0.5 seconds
-            }
-        }
-    }
+    // NOTE: startProcessing() removed - DownloadEngine handles queue processing
+    // The coordinator only handles individual task operations and callbacks
 
     /// Process the queue to start pending downloads
     ///
@@ -160,13 +151,12 @@ actor DownloadCoordinator {
             // TODO: Phase 4.x will add actual ZIP extraction here
             await queue.markCompleted(taskId)
 
-            // Process queue to start next download
-            await processQueue()
+            // NOTE: Queue processing is handled by DownloadEngine's loop, not here
 
         } catch {
             // File move failed
             await queue.markFailed(taskId, error: "Failed to save download: \(error.localizedDescription)")
-            await processQueue()
+            // NOTE: Queue processing is handled by DownloadEngine's loop, not here
         }
     }
 
@@ -206,8 +196,7 @@ actor DownloadCoordinator {
         let errorMessage = humanReadableError(error)
         await queue.markFailed(taskId, error: errorMessage)
 
-        // Process queue to start next download
-        await processQueue()
+        // NOTE: Queue processing is handled by DownloadEngine's loop, not here
     }
 
     /// Handle download pause (with resume data)
@@ -300,6 +289,18 @@ actor DownloadCoordinator {
         await queue.remove(taskId)
     }
 
+    /// Abort a download without removing it from the queue
+    /// - Parameter taskId: Task ID to abort
+    func abortDownload(_ taskId: UUID) async {
+        // Cancel download if active
+        sessionManager.cancelDownload(taskId: taskId)
+        
+        // Clean up resume data as we are aborting
+        fileManager.deleteResumeData(for: taskId)
+        
+        // Note: We don't remove from queue as this is used when we are about to mark it completed manually
+    }
+
     /// Retry a failed task
     /// - Parameter taskId: Task ID to retry
     func retryTask(_ taskId: UUID) async {
@@ -309,9 +310,9 @@ actor DownloadCoordinator {
         // Clean up any stale resume data
         fileManager.deleteResumeData(for: taskId)
 
-        // Reset and restart
+        // Reset task to pending - engine's loop will restart it
         await queue.retryTask(taskId)
-        await processQueue()
+        // NOTE: Queue processing is handled by DownloadEngine's loop, not here
     }
 
     /// Pause all active downloads
@@ -328,7 +329,7 @@ actor DownloadCoordinator {
     /// Resume all paused downloads
     func resumeAll() async {
         await queue.resumeAll()
-        await processQueue()
+        // NOTE: Queue processing is handled by DownloadEngine's loop, not here
     }
 
     /// Cancel all downloads
@@ -355,8 +356,7 @@ actor DownloadCoordinator {
         let validIds = Set(tasks.map { $0.id })
         fileManager.cleanupOrphanedFiles(validTaskIds: validIds)
 
-        // Restart queue processing
-        await processQueue()
+        // NOTE: Queue processing is handled by DownloadEngine's loop, not here
     }
 
     // MARK: - Helpers

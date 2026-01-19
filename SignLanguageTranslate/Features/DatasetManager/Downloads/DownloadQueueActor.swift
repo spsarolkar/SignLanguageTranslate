@@ -290,6 +290,16 @@ actor DownloadQueueActor {
         }
     }
 
+    /// Set the exact file size for a task (overriding estimate)
+    /// - Parameters:
+    ///   - id: Task ID
+    ///   - size: Exact file size in bytes
+    func setFileSize(id: UUID, size: Int64) {
+        updateTask(id) { task in
+            task.setFileSize(size)
+        }
+    }
+
     /// Mark a task as downloading
     /// - Parameter id: Task ID
     func markDownloading(_ id: UUID) {
@@ -342,6 +352,9 @@ actor DownloadQueueActor {
     ///   - error: Error message
     func markFailed(_ id: UUID, error errorMessage: String) {
         guard var task = tasks[id] else { return }
+        
+        // Ignore failure if task is already completed (e.g. via import)
+        guard task.status != .completed else { return }
 
         // Update the task directly instead of using updateTask closure
         let previousActiveCount = getActiveCount()

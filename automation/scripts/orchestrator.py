@@ -24,6 +24,7 @@ from screenshot_capture import ScreenshotCapture
 from git_manager import GitManager
 from claude_client import ClaudeClient, RateLimitError
 from rate_limit_handler import RateLimitHandler
+from manual_intervention_detector import ManualInterventionDetector, ManualInterventionRequired
 
 
 class Orchestrator:
@@ -71,7 +72,12 @@ class Orchestrator:
         
         self.claude = ClaudeClient(self.config)
         self.rate_limiter = RateLimitHandler(self.config)
-        
+
+        # Manual intervention detection
+        self.intervention_detector = ManualInterventionDetector(
+            max_same_error_retries=self.config.get("automation", {}).get("max_same_error_retries", 3)
+        )
+
         # Configuration
         automation_config = self.config.get("automation", {})
         self.max_retries_per_phase = automation_config.get("max_retries_per_phase", 15)
@@ -343,34 +349,57 @@ class Orchestrator:
                 if state.current_step == Step.BUILD:
                     self.logger.step_start("build", iteration)
                     await self.analytics.record_iteration_start(phase_id, iteration, "build")
-                    
+
                     result = await self.xcode.build()
-                    
+
                     if not result.success:
                         self.logger.step_failed("build", len(result.errors))
-                        
+
                         for error in result.errors[:5]:
                             self.logger.build_error(str(error))
-                        
+
+                        # Check for manual intervention requirements
+                        intervention = self.intervention_detector.check_build_errors(result.errors)
+                        if not intervention:
+                            intervention = self.intervention_detector.check_repeated_errors(result.errors, iteration)
+
+                        if intervention and intervention.is_blocking:
+                            # Manual intervention needed - stop automation
+                            message = self.intervention_detector.format_intervention_message(
+                                intervention, result.errors
+                            )
+                            print(message)
+                            self.logger.warning(f"Manual intervention required: {intervention.title}")
+
+                            await self.state_manager.pause_execution()
+                            return await self._fail_phase(
+                                phase, module_id,
+                                f"Manual intervention required: {intervention.title}",
+                                start_time
+                            )
+
                         await self.analytics.record_build_errors(phase_id, iteration, result.errors)
                         await self.state_manager.record_build_errors(len(result.errors))
                         build_errors_fixed += len(result.errors)
-                        
+
                         # Generate fix prompt
                         prompt = self.claude.build_fix_prompt(original_prompt, result.errors, "build")
-                        
+
                         iteration = await self._handle_step_failure(
-                            phase_id, iteration, "build", 
+                            phase_id, iteration, "build",
                             f"{len(result.errors)} build errors"
                         )
                         await self.state_manager.advance_step(Step.GENERATE)
                         continue
-                    
+
+                    # Build succeeded - reset error tracking
+                    self.intervention_detector.reset_error_counts()
+
                     self.logger.step_complete("build")
                     await self.analytics.record_iteration_complete(
                         phase_id, iteration, "build", result.duration_seconds
                     )
-                    
+
                     await self.state_manager.advance_step(Step.TEST)
                     state = await self.state_manager.get_state()
                 
@@ -383,39 +412,73 @@ class Orchestrator:
                     else:
                         self.logger.step_start("test", iteration)
                         await self.analytics.record_iteration_start(phase_id, iteration, "test")
-                        
+
                         result = await self.xcode.test()
-                        
+
                         if not result.success:
                             self.logger.step_failed("test", len(result.failures))
-                            
+
                             for failure in result.failures[:5]:
                                 self.logger.test_failure(
                                     f"{failure.test_class}.{failure.test_name}",
                                     failure.failure_message
                                 )
-                            
+
+                            # Check for manual intervention requirements
+                            # Test failures can also indicate XCTest target issues
+                            intervention = self.intervention_detector.check_test_failures(result.failures)
+
+                            # Also check build errors in test output (e.g., "No such module 'XCTest'")
+                            if not intervention and result.error_output:
+                                # Parse error_output for build-like errors
+                                from models import BuildError
+                                test_build_errors = []
+                                for line in result.error_output.split('\n'):
+                                    if 'error:' in line.lower():
+                                        test_build_errors.append(BuildError(
+                                            file_path="",
+                                            line_number=None,
+                                            column_number=None,
+                                            message=line.strip()
+                                        ))
+                                if test_build_errors:
+                                    intervention = self.intervention_detector.check_build_errors(test_build_errors)
+
+                            if intervention and intervention.is_blocking:
+                                message = self.intervention_detector.format_intervention_message(
+                                    intervention, result.failures
+                                )
+                                print(message)
+                                self.logger.warning(f"Manual intervention required: {intervention.title}")
+
+                                await self.state_manager.pause_execution()
+                                return await self._fail_phase(
+                                    phase, module_id,
+                                    f"Manual intervention required: {intervention.title}",
+                                    start_time
+                                )
+
                             await self.analytics.record_test_failures(phase_id, iteration, result.failures)
                             await self.state_manager.record_test_failures(len(result.failures))
                             test_failures_fixed += len(result.failures)
-                            
+
                             # Generate fix prompt
                             prompt = self.claude.build_fix_prompt(original_prompt, result.failures, "test")
-                            
+
                             iteration = await self._handle_step_failure(
                                 phase_id, iteration, "test",
                                 f"{len(result.failures)} test failures"
                             )
                             await self.state_manager.advance_step(Step.GENERATE)
                             continue
-                        
+
                         self.logger.step_complete("test")
                         self.logger.progress(f"Tests: {result.passed_tests}/{result.total_tests} passed")
-                        
+
                         await self.analytics.record_iteration_complete(
                             phase_id, iteration, "test", result.duration_seconds
                         )
-                        
+
                         await self.state_manager.advance_step(Step.SCREENSHOT)
                         state = await self.state_manager.get_state()
                 

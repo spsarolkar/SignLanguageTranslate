@@ -89,6 +89,15 @@ struct DatasetListView: View {
         }
         .animation(.easeInOut(duration: 0.3), value: allDatasets.count)
         .animation(.easeInOut(duration: 0.2), value: expandedSections)
+        .task {
+            syncAllDatasets()
+        }
+        .onChange(of: downloadManager.activeCount) { _, _ in
+            syncAllDatasets()
+        }
+        .onChange(of: downloadManager.isPaused) { _, _ in
+            syncAllDatasets()
+        }
     }
 
     // MARK: - Dataset List
@@ -488,6 +497,7 @@ struct DatasetListView: View {
         isRefreshing = true
         // Simulate refresh delay
         try? await Task.sleep(for: .milliseconds(500))
+        syncAllDatasets()
         isRefreshing = false
     }
 
@@ -520,6 +530,26 @@ struct DatasetListView: View {
         }
 
         try? modelContext.save()
+    }
+    
+    // MARK: - State Synchronization
+    
+    private func syncAllDatasets() {
+        for dataset in allDatasets {
+            let realStatus = downloadManager.getDatasetStatus(name: dataset.name)
+            let stats = downloadManager.getDatasetProgress(name: dataset.name)
+            
+            // Only update if changed to avoid unnecessary re-renders/saves
+            if dataset.downloadStatus != realStatus {
+                dataset.downloadStatus = realStatus
+            }
+            
+            // Update progress stats
+            if dataset.downloadStatus == .downloading || dataset.downloadStatus == .paused {
+                dataset.updateProgress(downloadedBytes: stats.downloaded, totalBytes: stats.total)
+                dataset.incrementDownloadedParts() // Approximate for now
+            }
+        }
     }
 }
 

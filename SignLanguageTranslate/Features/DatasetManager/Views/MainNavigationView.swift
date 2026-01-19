@@ -10,6 +10,7 @@ struct MainNavigationView: View {
     @State private var selectedSection: NavigationSection? = .datasets
     @State private var selectedDataset: Dataset?
     @State private var columnVisibility: NavigationSplitViewVisibility = .all
+    @State private var showingDownloadsSheet = false
 
     var body: some View {
         NavigationSplitView(columnVisibility: $columnVisibility) {
@@ -29,6 +30,24 @@ struct MainNavigationView: View {
             )
         }
         .navigationSplitViewStyle(.balanced)
+        .overlay(alignment: .bottom) {
+            DownloadNotificationBanner(isPresented: $showingDownloadsSheet)
+                .animation(.easeInOut, value: downloadManager.isDownloading)
+        }
+        .sheet(isPresented: $showingDownloadsSheet) {
+            NavigationStack {
+                DownloadListView()
+                    .navigationTitle("Downloads")
+                    .navigationBarTitleDisplayMode(.inline)
+                    .toolbar {
+                        ToolbarItem(placement: .cancellationAction) {
+                            Button("Done") {
+                                showingDownloadsSheet = false
+                            }
+                        }
+                    }
+            }
+        }
     }
 }
 

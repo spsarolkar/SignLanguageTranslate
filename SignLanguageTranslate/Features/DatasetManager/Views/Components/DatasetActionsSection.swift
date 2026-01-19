@@ -4,6 +4,8 @@ import SwiftUI
 /// Shows context-appropriate actions based on dataset status.
 struct DatasetActionsSection: View {
     let dataset: Dataset
+    var currentSpeed: Double = 0
+    var timeRemaining: TimeInterval? = nil
 
     var onStartDownload: () -> Void
     var onPauseDownload: () -> Void
@@ -112,9 +114,21 @@ struct DatasetActionsSection: View {
 
                 Spacer()
 
-                Text(dataset.progressText)
+                if dataset.downloadStatus.isActive && currentSpeed > 0 {
+                    HStack(spacing: 4) {
+                        Text(formatSpeed(currentSpeed))
+                        if let time = timeRemaining {
+                            Text("•")
+                            Text(formatTime(time))
+                        }
+                    }
                     .font(.caption.monospacedDigit())
                     .foregroundStyle(.secondary)
+                } else {
+                    Text(dataset.progressText)
+                        .font(.caption.monospacedDigit())
+                        .foregroundStyle(.secondary)
+                }
             }
 
             HStack {
@@ -137,6 +151,21 @@ struct DatasetActionsSection: View {
             RoundedRectangle(cornerRadius: 12)
                 .fill(Color(.secondarySystemGroupedBackground))
         )
+    }
+
+    private func formatSpeed(_ bytesPerSec: Double) -> String {
+        let formatter = ByteCountFormatter()
+        formatter.allowedUnits = [.useMB, .useKB]
+        formatter.countStyle = .file
+        return "\(formatter.string(fromByteCount: Int64(bytesPerSec)))/s"
+    }
+
+    private func formatTime(_ seconds: TimeInterval) -> String {
+        let formatter = DateComponentsFormatter()
+        formatter.allowedUnits = [.hour, .minute, .second]
+        formatter.unitsStyle = .abbreviated
+        formatter.maximumUnitCount = 2
+        return formatter.string(from: seconds) ?? ""
     }
 
     // MARK: - Error Message View

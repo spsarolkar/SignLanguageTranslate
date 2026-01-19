@@ -196,7 +196,9 @@ enum INCLUDEManifest {
               let filename = category.filename(forPart: partNumber) else {
             return nil
         }
-        return baseURL.appendingPathComponent(filename)
+        return baseURL
+            .appendingPathComponent(filename)
+            .appendingPathComponent("content")
     }
 }
 

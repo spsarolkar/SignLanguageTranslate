@@ -13,12 +13,13 @@ simulator:
   name: "iPad Pro (11-inch) (3rd generation)"
   os: "26.2"
   device_type_id: "com.apple.CoreSimulator.SimDeviceType.iPad-Pro-11-inch-3rd-generation-8GB"
-  # Alternative: Use UDID directly if known
-  udid: null
+  # Use UDID directly to ensure only one simulator is used
+  udid: "8AD57B15-B512-4675-9E8E-4A2D9553C630"
 
 automation:
   max_retries_per_step: 5
   max_retries_per_phase: 10
+  max_same_error_retries: 3         # stop if same error occurs this many times
   delay_between_claude_calls: 5    # seconds between API calls (proactive pacing)
   delay_after_failure: 10           # extra delay after failures before retry
   build_timeout_seconds: 1200

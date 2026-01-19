@@ -56,6 +56,8 @@ struct DatasetDetailView: View {
     @State private var importError: String? = nil
     @State private var showImportError = false
     
+    @State private var showSamples = false
+    
     // Transient state for progress display
     @State private var currentSpeed: Double = 0
     @State private var timeRemaining: TimeInterval? = nil
@@ -160,6 +162,9 @@ struct DatasetDetailView: View {
                         .cornerRadius(16)
                     }
             }
+        }
+        .navigationDestination(isPresented: $showSamples) {
+            DatasetSamplesView(dataset: dataset)
         }
     }
     
@@ -304,7 +309,7 @@ struct DatasetDetailView: View {
     }
 
     private func browseSamples() {
-        // Navigate to samples browser (to be implemented)
+        showSamples = true
     }
 
     private func browseCategory(_ label: Label) {

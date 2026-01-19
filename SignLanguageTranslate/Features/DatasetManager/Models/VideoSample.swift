@@ -52,6 +52,10 @@ final class VideoSample {
     @Relationship(inverse: \Label.videoSamples)
     var labels: [Label]
 
+    /// Extracted feature sets (e.g., body pose, hand landmarks)
+    @Relationship(deleteRule: .cascade, inverse: \FeatureSet.videoSample)
+    var featureSets: [FeatureSet] = []
+
     // MARK: - Computed Properties
 
     /// Absolute URL to the video file

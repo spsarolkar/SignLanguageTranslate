@@ -89,8 +89,17 @@ struct DatasetListView: View {
         }
         .animation(.easeInOut(duration: 0.3), value: allDatasets.count)
         .animation(.easeInOut(duration: 0.2), value: expandedSections)
+
         .task {
-            syncAllDatasets()
+            // Initial sync
+            if downloadManager.hasRecovered {
+                syncAllDatasets()
+            }
+        }
+        .onChange(of: downloadManager.hasRecovered) { _, recovered in
+            if recovered {
+                syncAllDatasets()
+            }
         }
         .onChange(of: downloadManager.activeCount) { _, _ in
             syncAllDatasets()
@@ -537,15 +546,53 @@ struct DatasetListView: View {
     private func syncAllDatasets() {
         for dataset in allDatasets {
             let realStatus = downloadManager.getDatasetStatus(name: dataset.name)
-            let stats = downloadManager.getDatasetProgress(name: dataset.name)
             
+            // If the manager says it's "notStarted" but we think it's "downloading"
+            // AND we have files on disk, we might actually be "completed" 
+            // but the manager just doesn't know about it (cold start case).
+            // However, getDatasetStatus in Manager is supposed to handle this.
+            
+            // Critical fix: If dataset thinks it's downloading, but manager has recovered
+            // and reports .notStarted, it means the download was lost/interrupted during restart.
+            // But if it has local storage, maybe it's actually done.
+            
+            var effectiveStatus = realStatus
+            
+            if downloadManager.hasRecovered {
+                // Scenario 1: UI says downloading, Manager says nothing -> Check disk
+                if dataset.downloadStatus == .downloading && realStatus == .notStarted {
+                    if dataset.hasLocalStorage {
+                        effectiveStatus = .completed
+                    } else {
+                        effectiveStatus = .failed
+                    }
+                }
+                
+                // Scenario 2: UI says completed, Manager says nothing (tasks cleared) -> Keep completed if valid
+                if dataset.downloadStatus == .completed && realStatus == .notStarted {
+                    if dataset.hasLocalStorage {
+                        effectiveStatus = .completed
+                    } else {
+                        effectiveStatus = .notStarted // Actually gone
+                    }
+                }
+            } else {
+                // Not recovered yet? Trust the persisted state until we know better
+                // Don't overwrite existing status with .notStarted just because manager is empty
+                if realStatus == .notStarted && dataset.downloadStatus != .notStarted {
+                    effectiveStatus = dataset.downloadStatus
+                }
+            }
+
             // Only update if changed to avoid unnecessary re-renders/saves
-            if dataset.downloadStatus != realStatus {
-                dataset.downloadStatus = realStatus
+            if dataset.downloadStatus != effectiveStatus {
+                print("[UI] Syncing status for \(dataset.name): \(dataset.downloadStatus) -> \(effectiveStatus)")
+                dataset.downloadStatus = effectiveStatus
             }
             
             // Update progress stats
             if dataset.downloadStatus == .downloading || dataset.downloadStatus == .paused {
+                let stats = downloadManager.getDatasetProgress(name: dataset.name)
                 dataset.updateProgress(downloadedBytes: stats.downloaded, totalBytes: stats.total)
                 dataset.incrementDownloadedParts() // Approximate for now
             }

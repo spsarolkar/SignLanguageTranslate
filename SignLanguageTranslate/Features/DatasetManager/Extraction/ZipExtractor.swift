@@ -357,8 +357,11 @@ actor ZipExtractor {
     ) async throws -> [URL] {
         // Validate source file exists
         guard FileManager.default.fileExists(atPath: zipURL.path) else {
+            print("[ZipExtractor] ERROR: File not found at: \(zipURL.path)")
             throw ExtractionError.fileNotFound(zipURL)
         }
+
+        print("[ZipExtractor] Extracting: \(zipURL.lastPathComponent) to \(destinationURL.path)")
 
         // Create destination directory
         try FileManager.default.createDirectory(
@@ -368,12 +371,15 @@ actor ZipExtractor {
 
         // Open the archive
         guard let archive = Archive(url: zipURL, accessMode: .read) else {
+            print("[ZipExtractor] ERROR: Could not open archive: \(zipURL.lastPathComponent)")
             throw ExtractionError.invalidArchive(zipURL)
         }
 
         let entries = Array(archive)
         let totalFiles = entries.count
         let totalBytes = entries.reduce(0) { $0 + Int64($1.uncompressedSize) }
+
+        print("[ZipExtractor] Archive contains \(totalFiles) entries, \(totalBytes) bytes uncompressed")
 
         var extractedFiles: [URL] = []
         var filesExtracted = 0
@@ -422,7 +428,12 @@ actor ZipExtractor {
                 _ = try archive.extract(entry, to: destinationPath, skipCRC32: false)
                 extractedFiles.append(destinationPath)
                 bytesExtracted += Int64(entry.uncompressedSize)
+
+                if filesExtracted < 3 {
+                    print("[ZipExtractor] Extracted: \(entryPath) -> \(destinationPath.path)")
+                }
             } catch {
+                print("[ZipExtractor] ERROR extracting \(entryPath): \(error)")
                 throw ExtractionError.extractionFailed("Failed to extract \(entryPath): \(error.localizedDescription)")
             }
 
@@ -430,6 +441,7 @@ actor ZipExtractor {
             await Task.yield()
         }
 
+        print("[ZipExtractor] Extraction complete: \(extractedFiles.count) files extracted")
         return extractedFiles
     }
 

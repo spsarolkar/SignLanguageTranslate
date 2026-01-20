@@ -13,6 +13,9 @@ struct SignLanguageTranslateApp: App {
     /// Download manager for handling dataset downloads
     @State private var downloadManager = DownloadManager()
 
+    /// Extraction progress tracker for zip extraction UI
+    @State private var extractionTracker = ExtractionProgressTracker()
+
     var body: some Scene {
         WindowGroup {
             MainNavigationView()
@@ -27,5 +30,6 @@ struct SignLanguageTranslateApp: App {
         }
         .modelContainer(persistenceController.container)
         .environment(downloadManager)
+        .environment(extractionTracker)
     }
 }

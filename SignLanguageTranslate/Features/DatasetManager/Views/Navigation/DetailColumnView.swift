@@ -63,49 +63,54 @@ struct DatasetDetailView: View {
     @State private var timeRemaining: TimeInterval? = nil
 
     var body: some View {
-        ScrollView {
-            VStack(alignment: .leading, spacing: 24) {
-                // Header with icon, name, status
-                DatasetHeaderSection(dataset: dataset)
+        NavigationStack {
+            ScrollView {
+                VStack(alignment: .leading, spacing: 24) {
+                    // Header with icon, name, status
+                    DatasetHeaderSection(dataset: dataset)
 
-                // Statistics cards
-                DatasetStatsSection(
-                    dataset: dataset,
-                    speed: currentSpeed,
-                    timeRemaining: timeRemaining
-                )
-
-                // Actions (Download, Browse, Delete)
-                DatasetActionsSection(
-                    dataset: dataset,
-                    currentSpeed: currentSpeed,
-                    timeRemaining: timeRemaining,
-                    onStartDownload: startDownload,
-                    onPauseDownload: pauseDownload,
-                    onResumeDownload: resumeDownload,
-                    onCancelDownload: cancelDownload,
-                    onBrowseSamples: browseSamples,
-                    onViewInFiles: viewInFiles,
-                    onDeleteDataset: { showDeleteConfirmation = true }
-                )
-
-                // Categories list (if downloaded)
-                if dataset.isReady {
-                    DatasetCategoriesSection(
+                    // Statistics cards
+                    DatasetStatsSection(
                         dataset: dataset,
-                        onCategorySelected: browseCategory
+                        speed: currentSpeed,
+                        timeRemaining: timeRemaining
                     )
+
+                    // Actions (Download, Browse, Delete)
+                    DatasetActionsSection(
+                        dataset: dataset,
+                        currentSpeed: currentSpeed,
+                        timeRemaining: timeRemaining,
+                        onStartDownload: startDownload,
+                        onPauseDownload: pauseDownload,
+                        onResumeDownload: resumeDownload,
+                        onCancelDownload: cancelDownload,
+                        onBrowseSamples: browseSamples,
+                        onViewInFiles: viewInFiles,
+                        onDeleteDataset: { showDeleteConfirmation = true }
+                    )
+
+                    // Categories list (if downloaded)
+                    if dataset.isReady {
+                        DatasetCategoriesSection(
+                            dataset: dataset,
+                            onCategorySelected: browseCategory
+                        )
+                    }
                 }
+                .padding()
             }
-            .padding()
-        }
-        .background(Color(.systemGroupedBackground))
-        .navigationTitle(dataset.name)
-        #if os(iOS)
-        .navigationBarTitleDisplayMode(.large)
-        #endif
-        .toolbar {
-            toolbarContent
+            .background(Color(.systemGroupedBackground))
+            .navigationTitle(dataset.name)
+            #if os(iOS)
+            .navigationBarTitleDisplayMode(.large)
+            #endif
+            .toolbar {
+                toolbarContent
+            }
+            .navigationDestination(isPresented: $showSamples) {
+                DatasetBrowserView(dataset: dataset)
+            }
         }
         .confirmationDialog(
             "Delete Dataset",
@@ -151,7 +156,7 @@ struct DatasetDetailView: View {
                             ProgressView()
                                 .controlSize(.large)
                                 .tint(.white)
-                            
+
                             Text(downloadManager.importStatus)
                                 .font(.headline)
                                 .foregroundStyle(.white)
@@ -162,9 +167,6 @@ struct DatasetDetailView: View {
                         .cornerRadius(16)
                     }
             }
-        }
-        .navigationDestination(isPresented: $showSamples) {
-            DatasetSamplesView(dataset: dataset)
         }
     }
     

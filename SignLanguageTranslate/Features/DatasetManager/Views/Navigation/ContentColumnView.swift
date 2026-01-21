@@ -14,7 +14,7 @@ struct ContentColumnView: View {
             case .downloads:
                 DownloadListView()
             case .training:
-                TrainingPlaceholderView()
+                TrainingContentView()
             case .settings:
                 SettingsPlaceholderView()
             case nil:
@@ -25,6 +25,7 @@ struct ContentColumnView: View {
                 )
             }
         }
+        .id(selectedSection)
     }
 }
 

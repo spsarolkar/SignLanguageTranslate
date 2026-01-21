@@ -1,39 +1,39 @@
 import Foundation
 
 /// A unified representation of a detected keypoint, independent of the underlying framework (Vision, MediaPipe, etc.)
-struct UnifiedKeypoint: Codable, Sendable {
+public struct UnifiedKeypoint: Codable, Sendable {
     /// Standardized identifier for the keypoint (e.g., "nose", "left_shoulder")
-    let id: String
+    public let id: String
     
     /// Normalized X coordinate (0.0 - 1.0)
-    let x: Float
+    public let x: Float
     
     /// Normalized Y coordinate (0.0 - 1.0)
-    let y: Float
+    public let y: Float
     
     /// Optional normalized Z coordinate for 3D depth
-    let z: Float?
+    public let z: Float?
     
     /// Confidence score of the detection (0.0 - 1.0)
-    let confidence: Float
+    public let confidence: Float
 }
 
 /// A collection of features detected in a single video frame
-struct FrameFeatures: Codable, Sendable {
+public struct FrameFeatures: Codable, Sendable {
     /// Timestamp of the frame in seconds
-    let timestamp: TimeInterval
+    public let timestamp: TimeInterval
     
     /// Detected body landmarks
-    let body: [UnifiedKeypoint]
+    public let body: [UnifiedKeypoint]
     
     /// Detected left hand landmarks
-    let leftHand: [UnifiedKeypoint]?
+    public let leftHand: [UnifiedKeypoint]?
     
     /// Detected right hand landmarks
-    let rightHand: [UnifiedKeypoint]?
+    public let rightHand: [UnifiedKeypoint]?
     
     /// The source model that generated these features (e.g., "Vision.VNDetectHumanBodyPoseRequest")
-    let sourceModel: String
+    public let sourceModel: String
 }
 
 /// Constants for standardized keypoint names

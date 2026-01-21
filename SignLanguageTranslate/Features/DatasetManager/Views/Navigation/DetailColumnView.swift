@@ -25,6 +25,7 @@ struct DetailColumnView: View {
                 EmptyDetailView()
             }
         }
+        .id(selectedSection)
     }
 
     @ViewBuilder
@@ -451,14 +452,10 @@ struct DownloadDetailView: View {
 
 // MARK: - Placeholder Detail Views
 
-/// Placeholder detail view for Training section.
+/// Detail view for Training section showing the full dashboard
 struct TrainingDetailPlaceholder: View {
     var body: some View {
-        EmptyDetailView(
-            title: "Training Models",
-            systemImage: "brain.head.profile",
-            description: "Select a training configuration to view details and start training."
-        )
+        TrainingDashboardView()
     }
 }
 

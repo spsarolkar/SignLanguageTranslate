@@ -1,7 +1,7 @@
 import Foundation
 
 /// Represents the type/level of a label in the sign language dataset
-enum LabelType: String, Codable, CaseIterable, Identifiable {
+public enum LabelType: String, Codable, CaseIterable, Identifiable {
     /// Category-level label (e.g., "Animals", "Adjectives", "Greetings")
     case category
 
@@ -11,10 +11,10 @@ enum LabelType: String, Codable, CaseIterable, Identifiable {
     /// Sentence-level label (e.g., "How are you?", "Nice to meet you")
     case sentence
 
-    var id: String { rawValue }
+    public var id: String { rawValue }
 
     /// Display name for UI
-    var displayName: String {
+    public var displayName: String {
         switch self {
         case .category: return "Category"
         case .word: return "Word"
@@ -23,7 +23,7 @@ enum LabelType: String, Codable, CaseIterable, Identifiable {
     }
 
     /// SF Symbol icon for this label type
-    var iconName: String {
+    public var iconName: String {
         switch self {
         case .category: return "folder.fill"
         case .word: return "textformat.abc"
@@ -33,7 +33,7 @@ enum LabelType: String, Codable, CaseIterable, Identifiable {
 
     /// Color associated with this label type (for UI badges)
     /// Returns a string that can be used with Color(labelType.colorName)
-    var colorName: String {
+    public var colorName: String {
         switch self {
         case .category: return "blue"
         case .word: return "green"

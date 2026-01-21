@@ -13,7 +13,7 @@ struct LossFunctions {
     ///   - predictions: Video embedding tensor [Batch, Dim]
     ///   - targets: Text embedding tensor [Batch, Dim]
     /// - Returns: Scalar loss value
-    static func cosineSimilarityLoss(predictions: MLXArray, targets: MLXArray) -> MLXArray {
+    nonisolated static func cosineSimilarityLoss(predictions: MLXArray, targets: MLXArray) -> MLXArray {
         // Ensure inputs are normalized (SignLanguageModel output should already be normalized, but targets rely on extractor)
         // Normalizing here ensures robustness
         
@@ -40,7 +40,7 @@ struct LossFunctions {
     ///   - predictions: [Batch, Dim]
     ///   - targets: [Batch, Dim]
     ///   - temperature: Scaling factor (default 0.1)
-    static func contrastiveLoss(predictions: MLXArray, targets: MLXArray, temperature: Float = 0.1) -> MLXArray {
+    nonisolated static func contrastiveLoss(predictions: MLXArray, targets: MLXArray, temperature: Float = 0.1) -> MLXArray {
         // Implementation logic for CLIP-style loss:
         // 1. MatMul(Preds, Targets.T) -> [Batch, Batch] Similarity Matrix
         // 2. Labels are diagonal (i.e., ith video matches ith label)

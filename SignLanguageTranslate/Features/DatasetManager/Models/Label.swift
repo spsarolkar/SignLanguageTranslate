@@ -10,48 +10,48 @@ import NaturalLanguage
 /// - Word label: "Dog" (specific sign being demonstrated)
 /// - Sentence label: "Hello, how are you?" (for sentence-level datasets)
 @Model
-final class Label {
+public final class Label {
 
     // MARK: - Properties
 
     /// Unique identifier
-    var id: UUID
+    public var id: UUID
 
     /// The label text (e.g., "Animals", "Dog", "Hello")
-    var name: String
+    public var name: String
 
     /// The type of label (category, word, or sentence)
-    var typeRawValue: String
+    public var typeRawValue: String
 
     /// Timestamp when this label was created
-    var createdAt: Date
+    public var createdAt: Date
 
     /// Semantic embedding vector (e.g., from NLEmbedding or BERT)
     /// Stored as a flat array of Floats
-    var embedding: [Float]?
+    public var embedding: [Float]?
 
     // MARK: - Relationships
 
     /// Videos that have this label assigned
     /// Note: Inverse relationship will be set up in VideoSample model
-    var videoSamples: [VideoSample]?
+    public var videoSamples: [VideoSample]?
 
     // MARK: - Computed Properties
 
     /// The label type as enum (computed from stored raw value)
-    var type: LabelType {
+    public var type: LabelType {
         get { LabelType(rawValue: typeRawValue) ?? .word }
         set { typeRawValue = newValue.rawValue }
     }
 
     /// Formatted display name showing type and name
     /// Example: "Category: Animals" or "Word: Dog"
-    var displayName: String {
+    public var displayName: String {
         "\(type.displayName): \(name)"
     }
 
     /// Short display for compact UI (just the name)
-    var shortDisplayName: String {
+    public var shortDisplayName: String {
         name
     }
 
@@ -61,7 +61,7 @@ final class Label {
     /// - Parameters:
     ///   - name: The label text
     ///   - type: The type of label (category, word, sentence)
-    init(name: String, type: LabelType) {
+    public init(name: String, type: LabelType) {
         self.id = UUID()
         self.name = name
         self.typeRawValue = type.rawValue
@@ -69,7 +69,7 @@ final class Label {
     }
 
     /// Create a label with a specific ID (for testing or migration)
-    init(id: UUID = UUID(), name: String, type: LabelType, createdAt: Date = .now) {
+    public init(id: UUID = UUID(), name: String, type: LabelType, createdAt: Date = .now) {
         self.id = id
         self.name = name
         self.typeRawValue = type.rawValue
@@ -82,7 +82,7 @@ final class Label {
     /// This allows for semantic search and zero-shot learning capabilities.
     /// - Returns: The generated embedding if successful
     @discardableResult
-    func generateEmbedding() -> [Float]? {
+    public func generateEmbedding() -> [Float]? {
         // Use English word embeddings
         guard let embeddingModel = NLEmbedding.wordEmbedding(for: .english) else {
             print("[Label] Failed to load NLEmbedding for English")

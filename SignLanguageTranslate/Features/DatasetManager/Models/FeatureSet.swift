@@ -6,48 +6,48 @@ import SwiftData
 /// Stores metadata about the extraction process and points to the stored feature file.
 /// A video can have multiple feature sets (e.g., one from Apple Vision, one from MediaPipe).
 @Model
-final class FeatureSet {
+public final class FeatureSet {
     // MARK: - stored Properties
     
     /// Unique identifier
-    var id: UUID
+    public var id: UUID
     
     /// Name of the model used for extraction (e.g., "Vision.VNDetectHumanBodyPoseRequest", "MediaPipe.BlazePose")
-    var modelName: String
+    public var modelName: String
     
     /// Timestamp when extraction was performed
-    var extractedAt: Date
+    public var extractedAt: Date
     
     /// Relative path to the JSON/Parquet file containing the actual keypoints
     /// Example: "Features/INCLUDE/Animals/Dog/video_001_vision_body.json"
-    var filePath: String
+    public var filePath: String
     
     /// Number of frames successfully processed
-    var frameCount: Int
+    public var frameCount: Int
     
     /// Format version of the feature file
-    var formatVersion: Int
+    public var formatVersion: Int
     
     // MARK: - Relationships
     
     /// The video sample these features belong to
-    var videoSample: VideoSample?
+    public var videoSample: VideoSample?
     
     // MARK: - Computed Properties
     
     /// Absolute URL to the feature file
-    var absoluteURL: URL {
+    public var absoluteURL: URL {
         FileManager.default.datasetsDirectory.appendingPathComponent(filePath)
     }
     
     /// Whether the feature file exists on disk
-    var fileExists: Bool {
+    public var fileExists: Bool {
         FileManager.default.fileExists(at: absoluteURL)
     }
     
     // MARK: - Initialization
     
-    init(
+    public init(
         id: UUID = UUID(),
         modelName: String,
         extractedAt: Date = .now,

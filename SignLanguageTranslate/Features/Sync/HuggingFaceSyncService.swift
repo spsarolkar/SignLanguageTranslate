@@ -49,6 +49,55 @@ actor HuggingFaceSyncService {
         }
     }
     
+    /// Upload all extracted features for a dataset to HuggingFace
+    /// - Parameters:
+    ///   - datasetName: Name of the dataset to sync
+    ///   - progressHandler: Callback for progress updates (0.0 to 1.0)
+    /// - Returns: Number of files successfully uploaded
+    @discardableResult
+    func uploadFeatures(
+        for datasetName: String,
+        progressHandler: ((Double) async -> Void)? = nil
+    ) async throws -> Int {
+        // 1. Find all feature sets for this dataset
+        let descriptor = FetchDescriptor<VideoSample>(
+            predicate: #Predicate { $0.datasetName == datasetName }
+        )
+        let videos = try modelContext.fetch(descriptor)
+        
+        var allFeatureSets: [(video: VideoSample, featureSet: FeatureSet)] = []
+        for video in videos {
+            for featureSet in video.featureSets {
+                allFeatureSets.append((video, featureSet))
+            }
+        }
+        
+        guard !allFeatureSets.isEmpty else {
+            print("[HF Sync] No features to upload for \(datasetName)")
+            return 0
+        }
+        
+        print("[HF Sync] Uploading \(allFeatureSets.count) feature files for \(datasetName)")
+        
+        // 2. Upload each feature file with progress tracking
+        var successCount = 0
+        for (index, item) in allFeatureSets.enumerated() {
+            do {
+                try await uploadFeatureFile(item.featureSet, videoName: item.video.fileName)
+                successCount += 1
+            } catch {
+                print("[HF Sync] Failed to upload \(item.video.fileName): \(error.localizedDescription)")
+            }
+            
+            // Update progress
+            let progress = Double(index + 1) / Double(allFeatureSets.count)
+            await progressHandler?(progress)
+        }
+        
+        print("[HF Sync] Completed upload: \(successCount)/\(allFeatureSets.count) files")
+        return successCount
+    }
+    
     /// Generates and uploads the master metadata.csv linking videos and labels
     func syncMetadata() async throws {
         // 1. Fetch all videos from DB

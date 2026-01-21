@@ -6,12 +6,15 @@ struct DatasetActionsSection: View {
     let dataset: Dataset
     var currentSpeed: Double = 0
     var timeRemaining: TimeInterval? = nil
+    var isIngesting: Bool = false
+    var ingestionProgress: String = ""
 
     var onStartDownload: () -> Void
     var onPauseDownload: () -> Void
     var onResumeDownload: () -> Void
     var onCancelDownload: () -> Void
     var onBrowseSamples: () -> Void
+    var onIngestVideos: () -> Void
     var onViewInFiles: () -> Void
     var onDeleteDataset: () -> Void
 
@@ -73,12 +76,46 @@ struct DatasetActionsSection: View {
             )
 
         case .completed:
-            ActionButton(
-                title: "Browse Samples",
-                icon: "play.rectangle.fill",
-                style: .primary,
-                action: onBrowseSamples
-            )
+            VStack(spacing: 8) {
+                ActionButton(
+                    title: "Browse Samples",
+                    icon: "play.rectangle.fill",
+                    style: .primary,
+                    action: onBrowseSamples
+                )
+                
+                // Always show Ingest button for now (testing)
+                ActionButton(
+                    title: "Ingest Videos to Database",
+                    icon: "cylinder.fill",
+                    style: .secondary,
+                    action: onIngestVideos
+                )
+                
+                Text(dataset.totalSamples == 0 ? "Videos downloaded but not in database. Click to scan and import." : "\(dataset.totalSamples) samples in database. Click to re-ingest if needed.")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                    .multilineTextAlignment(.center)
+                    .padding(.horizontal)
+                
+                // Show ingestion progress
+                if isIngesting {
+                    HStack(spacing: 8) {
+                        ProgressView()
+                            .progressViewStyle(.circular)
+                            .scaleEffect(0.8)
+                        Text(ingestionProgress)
+                            .font(.caption)
+                            .foregroundStyle(.blue)
+                    }
+                    .padding(.vertical, 8)
+                } else if !ingestionProgress.isEmpty {
+                    Text(ingestionProgress)
+                        .font(.caption)
+                        .foregroundStyle(ingestionProgress.contains("Failed") ? .red : .green)
+                        .padding(.vertical, 4)
+                }
+            }
 
         case .processing:
             HStack(spacing: 12) {
@@ -300,6 +337,7 @@ struct SecondaryActionButton: View {
             onResumeDownload: {},
             onCancelDownload: {},
             onBrowseSamples: {},
+            onIngestVideos: {},
             onViewInFiles: {},
             onDeleteDataset: {}
         )
@@ -317,6 +355,7 @@ struct SecondaryActionButton: View {
             onResumeDownload: {},
             onCancelDownload: {},
             onBrowseSamples: {},
+            onIngestVideos: {},
             onViewInFiles: {},
             onDeleteDataset: {}
         )
@@ -334,6 +373,7 @@ struct SecondaryActionButton: View {
             onResumeDownload: {},
             onCancelDownload: {},
             onBrowseSamples: {},
+            onIngestVideos: {},
             onViewInFiles: {},
             onDeleteDataset: {}
         )
@@ -351,6 +391,7 @@ struct SecondaryActionButton: View {
             onResumeDownload: {},
             onCancelDownload: {},
             onBrowseSamples: {},
+            onIngestVideos: {},
             onViewInFiles: {},
             onDeleteDataset: {}
         )
@@ -368,6 +409,7 @@ struct SecondaryActionButton: View {
             onResumeDownload: {},
             onCancelDownload: {},
             onBrowseSamples: {},
+            onIngestVideos: {},
             onViewInFiles: {},
             onDeleteDataset: {}
         )

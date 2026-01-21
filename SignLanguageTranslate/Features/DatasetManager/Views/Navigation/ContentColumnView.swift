@@ -13,6 +13,8 @@ struct ContentColumnView: View {
                 DatasetListView(selectedDataset: $selectedDataset)
             case .downloads:
                 DownloadListView()
+            case .pipeline:
+                DataPipelineView()
             case .training:
                 TrainingContentView()
             case .settings:
@@ -46,18 +48,42 @@ struct TrainingPlaceholderView: View {
     }
 }
 
-/// Placeholder view for the Settings section.
+/// Settings view with developer tools
 struct SettingsPlaceholderView: View {
+    @State private var showDatabaseInspector = false
     var body: some View {
-        ContentUnavailableView(
-            "Settings",
-            systemImage: "gearshape.fill",
-            description: Text("Configure app preferences and manage storage. Coming soon.")
-        )
+        List {
+            Section("Developer Tools") {
+                Button(action: { showDatabaseInspector = true }) {
+                    SwiftUI.Label("Database Inspector", systemImage: "cylinder.split.1x2")
+                }
+            }
+            
+            Section("About") {
+                HStack {
+                    Text("Version")
+                    Spacer()
+                    Text("1.0.0")
+                        .foregroundStyle(.secondary)
+                }
+            }
+        }
         .navigationTitle("Settings")
         #if os(iOS)
         .navigationBarTitleDisplayMode(.inline)
         #endif
+        .sheet(isPresented: $showDatabaseInspector) {
+            NavigationStack {
+                DatabaseInspectorView()
+                    .toolbar {
+                        ToolbarItem(placement: .cancellationAction) {
+                            Button("Done") {
+                                showDatabaseInspector = false
+                            }
+                        }
+                    }
+            }
+        }
     }
 }
 

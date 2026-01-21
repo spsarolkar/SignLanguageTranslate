@@ -18,6 +18,7 @@ struct TrainingDashboardView: View {
     @State private var errorMessage = ""
     @State private var showingSettings = false
     @State private var selectedTab: DashboardTab = .metrics
+    @State private var isGeneratingMockData = false
 
     enum DashboardTab: String, CaseIterable {
         case metrics = "Metrics"
@@ -378,6 +379,19 @@ struct TrainingDashboardView: View {
         VStack(spacing: 12) {
             // Primary action button
             if trainingManager.state == .idle || trainingManager.state == .completed || trainingManager.state == .failed {
+                // Mock Data Button (for development)
+                Button(action: generateMockData) {
+                    HStack {
+                        Image(systemName: "wand.and.stars")
+                        Text("Generate Mock Data")
+                    }
+                    .font(.subheadline)
+                    .frame(maxWidth: .infinity)
+                    .padding(.vertical, 8)
+                }
+                .buttonStyle(.bordered)
+                .disabled(isGeneratingMockData)
+                
                 Button(action: startTraining) {
                     HStack {
                         Image(systemName: "play.fill")
@@ -448,6 +462,27 @@ struct TrainingDashboardView: View {
     private func resumeTraining() {
         let dummyPath = URL(fileURLWithPath: NSTemporaryDirectory())
         trainingManager.startTraining(datasetPath: dummyPath, modelContext: modelContext)
+    }
+    
+    private func generateMockData() {
+        isGeneratingMockData = true
+        Task {
+            do {
+                try await MockTrainingDataGenerator.generateMockSamples(modelContext: modelContext, count: 20)
+                await MainActor.run {
+                    isGeneratingMockData = false
+                    // Show success message
+                    errorMessage = "Successfully generated 20 mock training samples. You can now start training!"
+                    showingError = true
+                }
+            } catch {
+                await MainActor.run {
+                    isGeneratingMockData = false
+                    errorMessage = "Failed to generate mock data: \(error.localizedDescription)"
+                    showingError = true
+                }
+            }
+        }
     }
 }
 

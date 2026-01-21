@@ -18,7 +18,6 @@ import NaturalLanguage
 /// let prediction = try await engine.predict(frames: poseFrames)
 /// print("Predicted sign: \(prediction.label) (\(prediction.confidence)%)")
 /// ```
-@MainActor
 public class InferenceEngine: ObservableObject {
 
     // MARK: - Types
@@ -147,14 +146,17 @@ public class InferenceEngine: ObservableObject {
             throw InferenceError.invalidInput("No frames provided")
         }
 
-        isProcessing = true
-        defer { isProcessing = false }
+        await MainActor.run { isProcessing = true }
+        defer { Task { await MainActor.run { isProcessing = false } } }
 
         // Process frames to input tensor
         let inputTensor = try processFrames(frames)
 
-        // Run inference
+        // Run inference on background thread
         let embedding = model(inputTensor)
+        
+        // Force evaluation (MLX Optimization)
+        eval(embedding)
 
         // Convert to array
         let embeddingArray = embedding.asArray(Float.self)
@@ -176,7 +178,7 @@ public class InferenceEngine: ObservableObject {
             topK: matches
         )
 
-        lastPrediction = prediction
+        await MainActor.run { lastPrediction = prediction }
         return prediction
     }
 
@@ -190,11 +192,14 @@ public class InferenceEngine: ObservableObject {
             throw InferenceError.vocabularyEmpty
         }
 
-        isProcessing = true
-        defer { isProcessing = false }
+        await MainActor.run { isProcessing = true }
+        defer { Task { await MainActor.run { isProcessing = false } } }
 
         // Run batch inference
         let embeddings = model(inputs)
+        
+        // Force evaluation (MLX Optimization)
+        eval(embeddings)
 
         // Process each sample
         var predictions: [Prediction] = []

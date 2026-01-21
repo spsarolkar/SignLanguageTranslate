@@ -34,6 +34,12 @@ struct IngestionProgress: Sendable {
     let filesProcessed: Int
     let totalFiles: Int
     let progress: Double
+    // New fields for category tracking
+    let currentCategory: String
+    let filesProcessedInCategory: Int
+    let totalFilesInCategory: Int
+    let categoriesProcessed: Int
+    let totalCategories: Int
 }
 
 /// Actor that manages video file ingestion into SwiftData
@@ -59,7 +65,7 @@ actor VideoIngestionService {
     let modelContext: ModelContext
     
     /// Progress callback
-    var onProgress: (@Sendable (IngestionProgress) -> Void)?
+
     
     // MARK: - Initialization
     
@@ -68,6 +74,14 @@ actor VideoIngestionService {
     }
     
     // MARK: - Public Methods
+    
+    /// Delete existing video samples for a dataset
+    /// - Parameter datasetName: Name of the dataset to clear
+    func deleteSamples(for datasetName: String) throws {
+        // Delete VideoSample records
+        try modelContext.delete(model: VideoSample.self, where: #Predicate { $0.datasetName == datasetName })
+        try modelContext.save()
+    }
     
     /// Ingest an entire dataset
     /// - Parameters:
@@ -78,7 +92,8 @@ actor VideoIngestionService {
     func ingestDataset(
         name: String,
         type: DatasetType,
-        directory: URL
+        directory: URL,
+        onProgress: (@Sendable (IngestionProgress) -> Void)? = nil
     ) async throws -> IngestionResult {
         let startTime = Date()
         
@@ -96,14 +111,23 @@ actor VideoIngestionService {
         
         // Group files by category
         let groupedByCategory = Dictionary(grouping: scannedFiles) { $0.category }
+        let sortedCategories = groupedByCategory.keys.sorted()
+        let totalCategories = sortedCategories.count
         
         // Process each category
-        for (category, files) in groupedByCategory {
+        for (index, category) in sortedCategories.enumerated() {
+            let files = groupedByCategory[category] ?? []
+            
             do {
                 let categoryResult = try await ingestCategory(
                     name: category,
                     files: files,
-                    datasetName: name
+                    datasetName: name,
+                    categoryIndex: index,
+                    totalCategories: totalCategories,
+                    totalSamplesCreatedSoFar: samplesCreated,
+                    grandTotalFiles: scannedFiles.count,
+                    onProgress: onProgress
                 )
                 
                 samplesCreated += categoryResult.samplesCreated
@@ -133,16 +157,15 @@ actor VideoIngestionService {
         )
     }
     
-    /// Ingest a single category
-    /// - Parameters:
-    ///   - name: Category name
-    ///   - files: Scanned files in this category
-    ///   - datasetName: Name of the parent dataset
-    /// - Returns: Category ingestion result
     private func ingestCategory(
         name: String,
         files: [ScannedFile],
-        datasetName: String
+        datasetName: String,
+        categoryIndex: Int,
+        totalCategories: Int,
+        totalSamplesCreatedSoFar: Int,
+        grandTotalFiles: Int,
+        onProgress: (@Sendable (IngestionProgress) -> Void)?
     ) async throws -> CategoryIngestionResult {
         var samplesCreated = 0
         var labelsCreatedCount = 0
@@ -198,13 +221,21 @@ actor VideoIngestionService {
                         samplesCreated += 1
                         
                         // Report progress
-                        let progress = IngestionProgress(
+                        // Report progress
+                        let currentProgress = Double(totalSamplesCreatedSoFar + samplesCreated) / Double(grandTotalFiles)
+                        
+                        let progressInfo = IngestionProgress(
                             currentFile: file.url.lastPathComponent,
-                            filesProcessed: samplesCreated,
-                            totalFiles: files.count,
-                            progress: Double(samplesCreated) / Double(files.count)
+                            filesProcessed: totalSamplesCreatedSoFar + samplesCreated,
+                            totalFiles: grandTotalFiles,
+                            progress: currentProgress,
+                            currentCategory: name,
+                            filesProcessedInCategory: samplesCreated,
+                            totalFilesInCategory: files.count,
+                            categoriesProcessed: categoryIndex, // 0-based, so this is "completed so far" effectively
+                            totalCategories: totalCategories
                         )
-                        onProgress?(progress)
+                        onProgress?(progressInfo)
                         
                     } catch {
                         errors.append(IngestionError(

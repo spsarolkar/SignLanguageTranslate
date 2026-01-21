@@ -17,6 +17,8 @@ struct DetailColumnView: View {
                 datasetDetail
             case .downloads:
                 DownloadDetailView()
+            case .pipeline:
+                EmptyDetailView()
             case .training:
                 TrainingDetailPlaceholder()
             case .settings:
@@ -56,8 +58,13 @@ struct DatasetDetailView: View {
     @State private var isImporting = false
     @State private var importError: String? = nil
     @State private var showImportError = false
+    @State private var showReingestConfirmation = false
     
     @State private var showSamples = false
+    
+    // Ingestion state
+    @State private var isIngesting = false
+    @State private var ingestionProgress: String = ""
     
     // Transient state for progress display
     @State private var currentSpeed: Double = 0
@@ -82,11 +89,14 @@ struct DatasetDetailView: View {
                         dataset: dataset,
                         currentSpeed: currentSpeed,
                         timeRemaining: timeRemaining,
+                        isIngesting: isIngesting,
+                        ingestionProgress: ingestionProgress,
                         onStartDownload: startDownload,
                         onPauseDownload: pauseDownload,
                         onResumeDownload: resumeDownload,
                         onCancelDownload: cancelDownload,
                         onBrowseSamples: browseSamples,
+                        onIngestVideos: ingestVideos,
                         onViewInFiles: viewInFiles,
                         onDeleteDataset: { showDeleteConfirmation = true }
                     )
@@ -136,6 +146,14 @@ struct DatasetDetailView: View {
             Button("OK", role: .cancel) { }
         } message: {
             Text(importError ?? "Unknown error")
+        }
+        .alert("Re-ingest Videos?", isPresented: $showReingestConfirmation) {
+            Button("Re-ingest", role: .destructive) {
+                performIngestion(deleteFirst: true)
+            }
+            Button("Cancel", role: .cancel) { }
+        } message: {
+            Text("This dataset already has ingested samples. Do you want to delete existing samples and re-ingest all videos?")
         }
         .onAppear {
             syncProgress()
@@ -313,6 +331,75 @@ struct DatasetDetailView: View {
 
     private func browseSamples() {
         showSamples = true
+    }
+    
+    private func ingestVideos() {
+        if dataset.totalSamples > 0 {
+            showReingestConfirmation = true
+        } else {
+            performIngestion(deleteFirst: false)
+        }
+    }
+    
+    private func performIngestion(deleteFirst: Bool) {
+        Task {
+            await MainActor.run {
+                isIngesting = true
+                ingestionProgress = "Starting ingestion..."
+            }
+            
+            do {
+                let ingestionService = VideoIngestionService(modelContext: modelContext)
+                let datasetDir = dataset.storageDirectory
+                
+                // Define progress callback
+                let onProgress: @Sendable (IngestionProgress) -> Void = { progress in
+                    Task { @MainActor in
+                        // Format: "Processing Category [Cat] (File N/M) - Category X/Y"
+                        ingestionProgress = "Processing Category \(progress.currentCategory) (\(progress.filesProcessedInCategory)/\(progress.totalFilesInCategory)) - Category \(progress.categoriesProcessed + 1)/\(progress.totalCategories)"
+                    }
+                }
+                
+                if deleteFirst {
+                     await MainActor.run {
+                        ingestionProgress = "Deleting existing samples..."
+                    }
+                    try await ingestionService.deleteSamples(for: dataset.name)
+                }
+                
+                let result = try await ingestionService.ingestDataset(
+                    name: dataset.name,
+                    type: DatasetType(rawValue: dataset.typeRawValue) ?? .include,
+                    directory: datasetDir,
+                    onProgress: onProgress
+                )
+                
+                await MainActor.run {
+                    isIngesting = false
+                    ingestionProgress = "Completed: \(result.samplesCreated) samples, \(result.labelsCreated) labels"
+                    // Update dataset count immediately
+                    dataset.totalSamples = result.samplesCreated
+                }
+                
+                print("[DetailColumnView] Ingestion complete: \(result.samplesCreated) samples")
+                if !result.errors.isEmpty {
+                    print("[DetailColumnView] Errors: \(result.errors.count)")
+                }
+                
+                // Clear progress message after 3 seconds
+                try? await Task.sleep(nanoseconds: 3_000_000_000)
+                await MainActor.run {
+                    ingestionProgress = ""
+                }
+                
+            } catch {
+                await MainActor.run {
+                    isIngesting = false
+                    ingestionProgress = "Failed: \(error.localizedDescription)"
+                }
+                print("[DetailColumnView] Ingestion failed: \(error)")
+            }
+        }
     }
 
     private func browseCategory(_ label: Label) {

@@ -69,6 +69,8 @@ struct SidebarView: View {
             return .blue
         case .downloads:
             return activeDownloadCount > 0 ? .blue : .secondary
+        case .pipeline:
+            return .green
         case .training:
             return .purple
         case .settings:

@@ -57,6 +57,7 @@ struct MainNavigationView: View {
 enum NavigationSection: String, CaseIterable, Identifiable {
     case datasets = "Datasets"
     case downloads = "Downloads"
+    case pipeline = "Pipeline"
     case training = "Training"
     case settings = "Settings"
 
@@ -68,6 +69,8 @@ enum NavigationSection: String, CaseIterable, Identifiable {
             return "folder.fill"
         case .downloads:
             return "arrow.down.circle.fill"
+        case .pipeline:
+            return "bolt.horizontal.fill"
         case .training:
             return "brain.head.profile"
         case .settings:
@@ -81,6 +84,8 @@ enum NavigationSection: String, CaseIterable, Identifiable {
             return "Manage downloaded datasets"
         case .downloads:
             return "View and manage downloads"
+        case .pipeline:
+            return "Extract features and sync to HuggingFace"
         case .training:
             return "Train sign language models"
         case .settings:

@@ -7,6 +7,13 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
+		340793452F1FE81500E12937 /* MLX in Frameworks */ = {isa = PBXBuildFile; productRef = 340793442F1FE81500E12937 /* MLX */; };
+		340793472F1FE81500E12937 /* MLXFFT in Frameworks */ = {isa = PBXBuildFile; productRef = 340793462F1FE81500E12937 /* MLXFFT */; };
+		340793492F1FE81500E12937 /* MLXFast in Frameworks */ = {isa = PBXBuildFile; productRef = 340793482F1FE81500E12937 /* MLXFast */; };
+		3407934B2F1FE81500E12937 /* MLXLinalg in Frameworks */ = {isa = PBXBuildFile; productRef = 3407934A2F1FE81500E12937 /* MLXLinalg */; };
+		3407934D2F1FE81500E12937 /* MLXNN in Frameworks */ = {isa = PBXBuildFile; productRef = 3407934C2F1FE81500E12937 /* MLXNN */; };
+		3407934F2F1FE81500E12937 /* MLXOptimizers in Frameworks */ = {isa = PBXBuildFile; productRef = 3407934E2F1FE81500E12937 /* MLXOptimizers */; };
+		340793512F1FE81500E12937 /* MLXRandom in Frameworks */ = {isa = PBXBuildFile; productRef = 340793502F1FE81500E12937 /* MLXRandom */; };
 		3491D5342F0A7E6200100E83 /* ZIPFoundation in Frameworks */ = {isa = PBXBuildFile; productRef = 3491D5332F0A7E6200100E83 /* ZIPFoundation */; };
 /* End PBXBuildFile section */
 
@@ -43,7 +50,14 @@
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				3407934D2F1FE81500E12937 /* MLXNN in Frameworks */,
+				3407934B2F1FE81500E12937 /* MLXLinalg in Frameworks */,
+				340793452F1FE81500E12937 /* MLX in Frameworks */,
+				340793512F1FE81500E12937 /* MLXRandom in Frameworks */,
 				3491D5342F0A7E6200100E83 /* ZIPFoundation in Frameworks */,
+				3407934F2F1FE81500E12937 /* MLXOptimizers in Frameworks */,
+				340793492F1FE81500E12937 /* MLXFast in Frameworks */,
+				340793472F1FE81500E12937 /* MLXFFT in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -96,6 +110,13 @@
 			name = SignLanguageTranslate;
 			packageProductDependencies = (
 				3491D5332F0A7E6200100E83 /* ZIPFoundation */,
+				340793442F1FE81500E12937 /* MLX */,
+				340793462F1FE81500E12937 /* MLXFFT */,
+				340793482F1FE81500E12937 /* MLXFast */,
+				3407934A2F1FE81500E12937 /* MLXLinalg */,
+				3407934C2F1FE81500E12937 /* MLXNN */,
+				3407934E2F1FE81500E12937 /* MLXOptimizers */,
+				340793502F1FE81500E12937 /* MLXRandom */,
 			);
 			productName = SignLanguageTranslate;
 			productReference = 3491D5022F09792400100E83 /* SignLanguageTranslate.app */;
@@ -154,6 +175,7 @@
 			minimizedProjectReferenceProxies = 1;
 			packageReferences = (
 				3491D5322F0A7E6200100E83 /* XCRemoteSwiftPackageReference "ZIPFoundation" */,
+				340793432F1FE81500E12937 /* XCRemoteSwiftPackageReference "mlx-swift" */,
 			);
 			preferredProjectObjectVersion = 77;
 			productRefGroup = 3491D5032F09792400100E83 /* Products */;
@@ -493,6 +515,14 @@
 /* End XCConfigurationList section */
 
 /* Begin XCRemoteSwiftPackageReference section */
+		340793432F1FE81500E12937 /* XCRemoteSwiftPackageReference "mlx-swift" */ = {
+			isa = XCRemoteSwiftPackageReference;
+			repositoryURL = "https://github.com/ml-explore/mlx-swift";
+			requirement = {
+				kind = upToNextMajorVersion;
+				minimumVersion = 0.30.2;
+			};
+		};
 		3491D5322F0A7E6200100E83 /* XCRemoteSwiftPackageReference "ZIPFoundation" */ = {
 			isa = XCRemoteSwiftPackageReference;
 			repositoryURL = "https://github.com/weichsel/ZIPFoundation";
@@ -504,6 +534,41 @@
 /* End XCRemoteSwiftPackageReference section */
 
 /* Begin XCSwiftPackageProductDependency section */
+		340793442F1FE81500E12937 /* MLX */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = 340793432F1FE81500E12937 /* XCRemoteSwiftPackageReference "mlx-swift" */;
+			productName = MLX;
+		};
+		340793462F1FE81500E12937 /* MLXFFT */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = 340793432F1FE81500E12937 /* XCRemoteSwiftPackageReference "mlx-swift" */;
+			productName = MLXFFT;
+		};
+		340793482F1FE81500E12937 /* MLXFast */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = 340793432F1FE81500E12937 /* XCRemoteSwiftPackageReference "mlx-swift" */;
+			productName = MLXFast;
+		};
+		3407934A2F1FE81500E12937 /* MLXLinalg */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = 340793432F1FE81500E12937 /* XCRemoteSwiftPackageReference "mlx-swift" */;
+			productName = MLXLinalg;
+		};
+		3407934C2F1FE81500E12937 /* MLXNN */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = 340793432F1FE81500E12937 /* XCRemoteSwiftPackageReference "mlx-swift" */;
+			productName = MLXNN;
+		};
+		3407934E2F1FE81500E12937 /* MLXOptimizers */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = 340793432F1FE81500E12937 /* XCRemoteSwiftPackageReference "mlx-swift" */;
+			productName = MLXOptimizers;
+		};
+		340793502F1FE81500E12937 /* MLXRandom */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = 340793432F1FE81500E12937 /* XCRemoteSwiftPackageReference "mlx-swift" */;
+			productName = MLXRandom;
+		};
 		3491D5332F0A7E6200100E83 /* ZIPFoundation */ = {
 			isa = XCSwiftPackageProductDependency;
 			package = 3491D5322F0A7E6200100E83 /* XCRemoteSwiftPackageReference "ZIPFoundation" */;

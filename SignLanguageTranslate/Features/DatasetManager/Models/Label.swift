@@ -1,5 +1,6 @@
 import Foundation
 import SwiftData
+import NaturalLanguage
 
 /// Represents a label/tag that can be associated with video samples.
 /// Labels categorize videos by category, word, or sentence.
@@ -24,6 +25,10 @@ final class Label {
 
     /// Timestamp when this label was created
     var createdAt: Date
+
+    /// Semantic embedding vector (e.g., from NLEmbedding or BERT)
+    /// Stored as a flat array of Floats
+    var embedding: [Float]?
 
     // MARK: - Relationships
 
@@ -69,6 +74,36 @@ final class Label {
         self.name = name
         self.typeRawValue = type.rawValue
         self.createdAt = createdAt
+    }
+    
+    // MARK: - Embedding Generation
+    
+    /// Generates and stores a semantic embedding for this label using Apple's NaturalLanguage framework.
+    /// This allows for semantic search and zero-shot learning capabilities.
+    /// - Returns: The generated embedding if successful
+    @discardableResult
+    func generateEmbedding() -> [Float]? {
+        // Use English word embeddings
+        guard let embeddingModel = NLEmbedding.wordEmbedding(for: .english) else {
+            print("[Label] Failed to load NLEmbedding for English")
+            return nil
+        }
+        
+        // Try to get vector for the exact name
+        if let vector = embeddingModel.vector(for: self.name) {
+            self.embedding = vector.map { Float($0) }
+            return self.embedding
+        }
+        
+        // Fallback: If it's a phrase (e.g. "Thank You"), try average of words or neighbors
+        // For simplicity, we'll try case-insensitive
+        if let vector = embeddingModel.vector(for: self.name.lowercased()) {
+            self.embedding = vector.map { Float($0) }
+            return self.embedding
+        }
+        
+        print("[Label] No embedding found for '\(self.name)'")
+        return nil
     }
 }
 

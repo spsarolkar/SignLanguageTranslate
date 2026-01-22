@@ -196,12 +196,19 @@ actor VideoIngestionService {
                         let metadata = try? await VideoMetadataExtractor.extract(from: file.url)
                         
                         // Create relative path from datasets directory
-                        // Create relative path from datasets directory
                         let datasetsDir = await MainActor.run { FileManager.default.datasetsDirectory }
-                        let relativePath = file.url.path.replacingOccurrences(
-                            of: datasetsDir.path + "/",
-                            with: ""
-                        )
+                        
+                        // Standardize both URLs to handle /private prefix consistently
+                        let standardizedFileURL = file.url.standardizedFileURL
+                        let standardizedDatasetsURL = datasetsDir.standardizedFileURL
+                        
+                        // Get relative path components
+                        let fileComponents = standardizedFileURL.pathComponents
+                        let datasetsComponents = standardizedDatasetsURL.pathComponents
+                        
+                        // Find where datasets path ends and relative path begins
+                        let relativeComponents = fileComponents.dropFirst(datasetsComponents.count)
+                        let relativePath = relativeComponents.joined(separator: "/")
                         
                         // Create video sample
                         let sample = VideoSample(

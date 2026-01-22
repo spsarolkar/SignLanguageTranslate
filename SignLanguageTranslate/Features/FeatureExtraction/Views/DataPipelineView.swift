@@ -12,7 +12,6 @@ struct DataPipelineView: View {
     @State private var selectedVideo: VideoSample?
     @State private var selectedCategory: String?
     @State private var searchText: String = ""
-    @State private var selectedModel: String = "AppleVision"
     
     // UI State
     @State private var showFilters = false
@@ -22,6 +21,10 @@ struct DataPipelineView: View {
     @State private var showSyncSheet = false
     @State private var showError = false
     @State private var errorMessage = ""
+    @State private var showMediaPipeAlert = false
+    
+    // Batch extraction
+    @EnvironmentObject var batchService: BatchExtractionService
     
     // Computed
     private var downloadedDatasets: [Dataset] {
@@ -46,8 +49,27 @@ struct DataPipelineView: View {
         #if os(iOS)
         .navigationBarTitleDisplayMode(.inline)
         #endif
+        .overlay(alignment: .bottom) {
+            // Progress overlay
+            if let progress = batchService.progress {
+                ExtractionProgressOverlay(
+                    progress: progress,
+                    metrics: batchService.executionMetrics,
+                    thermalState: batchService.thermalState,
+                    onCancel: { batchService.cancel() }
+                )
+                .padding(.bottom, 40)
+                .transition(.move(edge: .bottom).combined(with: .opacity))
+                .animation(.easeInOut, value: batchService.progress)
+            }
+        }
         .sheet(isPresented: $showSyncSheet) {
             SyncSettingsView(isPresented: $showSyncSheet)
+        }
+        .alert("MediaPipe Not Supported", isPresented: $showMediaPipeAlert) {
+            Button("OK", role: .cancel) { }
+        } message: {
+            Text("MediaPipe extraction is not yet implemented. Coming soon!")
         }
         .alert("Error", isPresented: $showError) {
             Button("OK", role: .cancel) { }
@@ -55,10 +77,11 @@ struct DataPipelineView: View {
             Text(errorMessage)
         }
         .onChange(of: selectedVideo) {
+            // Clear previous features immediately to prevent mismatch
+            loadedFeatures = []
+            
             if let video = selectedVideo {
                 loadFeatures(for: video)
-            } else {
-                loadedFeatures = []
             }
         }
         .onAppear {
@@ -79,49 +102,60 @@ struct DataPipelineView: View {
                 
                 Spacer()
                 
-                // Model Picker
+                // Batch extraction buttons
                 if selectedDataset != nil {
-                    Menu {
-                        Button(action: { selectedModel = "AppleVision" }) {
-                            HStack {
-                                Text("Apple Vision")
-                                if selectedModel == "AppleVision" {
-                                    Image(systemName: "checkmark")
-                                }
+                    HStack(spacing: 8) {
+                        Spacer() // Push buttons to the right
+                        
+                        // Extract All with Vision
+                        Button(action: startBatchExtraction) {
+                            HStack(spacing: 4) {
+                                Image(systemName: "cpu")
+                                    .font(.system(size: 11))
+                                Text("Vision")
+                                    .font(.system(size: 11))
+                                    .fontWeight(.medium)
                             }
+                            .padding(.horizontal, 10)
+                            .padding(.vertical, 6)
+                            .background(Color.blue)
+                            .foregroundStyle(.white)
+                            .clipShape(Capsule())
                         }
-                        Button(action: { selectedModel = "MediaPipe" }) {
-                            HStack {
-                                Text("MediaPipe")
-                                if selectedModel == "MediaPipe" {
-                                    Image(systemName: "checkmark")
-                                }
+                        .buttonStyle(.plain)
+                        .fixedSize() // Prevent wrapping
+                        .disabled(batchService.isExtracting)
+                        
+                        // Extract All with MediaPipe (disabled)
+                        Button(action: { showMediaPipeAlert = true }) {
+                            HStack(spacing: 4) {
+                                Image(systemName: "cpu")
+                                    .font(.system(size: 11))
+                                Text("Pipe")
+                                    .font(.system(size: 11))
+                                    .fontWeight(.medium)
                             }
+                            .padding(.horizontal, 10)
+                            .padding(.vertical, 6)
+                            .background(Color.clear)
+                            .foregroundStyle(.secondary.opacity(0.5))
+                            .overlay(
+                                Capsule()
+                                    .stroke(Color.secondary.opacity(0.3), lineWidth: 1)
+                            )
+                            .clipShape(Capsule())
                         }
-                    } label: {
-                        HStack(spacing: 6) {
-                            Image(systemName: "cpu")
-                                .font(.system(size: 14))
-                            Text(selectedModel == "AppleVision" ? "Vision" : "Pipe")
-                                .font(.caption)
-                                .fontWeight(.medium)
-                            Image(systemName: "chevron.down")
-                                .font(.caption2)
+                        .buttonStyle(.plain)
+                        .fixedSize() // Prevent wrapping
+                        .disabled(true)
+                        
+                        // Sync Button
+                        Button(action: { showSyncSheet = true }) {
+                            Image(systemName: "arrow.triangle.2.circlepath")
+                                .padding(8)
+                                .background(Color(.secondarySystemGroupedBackground))
+                                .cornerRadius(8)
                         }
-                        .padding(.horizontal, 12)
-                        .padding(.vertical, 8)
-                        .background(Color(.secondarySystemGroupedBackground))
-                        .cornerRadius(8)
-                    }
-                }
-                
-                // Sync Button
-                if selectedDataset != nil {
-                    Button(action: { showSyncSheet = true }) {
-                        Image(systemName: "arrow.triangle.2.circlepath")
-                            .padding(8)
-                            .background(Color(.secondarySystemGroupedBackground))
-                            .cornerRadius(8)
                     }
                 }
             }
@@ -282,6 +316,28 @@ struct DataPipelineView: View {
         }
     }
     
+    // MARK: - Batch Extraction
+    
+    private func startBatchExtraction() {
+        guard let dataset = selectedDataset else { return }
+        
+        // Get all videos for this dataset
+        let datasetName = dataset.name
+        let descriptor = FetchDescriptor<VideoSample>(
+            predicate: #Predicate { $0.datasetName == datasetName },
+            sortBy: [SortDescriptor(\.localPath)]
+        )
+        
+        guard let videos = try? modelContext.fetch(descriptor) else { return }
+        
+        // Start batch extraction
+        batchService.extractAll(
+            videos: videos,
+            model: .appleVision,
+            modelContext: modelContext
+        )
+    }
+    
     // MARK: - Empty State
     private var emptyStateView: some View {
         ContentUnavailableView {
@@ -331,7 +387,7 @@ struct DataPipelineView: View {
         }
     }
     
-    private func extractSingleVideo(_ video: VideoSample) {
+    private func extractSingleVideo(_ video: VideoSample, model: BatchExtractionService.ExtractionModel = .appleVision) {
         extractingVideoIDs.insert(video.id)
         Task {
             do {
@@ -340,11 +396,6 @@ struct DataPipelineView: View {
                 
                 // Use direct absoluteURL from VideoSample
                 let videoURL = video.absoluteURL
-                
-                // Debug logging
-                print("[Extraction] Video localPath: \(video.localPath)")
-                print("[Extraction] Attempting extraction from: \(videoURL.path)")
-                print("[Extraction] File exists: \(FileManager.default.fileExists(atPath: videoURL.path))")
                 
                 // Check if file exists
                 guard FileManager.default.fileExists(atPath: videoURL.path) else {
@@ -358,12 +409,12 @@ struct DataPipelineView: View {
                 let outputPath = try fileManager.saveFeatures(
                     features,
                     forVideoPath: video.localPath,
-                    modelName: selectedModel
+                    modelName: model.rawValue
                 )
                 
                 // Create and save feature set
                 let featureSet = FeatureSet(
-                    modelName: selectedModel,
+                    modelName: model.rawValue,
                     filePath: outputPath,
                     frameCount: features.count
                 )
@@ -445,11 +496,12 @@ struct VideoExtractionGrid: View {
     let searchText: String
     @Binding var selectedVideo: VideoSample?
     @Binding var extractingVideoIDs: Set<UUID>
-    let onExtract: (VideoSample) -> Void
+    let onExtract: (VideoSample, BatchExtractionService.ExtractionModel) -> Void
+    @State private var showMediaPipeAlert = false
     
     @Query private var videos: [VideoSample]
     
-    init(datasetName: String, categoryFilter: String?, searchText: String, selectedVideo: Binding<VideoSample?>, extractingVideoIDs: Binding<Set<UUID>>, onExtract: @escaping (VideoSample) -> Void) {
+    init(datasetName: String, categoryFilter: String?, searchText: String, selectedVideo: Binding<VideoSample?>, extractingVideoIDs: Binding<Set<UUID>>, onExtract: @escaping (VideoSample, BatchExtractionService.ExtractionModel) -> Void) {
         self.datasetName = datasetName
         self.categoryFilter = categoryFilter
         self.searchText = searchText
@@ -487,8 +539,9 @@ struct VideoExtractionGrid: View {
                             video: video,
                             isExtracting: extractingVideoIDs.contains(video.id),
                             isSelected: selectedVideo?.id == video.id,
-                            onExtract: { onExtract(video) },
-                            onSelect: { selectedVideo = video }
+                            onExtract: onExtract,
+                            onSelect: { selectedVideo = video },
+                            showMediaPipeAlert: $showMediaPipeAlert
                         )
                     }
                 } header: {
@@ -508,10 +561,20 @@ struct VideoExtractionCard: View {
     let video: VideoSample
     let isExtracting: Bool
     let isSelected: Bool
-    let onExtract: () -> Void
+    let onExtract: (VideoSample, BatchExtractionService.ExtractionModel) -> Void
     let onSelect: () -> Void
+    @Binding var showMediaPipeAlert: Bool
     
     @State private var showDetails = false
+    
+    // Check extraction status per model
+    private var hasVisionExtraction: Bool {
+        video.featureSets.contains { $0.modelName == "AppleVision" }
+    }
+    
+    private var hasPipeExtraction: Bool {
+        video.featureSets.contains { $0.modelName == "MediaPipe" }
+    }
     
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
@@ -550,18 +613,65 @@ struct VideoExtractionCard: View {
                 
                 Spacer(minLength: 8)
                 
-                // Status Icon
+                // Model Status Buttons
+                VStack(spacing: 4) {
+                    // Apple Vision Button
+                    Button(action: {
+                        if !hasVisionExtraction && !isExtracting {
+                            onExtract(video, .appleVision)
+                        }
+                    }) {
+                        HStack(spacing: 3) {
+                            Image(systemName: hasVisionExtraction ? "checkmark.circle.fill" : "circle")
+                                .font(.system(size: 10))
+                            Text("Vision")
+                                .font(.system(size: 10))
+                                .fontWeight(.medium)
+                        }
+                        .padding(.horizontal, 8)
+                        .padding(.vertical, 4)
+                        .background(hasVisionExtraction ? Color.green : Color.clear)
+                        .foregroundStyle(hasVisionExtraction ? .white : .secondary)
+                        .overlay(
+                            Capsule()
+                                .stroke(hasVisionExtraction ? Color.green : Color.secondary.opacity(0.3), lineWidth: 1)
+                        )
+                        .clipShape(Capsule())
+                    }
+                    .buttonStyle(.plain)
+                    .fixedSize()
+                    .disabled(isExtracting)
+                    
+                    // MediaPipe Button (disabled)
+                    Button(action: {
+                        showMediaPipeAlert = true
+                    }) {
+                        HStack(spacing: 3) {
+                            Image(systemName: "circle.slash")
+                                .font(.system(size: 10))
+                            Text("Pipe")
+                                .font(.system(size: 10))
+                                .fontWeight(.medium)
+                        }
+                        .padding(.horizontal, 8)
+                        .padding(.vertical, 4)
+                        .background(Color.clear)
+                        .foregroundStyle(.secondary.opacity(0.5))
+                        .overlay(
+                            Capsule()
+                                .stroke(Color.secondary.opacity(0.2), lineWidth: 1)
+                        )
+                        .clipShape(Capsule())
+                    }
+                    .buttonStyle(.plain)
+                    .fixedSize()
+                    .disabled(true)
+                }
+                
+                // Extracting spinner
                 if isExtracting {
                     ProgressView()
-                        .scaleEffect(0.8)
-                } else if !video.featureSets.isEmpty {
-                    Image(systemName: "checkmark.seal.fill")
-                        .foregroundStyle(.green)
-                        .font(.title3)
-                } else {
-                    Image(systemName: "exclamationmark.circle")
-                        .foregroundStyle(.orange)
-                        .font(.title3)
+                        .scaleEffect(0.7)
                 }
             }
             .padding(12)
@@ -576,51 +686,44 @@ struct VideoExtractionCard: View {
                 onSelect()
             })
             
-            // Extract Button (if not extracted)
-            if !video.featureSets.isEmpty {
-                if showDetails {
-                    VStack(spacing: 8) {
-                        Divider()
-                        
-                        VStack(alignment: .leading, spacing: 6) {
-                            HStack {
-                                Text("Details")
+            // Expandable Details (optional, for extracted videos)
+            if showDetails && hasVisionExtraction {
+                VStack(spacing: 8) {
+                    Divider()
+                    
+                    VStack(alignment: .leading, spacing: 6) {
+                        HStack {
+                            Text("Details")
+                                .font(.caption)
+                                .fontWeight(.semibold)
+                                .foregroundStyle(.secondary)
+                            Spacer()
+                            Button(action: { showDetails = false }) {
+                                Image(systemName: "chevron.up")
                                     .font(.caption)
-                                    .fontWeight(.semibold)
-                                    .foregroundStyle(.secondary)
-                                Spacer()
                             }
-                            
-                            DetailRow(label: "Frames", value: "\(video.featureSets.first?.frameCount ?? 0)")
-                            if let model = video.featureSets.first?.modelName {
-                                DetailRow(label: "Model", value: model)
-                            }
+                            .buttonStyle(.plain)
                         }
                         
-                        Button(action: onExtract) {
-                            HStack {
-                                Image(systemName: "arrow.triangle.2.circlepath")
-                                Text("Re-extract")
-                            }
-                            .font(.caption)
-                            .frame(maxWidth: .infinity)
+                        if let featureSet = video.featureSets.first(where: { $0.modelName == "AppleVision" }) {
+                            DetailRow(label: "Frames", value: "\(featureSet.frameCount)")
+                            DetailRow(label: "Model", value: featureSet.modelName)
                         }
-                        .buttonStyle(.bordered)
-                        .controlSize(.small)
                     }
-                    .padding(12)
-                    .background(Color(.tertiarySystemGroupedBackground))
                 }
-            } else if !isExtracting {
-                Button(action: onExtract) {
+                .padding(12)
+                .background(Color(.tertiarySystemGroupedBackground))
+            } else if hasVisionExtraction {
+                Button(action: { showDetails = true }) {
                     HStack {
-                        Image(systemName: "cpu")
-                        Text("Extract Features")
+                        Image(systemName: "info.circle")
+                        Text("View Details")
                     }
-                    .font(.subheadline)
+                    .font(.caption)
                     .frame(maxWidth: .infinity)
                 }
-                .buttonStyle(.borderedProminent)
+                .buttonStyle(.plain)
+                .foregroundStyle(.secondary)
                 .padding(.top, 8)
             }
         }

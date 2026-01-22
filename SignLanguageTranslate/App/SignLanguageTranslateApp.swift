@@ -15,6 +15,9 @@ struct SignLanguageTranslateApp: App {
 
     /// Extraction progress tracker for zip extraction UI
     @State private var extractionTracker = ExtractionProgressTracker()
+    
+    /// Service for batch feature extraction (persisted across navigation)
+    @StateObject private var batchExtractionService = BatchExtractionService()
 
     var body: some Scene {
         WindowGroup {
@@ -31,5 +34,6 @@ struct SignLanguageTranslateApp: App {
         .modelContainer(persistenceController.container)
         .environment(downloadManager)
         .environment(extractionTracker)
+        .environmentObject(batchExtractionService)
     }
 }

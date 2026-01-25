@@ -296,11 +296,19 @@ actor VideoIngestionService {
         let existing = try modelContext.fetch(descriptor)
         
         if let label = existing.first {
+            // FIX: Ensure existing labels have embeddings (backfill if missing)
+            if label.embedding == nil {
+                label.generateEmbedding()
+            }
             return label
         }
         
         // Create new label
         let label = Label(name: name, type: type)
+        
+        // FIX: Generate semantic embedding for training 
+        label.generateEmbedding()
+        
         modelContext.insert(label)
         
         return label

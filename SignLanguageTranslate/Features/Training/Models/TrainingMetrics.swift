@@ -14,8 +14,8 @@ public enum TrainingState: String, CaseIterable, Identifiable, Sendable {
 }
 
 /// Metrics for a single batch or aggregated epoch
-public struct TrainingMetrics: Identifiable, Sendable {
-    public let id = UUID()
+public struct TrainingMetrics: Identifiable, Sendable, Codable {
+    public var id = UUID()
     public let epoch: Int
     public let batchIndex: Int
     public let trainingLoss: Float
@@ -47,12 +47,18 @@ public struct TrainingConfig: Codable, Sendable {
     public var epochs: Int
     public var validationInterval: Int // Batches between validation checks
     public var device: String // "gpu" or "cpu"
+    public var useLegacyModel: Bool = false
+    public var augmentData: Bool = false
+    public var validationSplitRatio: Double = 0.2 // Default 20%
     
     public static let `default` = TrainingConfig(
         batchSize: 32,
         learningRate: 1e-4,
         epochs: 10,
         validationInterval: 10,
-        device: "gpu"
+        device: "gpu",
+        useLegacyModel: false,
+        augmentData: false,
+        validationSplitRatio: 0.2
     )
 }

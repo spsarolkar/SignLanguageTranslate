@@ -56,6 +56,7 @@ struct DataPipelineView: View {
                     progress: progress,
                     metrics: batchService.executionMetrics,
                     thermalState: batchService.thermalState,
+                    debugInfo: batchService.backgroundDebugInfo,
                     onCancel: { batchService.cancel() }
                 )
                 .padding(.bottom, 40)
@@ -608,6 +609,24 @@ struct VideoExtractionCard: View {
                         Text(video.formattedDuration)
                             .font(.caption2)
                             .foregroundStyle(.secondary)
+                        
+                        if let split = video.split {
+                            Text(split.prefix(1).uppercased() + split.dropFirst())
+                                .font(.system(size: 8, weight: .bold))
+                                .padding(.horizontal, 4)
+                                .padding(.vertical, 2)
+                                .background(
+                                    split == "train" ? Color.blue.opacity(0.15) :
+                                    split == "validation" ? Color.orange.opacity(0.15) :
+                                    Color.purple.opacity(0.15)
+                                )
+                                .foregroundStyle(
+                                    split == "train" ? .blue :
+                                    split == "validation" ? .orange :
+                                    .purple
+                                )
+                                .clipShape(RoundedRectangle(cornerRadius: 4))
+                        }
                     }
                 }
                 

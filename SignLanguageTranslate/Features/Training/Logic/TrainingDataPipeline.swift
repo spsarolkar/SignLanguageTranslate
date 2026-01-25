@@ -32,6 +32,7 @@ actor TrainingDataPipeline {
         let id: UUID
         let featurePath: URL
         let embedding: [Float]
+        let split: String? // "train", "validation", or "test"
     }
     
     // MARK: - Properties
@@ -53,7 +54,7 @@ actor TrainingDataPipeline {
     ///   - batchSize: Number of samples per batch
     ///   - shuffle: Whether to shuffle the data before batching
     /// - Returns: An async stream of TrainingBatch
-    func batchStream(samples: [SampleInfo], batchSize: Int, shuffle: Bool = true) -> AsyncStream<TrainingBatch> {
+    func batchStream(samples: [SampleInfo], batchSize: Int, shuffle: Bool = true, augment: Bool = false) -> AsyncStream<TrainingBatch> {
         AsyncStream { continuation in
             Task {
                 var processingSamples = samples
@@ -61,42 +62,57 @@ actor TrainingDataPipeline {
                     processingSamples.shuffle()
                 }
                 
-                var currentBatchInputs: [[Float]] = [] // Flattened frames
-                var currentBatchTargets: [[Float]] = []
-                var currentBatchIds: [UUID] = []
-                
-                for sample in processingSamples {
-                    // 1. Load Features
-                    // Note: fileManager.loadFeatures is async
-                    guard let features = await loadFeatures(at: sample.featurePath), !features.isEmpty else {
-                        continue
-                    }
+                // Process in chunks (Manual stride)
+                var startIndex = 0
+                while startIndex < processingSamples.count {
+                    let endIndex = min(startIndex + batchSize, processingSamples.count)
+                    let batchSamples = processingSamples[startIndex..<endIndex]
+                    startIndex = endIndex
                     
-                    // 2. Load Label Embedding
-                    let embedding = sample.embedding
-                    
-                    // 3. Process (Pad/Truncate/Flatten)
-                    let processedInput = processFeatures(features)
-                    
-                    // 4. Add to Batch
-                    currentBatchInputs.append(processedInput)
-                    currentBatchTargets.append(embedding)
-                    currentBatchIds.append(sample.id)
-                    
-                    // 5. Yield if full
-                    if currentBatchInputs.count >= batchSize {
-                        let batch = createBatch(inputs: currentBatchInputs, targets: currentBatchTargets, ids: currentBatchIds)
-                        continuation.yield(batch)
+                    // Parallel Load & Process
+                    // Use TaskGroup to load files and process CPU tasks concurrently
+                    let batchData: [(inputs: [Float], targets: [Float], id: UUID)] = await withTaskGroup(of: (inputs: [Float], targets: [Float], id: UUID)?.self) { group in
+                        for sample in batchSamples {
+                            group.addTask {
+                                // Load (Async I/O)
+                                // Note: we call a non-actor helper or actor method. 
+                                // Since 'self' is an actor, 'await loadFeatures' hops to actor.
+                                // BUT loadFeatures does I/O.
+                                // To truly parallelize I/O, 'fileManager' should be used directly if possible or 'loadFeatures' should be nonisolated.
+                                // 'fileManager' is let, but 'FeatureFileManager' is a struct (in latest code probably?) or actor?
+                                // If FeatureFileManager is a struct/class not bound to actor, we can use it directly?
+                                // In Line 41: private let fileManager = FeatureFileManager()
+                                // Using 'self.fileManager' allows access.
+                                
+                                // Let's try calling the helper. Even if it hops, if it awaits I/O, it suspends, allowing others to run.
+                                guard let features = await self.loadFeatures(at: sample.featurePath), !features.isEmpty else {
+                                    return nil
+                                }
+                                
+                                // Process (CPU) - NONISOLATED call, runs on this Task's thread pool
+                                let processedInput = self.processFeatures(features, augment: augment)
+                                
+                                return (processedInput, sample.embedding, sample.id)
+                            }
+                        }
                         
-                        currentBatchInputs.removeAll(keepingCapacity: true)
-                        currentBatchTargets.removeAll(keepingCapacity: true)
-                        currentBatchIds.removeAll(keepingCapacity: true)
+                        var results: [(inputs: [Float], targets: [Float], id: UUID)] = []
+                        for await result in group {
+                            if let val = result {
+                                results.append(val)
+                            }
+                        }
+                        return results
                     }
-                }
-                
-                // Yield remaining
-                if !currentBatchInputs.isEmpty {
-                    let batch = createBatch(inputs: currentBatchInputs, targets: currentBatchTargets, ids: currentBatchIds)
+                    
+                    if batchData.isEmpty { continue }
+                    
+                    // Separate into columns
+                    let inputs = batchData.map { $0.inputs }
+                    let targets = batchData.map { $0.targets }
+                    let ids = batchData.map { $0.id }
+                    
+                    let batch = createBatch(inputs: inputs, targets: targets, ids: ids)
                     continuation.yield(batch)
                 }
                 
@@ -121,37 +137,54 @@ actor TrainingDataPipeline {
 
     private func loadFeatures(at url: URL) async -> [FrameFeatures]? {
         do {
-            return try await fileManager.loadFeatures(at: url.path)
+            // FIX: Load directly from absolute URL. 
+            // FeatureFileManager.loadFeatures(at:) expects a relative path and prepends the directory, causing double pathing.
+            let data = try Data(contentsOf: url)
+            let decoder = JSONDecoder()
+            return try decoder.decode([FrameFeatures].self, from: data)
         } catch {
             print("[Pipeline] Failed to load features from \(url): \(error)")
             return nil
         }
     }
     
-    /// Converts raw [FrameFeatures] into a flat array of floats with padding
+    /// Converts raw [FrameFeatures] into a flat array of floats with Temporally Resampling and Augmentation
     /// Format: [TotalFrames * FeatureDim] (Row-major compatible)
-    private func processFeatures(_ frames: [FrameFeatures]) -> [Float] {
+    /// Converts raw [FrameFeatures] into a flat array of floats with Temporally Resampling and Augmentation
+    /// Format: [TotalFrames * FeatureDim] (Row-major compatible)
+    nonisolated private func processFeatures(_ frames: [FrameFeatures], augment: Bool) -> [Float] {
+        // 1. Temporal Normalization (Framerate Independence)
+        // Instead of truncating/padding, we resample to exactly maxFrames.
+        var processedFrames = TimeResampler.resample(frames, targetCount: Self.maxFrames)
+        
+        // 2. Augmentation (Geometric Robustness)
+        if augment {
+            // PoseAugmenter is thread-safe (static structs)
+            processedFrames = PoseAugmenter.augment(frames: processedFrames)
+        }
+        
+        // 3. Flatten (Serialize)
         var flatData = [Float]()
         flatData.reserveCapacity(Self.maxFrames * Self.featureDim)
         
-        let frameCount = min(frames.count, Self.maxFrames)
-        
-        for i in 0..<frameCount {
-            let frame = frames[i]
+        for frame in processedFrames {
             flatData.append(contentsOf: serializeFrame(frame))
         }
         
-        // Zero Padding if shorter than maxFrames
-        if frameCount < Self.maxFrames {
-            let paddingCount = (Self.maxFrames - frameCount) * Self.featureDim
-            flatData.append(contentsOf: Array(repeating: 0.0, count: paddingCount))
+        // Note: Resampler guarantees count == maxFrames, so no padding needed usually.
+        // But safeguard just in case:
+        let currentCount = flatData.count
+        let expectedCount = Self.maxFrames * Self.featureDim
+        
+        if currentCount < expectedCount {
+             flatData.append(contentsOf: Array(repeating: 0.0, count: expectedCount - currentCount))
         }
         
         return flatData
     }
     
     /// Serializes a single frame into [Float] (180 values) with normalization (centering)
-    private func serializeFrame(_ frame: FrameFeatures) -> [Float] {
+    nonisolated private func serializeFrame(_ frame: FrameFeatures) -> [Float] {
         var params = [Float]()
         params.reserveCapacity(Self.featureDim) // 180
         

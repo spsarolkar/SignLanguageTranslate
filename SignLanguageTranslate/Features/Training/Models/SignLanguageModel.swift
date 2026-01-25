@@ -159,6 +159,12 @@ public class SignLanguageModel: @unchecked Sendable {
 
     public func callAsFunction(_ x: MLXArray) -> MLXArray {
         // x: [B, T, 180]
+        #if DEBUG
+        if x.shape.count >= 2 && x.shape[1] != 60 {
+             print("⚠️ Transformer Input Shape Warning: \(x.shape). Expected T=60.")
+        }
+        #endif
+        
         var h = inputProjection(x)
         h = inputNorm(h)
 
@@ -313,14 +319,12 @@ public class ImprovedTransformerEncoderLayer: @unchecked Sendable {
     }
 
     /// Stochastic depth: randomly drop the entire residual path
+    /// Stochastic depth: randomly drop the entire residual path
     private func dropPathForward(_ x: MLXArray) -> MLXArray {
-        guard dropPath > 0 else { return x }
-
-        // During inference, don't drop
-        // Note: MLX doesn't have a built-in training mode check, so we rely on
-        // dropout being disabled during inference via module.eval()
-        let keepProb = 1.0 - dropPath
-        return x * MLXArray(keepProb)
+        // FIXME: MLX doesn't expose a clean 'training' flag here, so proper stochastic depth 
+        // (dropping with probability p during training, identity during inference) is hard 
+        // without API changes. For now, disable it to prevent signal attenuation bug.
+        return x
     }
 
     nonisolated public func modules() -> [Module] {

@@ -38,6 +38,9 @@ struct TrainingContentView: View {
         }
         .listStyle(.insetGrouped)
         .navigationTitle("Training")
+        .navigationDestination(item: $selectedDataset) { dataset in
+            TrainingDashboardView(targetDataset: dataset)
+        }
         #if os(iOS)
         .navigationBarTitleDisplayMode(.inline)
         #endif

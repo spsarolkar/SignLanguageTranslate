@@ -14,6 +14,15 @@ class BatchExtractionService: ObservableObject {
     @Published var thermalState: ProcessInfo.ThermalState = .nominal
     @Published var executionMetrics: ExecutionMetrics?
     
+    // Background execution
+    @Published var shouldContinueInBackground: Bool = true
+    private let audioPlayer = SilentAudioPlayer()
+    
+    // Pause state
+    @Published var isPaused: Bool = false
+    private var pausedDuration: TimeInterval = 0
+    private var lastPauseTime: Date?
+    
     private var extractionTask: Task<Void, Never>?
     private var backgroundTaskID: UIBackgroundTaskIdentifier = .invalid
     
@@ -66,14 +75,18 @@ class BatchExtractionService: ObservableObject {
         // Cancel any existing extraction
         cancel()
         
-        // Begin Background Task
+        // Begin Background Task & Audio
         beginBackgroundTask()
+        audioPlayer.start() // Start silent audio to keep app alive
         UIApplication.shared.isIdleTimerDisabled = true
         
         // Reset state
         isExtracting = true
         failedVideos = []
         progress = Progress(completed: 0, total: videos.count, currentVideoName: "Starting...")
+        isPaused = false
+        pausedDuration = 0
+        lastPauseTime = nil
         
         // Initialize metrics
         executionMetrics = ExecutionMetrics(
@@ -88,8 +101,7 @@ class BatchExtractionService: ObservableObject {
             
             // Cleanup
             await MainActor.run {
-                UIApplication.shared.isIdleTimerDisabled = false
-                self.endBackgroundTask()
+                self.cleanup()
             }
         }
     }
@@ -97,14 +109,66 @@ class BatchExtractionService: ObservableObject {
     /// Cancel ongoing extraction
     func cancel() {
         extractionTask?.cancel()
+        cleanup()
+    }
+    
+    private func cleanup() {
         extractionTask = nil
         isExtracting = false
         progress = nil
         currentVideo = nil
         executionMetrics = nil
+        isPaused = false
+        pausedDuration = 0
         
+        audioPlayer.stop()
         UIApplication.shared.isIdleTimerDisabled = false
         endBackgroundTask()
+    }
+    
+    // Debugging
+    @Published var backgroundDebugInfo: String?
+    
+    // ...
+    
+    /// Pause extraction (e.g. backgrounding)
+    func pause() {
+        guard !isPaused else { return }
+        // Only pause if we are actually extracting
+        guard isExtracting else { return }
+        
+        // If we are allowed to continue in background AND audio session is valid:
+        if shouldContinueInBackground {
+            if audioPlayer.isSetupSuccessful {
+                print("[BatchExtraction] Backgrounding... Keeping alive via Silent Audio.")
+                backgroundDebugInfo = "Background Active (Audio OK)"
+                return
+            } else {
+                let error = audioPlayer.setupError ?? "Unknown Audio Error"
+                print("[BatchExtraction] Audio Setup Failed: \(error)")
+                backgroundDebugInfo = "Background Failed: \(error)"
+            }
+        } else {
+             backgroundDebugInfo = "Background Mode Disabled"
+        }
+        
+        // Fallback: If capability missing or user disabled, pause to save state/metrics
+        isPaused = true
+        lastPauseTime = Date()
+        print("[BatchExtraction] Paused execution.")
+    }
+    
+    /// Resume extraction
+    func resume() {
+        backgroundDebugInfo = nil
+        guard isPaused else { return } // If we never paused (due to background mode), this returns immediately
+        
+        if let lastPause = lastPauseTime {
+            pausedDuration += Date().timeIntervalSince(lastPause)
+        }
+        isPaused = false
+        lastPauseTime = nil
+        print("[BatchExtraction] Resumed execution.")
     }
     
     // MARK: - Private Methods
@@ -130,38 +194,69 @@ class BatchExtractionService: ObservableObject {
     ) async {
         let service = VideoFeatureExtractionService()
         let fileManager = FeatureFileManager()
-        let startTime = Date()
+        let startTime = Date() // This is "Process Start Time"
         var processedCount = 0
         
+        // Loop videos
         for (index, video) in videos.enumerated() {
             // Check cancellation
             guard !Task.isCancelled else {
-                await MainActor.run {
-                    self.isExtracting = false
-                    self.progress = nil
-                }
+                await MainActor.run { cleanup() }
                 return
             }
             
-            // Skip if already extracted with this model
-            if video.featureSets.contains(where: { $0.modelName == model.rawValue }) {
-                await MainActor.run {
-                    self.progress = Progress(
-                        completed: index + 1,
-                        total: videos.count,
-                        currentVideoName: video.fileName
-                    )
+            // Handle Paused State
+            while isPaused {
+                try? await Task.sleep(nanoseconds: 500_000_000) // 0.5s check
+            }
+            // Check cancellation again after resume
+            guard !Task.isCancelled else { return }
+            
+            // Fetch fresh video to ensure relationships are up to date
+            // Using the existing video object might be stale if passed from a previous query scope
+            let videoID = video.id
+            var currentVideo = video // Fallback
+            
+            if let freshVideo: VideoSample = modelContext.registeredModel(for: video.persistentModelID) {
+                currentVideo = freshVideo
+            } else {
+                // Try fetch if not registered (unlikely since we just passed it)
+                let descriptor = FetchDescriptor<VideoSample>(predicate: #Predicate { $0.id == videoID })
+                if let fetched = try? modelContext.fetch(descriptor).first {
+                     currentVideo = fetched
                 }
-                continue
+            }
+            
+            // Debug check
+            // print("checking \(currentVideo.fileName): \(currentVideo.featureSets.count) sets. Identifiers: \(currentVideo.featureSets.map(\.modelName))")
+
+            // Smart Skip with File Validation
+            if let existingSet = currentVideo.featureSets.first(where: { $0.modelName == model.rawValue }) {
+                if existingSet.fileExists {
+                    print("[BatchExtraction] Skipping \(currentVideo.fileName) - Already has \(model.rawValue) (File Verified)")
+                    await MainActor.run {
+                        self.progress = Progress(
+                            completed: index + 1,
+                            total: videos.count,
+                            currentVideoName: currentVideo.fileName
+                        )
+                    }
+                    continue
+                } else {
+                    print("[BatchExtraction] File missing for \(currentVideo.fileName) (\(existingSet.filePath)). Removing stale record and re-extracting.")
+                    // Remove stale record
+                    modelContext.delete(existingSet)
+                    try? modelContext.save()
+                }
             }
             
             // Update current video
             await MainActor.run {
-                self.currentVideo = video
+                self.currentVideo = currentVideo
                 self.progress = Progress(
                     completed: index,
                     total: videos.count,
-                    currentVideoName: video.fileName
+                    currentVideoName: currentVideo.fileName
                 )
             }
             
@@ -202,8 +297,17 @@ class BatchExtractionService: ObservableObject {
                     
                     // Update Metrics
                     processedCount += 1
-                    let timeElapsed = Date().timeIntervalSince(startTime)
-                    let avgTime = timeElapsed / Double(processedCount)
+                    
+                    // Calculate elapsed time excluding pause
+                    var activeDuration = Date().timeIntervalSince(startTime) - self.pausedDuration
+                    if self.isPaused, let lastPause = self.lastPauseTime {
+                         activeDuration -= Date().timeIntervalSince(lastPause)
+                    }
+                    
+                    // Prevent negative time
+                    activeDuration = max(activeDuration, 1.0)
+                    
+                    let avgTime = activeDuration / Double(processedCount)
                     let remaining = Double(videos.count - (index + 1)) * avgTime
                     
                     self.executionMetrics = ExecutionMetrics(
@@ -248,20 +352,24 @@ class BatchExtractionService: ObservableObject {
         
         // Extraction complete
         await MainActor.run {
-            self.isExtracting = false
+            // Show completion state
             self.progress = Progress(
                 completed: videos.count,
                 total: videos.count,
-                currentVideoName: "Complete"
+                currentVideoName: "Extraction Complete ✅"
             )
+            self.isExtracting = false
             self.currentVideo = nil
-            self.executionMetrics = nil 
+            
+            // Stop audio immediately as we are done
+            self.audioPlayer.stop()
+            self.endBackgroundTask()
             
             // Clear progress after a delay
             Task {
-                try? await Task.sleep(nanoseconds: 2_000_000_000) // 2 seconds
+                try? await Task.sleep(nanoseconds: 5_000_000_000) // 5 seconds visibility
                 await MainActor.run {
-                    self.progress = nil
+                    self.cleanup()
                 }
             }
         }

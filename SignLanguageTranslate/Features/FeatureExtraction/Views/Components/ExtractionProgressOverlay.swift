@@ -5,6 +5,7 @@ struct ExtractionProgressOverlay: View {
     let progress: BatchExtractionService.Progress
     let metrics: BatchExtractionService.ExecutionMetrics?
     let thermalState: ProcessInfo.ThermalState
+    let debugInfo: String?
     let onCancel: () -> Void
     
     // Thermal State Helpers
@@ -113,8 +114,9 @@ struct ExtractionProgressOverlay: View {
                 // Background Status
                 MetricItem(
                     label: "Mode",
-                    value: "Active",
-                    icon: "lock.open.laptopcomputer"
+                    value: debugInfo ?? "Active",
+                    icon: debugInfo == nil ? "lock.open.laptopcomputer" : "exclamationmark.triangle",
+                    valueColor: debugInfo == nil ? .primary : .orange
                 )
             }
             
@@ -184,6 +186,7 @@ fileprivate struct MetricItem: View {
                 estimatedTimeRemaining: 120
             ),
             thermalState: .nominal,
+            debugInfo: nil,
             onCancel: {}
         )
     }

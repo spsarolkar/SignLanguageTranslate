@@ -44,9 +44,9 @@ actor VideoFeatureExtractionService {
         // Setup Asset Reader
         let reader = try AVAssetReader(asset: asset)
         
-        let settings: [String: Any] = [
-            kCVPixelBufferPixelFormatTypeKey as String: kCVPixelFormatType_32BGRA
-        ]
+        // Use native format (nil settings) for efficiency and stability with Vision
+        // Vision handles YUV (420v/420f) natively and prefers it over BGRA
+        let settings: [String: Any]? = nil 
         
         let output = AVAssetReaderTrackOutput(track: track, outputSettings: settings)
         output.alwaysCopiesSampleData = false
@@ -71,6 +71,26 @@ actor VideoFeatureExtractionService {
             
             let timestamp = CMSampleBufferGetPresentationTimeStamp(sampleBuffer).seconds
             currentTime = timestamp
+            
+            // Validate Image Buffer
+            guard let imageBuffer = CMSampleBufferGetImageBuffer(sampleBuffer) else {
+                continue
+            }
+            
+            // Validate dimensions to prevent "invalid image bits/pixel" errors
+            let width = CVPixelBufferGetWidth(imageBuffer)
+            let height = CVPixelBufferGetHeight(imageBuffer)
+            let bytesPerRow = CVPixelBufferGetBytesPerRow(imageBuffer)
+            
+            guard width > 0, height > 0, bytesPerRow > 0 else {
+                continue
+            }
+
+            // Check for valid bytes per row if strict validation needed
+            // But width/height > 0 covers most "empty" buffer cases.
+            
+            // Ensure buffer is backed by memory (not just metadata)
+            // Vision handles standard CVPixelBuffers fine.
             
             // 1. Extract Body
             let bodyKeypoints = try poseExtractor.extractBodyFeatures(from: sampleBuffer, timestamp: timestamp)

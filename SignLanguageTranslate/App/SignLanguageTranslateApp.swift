@@ -18,6 +18,13 @@ struct SignLanguageTranslateApp: App {
     
     /// Service for batch feature extraction (persisted across navigation)
     @StateObject private var batchExtractionService = BatchExtractionService()
+    
+    @Environment(\.scenePhase) private var scenePhase
+
+    init() {
+        // Register background training task
+        TrainingBackgroundManager.shared.register()
+    }
 
     var body: some Scene {
         WindowGroup {
@@ -35,5 +42,23 @@ struct SignLanguageTranslateApp: App {
         .environment(downloadManager)
         .environment(extractionTracker)
         .environmentObject(batchExtractionService)
+        .onChange(of: scenePhase) { phase in
+            switch phase {
+            case .background:
+                batchExtractionService.pause()
+                // Schedule training resume
+                TrainingBackgroundManager.shared.schedule()
+                // Notify training to save state
+                NotificationCenter.default.post(name: .trainingShouldSaveAndStop, object: nil)
+            case .inactive:
+                batchExtractionService.pause()
+            case .active:
+                batchExtractionService.resume()
+                // Resume training if it was running?
+                // For now, let user manually resume or wait for BG task to verify flow.
+                // Or post .trainingResumeInBackground? (User requested manual lock -> BG pickup)
+            @unknown default: break
+            }
+        }
     }
 }

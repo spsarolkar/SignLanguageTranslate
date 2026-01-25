@@ -45,6 +45,9 @@ public final class VideoSample {
     /// Optional notes added by user
     public var notes: String?
 
+    /// Dataset split assignment ("train", "validation", "test")
+    public var split: String?
+
     // MARK: - Relationships
 
     /// Labels associated with this video (category, word, sentence)

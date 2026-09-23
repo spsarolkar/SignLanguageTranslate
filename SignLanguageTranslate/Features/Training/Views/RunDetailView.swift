@@ -66,7 +66,7 @@ struct RunDetailView: View {
                     .foregroundStyle(.secondary)
                     .font(.caption)
                 
-                StatusBadge(status: run.status)
+                TrainingRunStatusBadge(status: run.status)
             }
             Spacer()
             

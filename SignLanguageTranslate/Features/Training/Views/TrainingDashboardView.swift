@@ -1150,7 +1150,7 @@ struct TrainingRunRow: View {
             }
             Spacer()
             // Improved status badge
-            StatusBadge(status: run.status)
+            TrainingRunStatusBadge(status: run.status)
         }
         .padding()
         .background(Color(.secondarySystemGroupedBackground))
@@ -1158,7 +1158,7 @@ struct TrainingRunRow: View {
     }
 }
 
-struct StatusBadge: View {
+struct TrainingRunStatusBadge: View {
     let status: String
     
     var color: Color {

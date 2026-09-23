@@ -22,4 +22,6 @@ screen-specific yet. The app looks the same except for dark mode.
       `statusDot`, `pillHeight`; `StateTint.border`, `.label`. Padding snapped
       to the `Spacing` scale where the artboards use off-scale values (14, 18,
       13 → 12/16). Pills are 36 pt visible with a 44 pt hit area.*
-- [ ] Build green, tests unchanged from `docs/status.md`.
+- [x] Build green, tests unchanged from `docs/status.md`.
+      *Baseline failures unchanged; one extra failure is pre-existing (fails at
+      `0fbc10e` too), recorded in status.md.*

@@ -26,7 +26,7 @@ feature work, no UI changes.
 - [x] `xcodebuild build` green.
 
 ## 0.3 Test baseline
-- [ ] Run `xcodebuild test`. Create `docs/status.md` with date, pass/fail
+- [x] Run `xcodebuild test`. Create `docs/status.md` with date, pass/fail
       counts, and each failing test with a one-line reason. Do not fix tests in
       this step.
 

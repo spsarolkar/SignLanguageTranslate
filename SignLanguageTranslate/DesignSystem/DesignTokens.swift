@@ -28,6 +28,10 @@ enum Palette {
     static let borderStrong = Color(hex: 0x333B43)
     /// Border on a selected or active card.
     static let borderSelected = Color(hex: 0x33414A)
+    /// Border on inset wells (metric tiles).
+    static let borderSubtle = Color(hex: 0x232930)
+    /// Border on a neutral (idle) badge.
+    static let borderMuted = Color(hex: 0x2C333A)
     /// Track behind a progress bar.
     static let track = Color(hex: 0x232930)
 
@@ -37,6 +41,10 @@ enum Palette {
     static let textTertiary = Color(hex: 0x8A949D)
     /// Decorative only — do not use for text that must be read.
     static let textQuaternary = Color(hex: 0x6C7A85)
+    /// Label on a control-filled button.
+    static let textControl = Color(hex: 0xE4E9ED)
+    /// Unselected pill and idle badge labels.
+    static let textMuted = Color(hex: 0x98A2AC)
 
     /// Primary accent: active, complete, healthy.
     static let accent = Color(hex: 0x5EC8A8)
@@ -52,9 +60,29 @@ enum Palette {
     static let danger = Color(hex: 0xE5695B)
 
     /// Fill behind an accent-tinted pill or badge.
-    static let accentFill = Color(hex: 0x5EC8A8).opacity(0.12)
-    static let warningFill = Color(hex: 0xE0A458).opacity(0.12)
-    static let dangerFill = Color(hex: 0xE5695B).opacity(0.12)
+    static let accentFill = Color(hex: 0x5EC8A8).opacity(Opacity.tintFill)
+    static let warningFill = Color(hex: 0xE0A458).opacity(Opacity.tintFill)
+    static let dangerFill = Color(hex: 0xE5695B).opacity(Opacity.tintFill)
+}
+
+// MARK: - Opacity
+
+/// Opacities applied to a tint color. Use these rather than inline literals.
+enum Opacity {
+    /// Tinted badge or chip fill.
+    static let tintFill: Double = 0.12
+    /// Tinted badge or tile border.
+    static let tintBorder: Double = 0.35
+    /// In-flight segment of a progress bar.
+    static let inFlight: Double = 0.32
+    /// Selected pill fill.
+    static let selectedFill: Double = 0.16
+    /// Selected pill border.
+    static let selectedBorder: Double = 0.45
+    /// Button while pressed.
+    static let pressed: Double = 0.8
+    /// Disabled control.
+    static let disabled: Double = 0.4
 }
 
 // MARK: - Typography
@@ -73,6 +101,15 @@ enum Typo {
 
     /// Section eyebrows: "ACTIVE TRANSFERS". Pair with `Tracking.eyebrow`.
     static let eyebrow = Font.system(size: 11, weight: .semibold)
+    /// Metric tile captions: "CLIPS / MIN".
+    static let tileCaption = Font.system(size: 11, weight: .regular)
+
+    /// Secondary button label.
+    static let control = Font.system(size: 14, weight: .semibold)
+    /// Primary button label.
+    static let controlStrong = Font.system(size: 14, weight: .bold)
+    /// Pill and status badge labels.
+    static let pill = Font.system(size: 13, weight: .semibold)
 
     /// Every number the user might compare, copy or read off: counts, sizes,
     /// rates, confidences, IDs, durations. Prevents digit jitter on updates.
@@ -80,12 +117,16 @@ enum Typo {
         .system(size: size, weight: weight, design: .monospaced)
     }
 
+    /// Small counts beside an eyebrow: "3 of 3 slots".
+    static let monoSmall = mono(11)
     static let monoMetric = mono(19, .medium)
     static let monoLarge = mono(30, .medium)
 }
 
 enum Tracking {
     static let eyebrow: CGFloat = 1.1
+    /// Status badge label.
+    static let badge: CGFloat = 0.26
     static let largeTitle: CGFloat = -0.8
 }
 
@@ -126,6 +167,12 @@ enum Metrics {
     static let progressBarHeight: CGFloat = 8
     static let progressBarHeightCompact: CGFloat = 6
     static let progressBarHeightFine: CGFloat = 4
+    /// Hairline border on cards, tiles and controls.
+    static let borderWidth: CGFloat = 1
+    /// Dot inside a status badge.
+    static let statusDot: CGFloat = 7
+    /// Visible height of a filter pill. The hit area is still `touchTarget`.
+    static let pillHeight: CGFloat = 36
 }
 
 // MARK: - Semantic state mapping
@@ -154,6 +201,22 @@ enum StateTint {
         case .queued:      return Palette.warningFill
         case .failed,
              .quarantined: return Palette.dangerFill
+        }
+    }
+
+    var border: Color {
+        switch self {
+        case .idle: return Palette.borderMuted
+        default:    return color.opacity(Opacity.tintBorder)
+        }
+    }
+
+    /// Text on a badge in this state. Idle text must stay readable, so it
+    /// does not use the decorative idle dot color.
+    var label: Color {
+        switch self {
+        case .idle: return Palette.textMuted
+        default:    return color
         }
     }
 }

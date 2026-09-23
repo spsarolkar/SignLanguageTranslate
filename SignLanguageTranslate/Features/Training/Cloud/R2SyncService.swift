@@ -52,15 +52,28 @@ public actor R2SyncService {
         self.bucketName = bucketName
     }
     
-    /// Load credentials from UserDefaults (for development).
-    /// In production, use Keychain.
-    public static func fromUserDefaults() -> R2SyncService {
-        let defaults = UserDefaults.standard
+    /// Keychain keys for R2 credentials.
+    enum CredentialKey {
+        static let accountId = "r2_account_id"
+        static let accessKeyId = "r2_access_key_id"
+        static let secretAccessKey = "r2_secret_access_key"
+        static let bucketName = "r2_bucket_name"
+        static let all = [accountId, accessKeyId, secretAccessKey, bucketName]
+    }
+
+    /// Load credentials from the Keychain.
+    ///
+    /// Values left in UserDefaults by earlier builds are moved into the
+    /// Keychain and removed from UserDefaults.
+    static func fromKeychain(_ keychain: KeychainStore = KeychainStore()) -> R2SyncService {
+        for key in CredentialKey.all {
+            keychain.migrateFromUserDefaults(key: key)
+        }
         return R2SyncService(
-            accountId: defaults.string(forKey: "r2_account_id") ?? "",
-            accessKeyId: defaults.string(forKey: "r2_access_key_id") ?? "",
-            secretAccessKey: defaults.string(forKey: "r2_secret_access_key") ?? "",
-            bucketName: defaults.string(forKey: "r2_bucket_name") ?? "training-runs"
+            accountId: keychain.string(for: CredentialKey.accountId) ?? "",
+            accessKeyId: keychain.string(for: CredentialKey.accessKeyId) ?? "",
+            secretAccessKey: keychain.string(for: CredentialKey.secretAccessKey) ?? "",
+            bucketName: keychain.string(for: CredentialKey.bucketName) ?? "training-runs"
         )
     }
     

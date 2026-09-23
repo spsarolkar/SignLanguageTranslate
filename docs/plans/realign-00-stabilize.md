@@ -37,7 +37,11 @@ Present both options with the files affected, then wait:
 - B) Keep `Label`; use `SwiftUI.Label` in views (and add a note to CLAUDE.md).
 
 ## 0.5 Secrets
-- [ ] Move R2 credentials from `UserDefaults` to Keychain (small wrapper in
+- [x] Move R2 credentials from `UserDefaults` to Keychain (small wrapper in
       `Core/Utilities/`). Same for the Hugging Face token if it is not already.
+      *`KeychainStore` added; `R2SyncService.fromKeychain()` replaces
+      `fromUserDefaults()` and migrates any legacy values. HF token was already
+      in Keychain (`SyncManager`); left as is. HF repo ID stays in UserDefaults
+      (not a secret).*
 
 Done when: build green, `docs/status.md` exists, repo clean, 0.4 decided.

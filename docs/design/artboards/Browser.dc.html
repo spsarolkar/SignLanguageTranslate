@@ -1,0 +1,243 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Data Pipeline — Sample Browser</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Instrument+Sans:wght@400;500;600;700&amp;family=IBM+Plex+Mono:wght@400;500&amp;display=swap">
+<style>
+body { margin: 0; font-family: "Instrument Sans", -apple-system, system-ui, sans-serif; background: #0B0D0F; }
+a { color: #5EC8A8; } a:hover { color: #8EDCC3; }
+</style>
+</helmet>
+<div style="width: 1366px; height: 1024px; box-sizing: border-box; display: flex; background: #0B0D0F; color: #EEF1F3; font-family: 'Instrument Sans', -apple-system, system-ui, sans-serif;">
+
+  <aside style="width: 320px; flex-shrink: 0; box-sizing: border-box; background: #111417; border-right: 1px solid #262B31; display: flex; flex-direction: column; padding: 28px 20px; gap: 20px;">
+    <a href="Main.dc.html" style="display: flex; align-items: center; gap: 8px; text-decoration: none; min-height: 44px;">
+      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#5EC8A8" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="15 18 9 12 15 6"></polyline></svg>
+      <span style="font-size: 14px; font-weight: 600;">Data Pipeline</span>
+    </a>
+
+    <div style="box-sizing: border-box; padding: 16px; border-radius: 14px; background: #1D2126; border: 1px solid #33414A; display: flex; flex-direction: column; gap: 12px;">
+      <h2 style="margin: 0; font-size: 20px; font-weight: 600;">INCLUDE</h2>
+      <div style="font-size: 12px; color: #8A949D; line-height: 1.5;">Word-level · Zenodo 4010759<br>15 categories · 44 parts</div>
+      <div style="display: flex; gap: 20px; padding-top: 4px; border-top: 1px solid #2C333A;">
+        <div style="display: flex; flex-direction: column; gap: 2px;">
+          <span style="font-family: 'IBM Plex Mono', monospace; font-size: 20px; font-weight: 500; color: #5EC8A8;">263</span>
+          <span style="font-size: 11px; color: #8A949D;">WORDS</span>
+        </div>
+        <div style="display: flex; flex-direction: column; gap: 2px;">
+          <span style="font-family: 'IBM Plex Mono', monospace; font-size: 20px; font-weight: 500; color: #5EC8A8;">4287</span>
+          <span style="font-size: 11px; color: #8A949D;">CLIPS</span>
+        </div>
+      </div>
+    </div>
+
+    <div style="display: flex; flex-direction: column; gap: 10px;">
+      <div style="font-size: 11px; font-weight: 600; letter-spacing: 0.1em; color: #8A949D;">INGESTION</div>
+      <div style="box-sizing: border-box; padding: 13px 14px; border-radius: 11px; background: #15181B; border: 1px solid #262B31; display: flex; align-items: center; justify-content: space-between;">
+        <span style="font-size: 13px; color: #C9D1D8;">Labels parsed</span>
+        <span style="font-family: 'IBM Plex Mono', monospace; font-size: 12px; color: #5EC8A8;">4287</span>
+      </div>
+      <div style="box-sizing: border-box; padding: 13px 14px; border-radius: 11px; background: #15181B; border: 1px solid #262B31; display: flex; align-items: center; justify-content: space-between;">
+        <span style="font-size: 13px; color: #C9D1D8;">Keypoints extracted</span>
+        <span style="font-family: 'IBM Plex Mono', monospace; font-size: 12px; color: #E0A458;">3083</span>
+      </div>
+      <div style="box-sizing: border-box; padding: 13px 14px; border-radius: 11px; background: #15181B; border: 1px solid #262B31; display: flex; align-items: center; justify-content: space-between;">
+        <span style="font-size: 13px; color: #C9D1D8;">Low-confidence</span>
+        <span style="font-family: 'IBM Plex Mono', monospace; font-size: 12px; color: #E5695B;">64</span>
+      </div>
+    </div>
+
+    <div style="flex-grow: 1;"></div>
+
+    <a href="Export.dc.html" style="box-sizing: border-box; min-height: 48px; padding: 0 16px; border-radius: 12px; background: #232930; border: 1px solid #333B43; display: flex; align-items: center; justify-content: center; text-decoration: none; color: #E4E9ED; font-size: 14px; font-weight: 600;">Export to Hugging Face</a>
+  </aside>
+
+  <div style="width: 260px; flex-shrink: 0; box-sizing: border-box; background: #0E1114; border-right: 1px solid #262B31; display: flex; flex-direction: column;">
+    <div style="box-sizing: border-box; padding: 24px 16px 14px 16px; display: flex; flex-wrap: wrap; gap: 6px; border-bottom: 1px solid #262B31;">
+      <sc-for list="{{pills}}" as="pill" hint-placeholder-count="6">
+        <button type="button" onClick="{{pill.pick}}" style="padding: 7px 12px; min-height: 32px; border-radius: 999px; border: 1px solid {{pill.border}}; background: {{pill.bg}}; color: {{pill.fg}}; font-family: inherit; font-size: 12px; font-weight: 600; cursor: pointer;">{{pill.name}}</button>
+      </sc-for>
+    </div>
+
+    <div style="box-sizing: border-box; padding: 12px 10px; display: flex; flex-direction: column; gap: 3px; overflow: hidden;">
+      <sc-for list="{{words}}" as="word" hint-placeholder-count="10">
+        <button type="button" onClick="{{word.pick}}" style="box-sizing: border-box; width: 100%; min-height: 44px; padding: 0 14px; border-radius: 10px; border: none; background: {{word.bg}}; display: flex; align-items: center; justify-content: space-between; cursor: pointer; font-family: inherit;">
+          <span style="font-size: 14px; font-weight: 500; color: {{word.fg}};">{{word.name}}</span>
+          <span style="font-family: 'IBM Plex Mono', monospace; font-size: 12px; color: #8A949D;">{{word.count}}</span>
+        </button>
+      </sc-for>
+    </div>
+  </div>
+
+  <main style="flex-grow: 1; box-sizing: border-box; padding: 28px 32px; display: flex; flex-direction: column; gap: 18px; overflow: hidden;">
+
+    <div style="display: flex; align-items: flex-end; justify-content: space-between;">
+      <div style="display: flex; flex-direction: column; gap: 5px;">
+        <div style="font-size: 12px; color: #8A949D;">{{crumb}}</div>
+        <h1 style="margin: 0; font-size: 34px; font-weight: 700; letter-spacing: -0.02em;">{{selectedWord}}</h1>
+      </div>
+      <div style="display: flex; gap: 8px;">
+        <span style="padding: 7px 13px; border-radius: 999px; background: rgba(94,200,168,0.12); border: 1px solid rgba(94,200,168,0.3); font-size: 12px; font-weight: 600; color: #5EC8A8;">Category · {{selectedCat}}</span>
+        <span style="padding: 7px 13px; border-radius: 999px; background: rgba(107,168,232,0.12); border: 1px solid rgba(107,168,232,0.3); font-size: 12px; font-weight: 600; color: #6BA8E8;">Word · {{selectedWord}}</span>
+      </div>
+    </div>
+
+    <div style="position: relative; width: 100%; height: 396px; border-radius: 16px; background: #101418; border: 1px solid #262B31; overflow: hidden; flex-shrink: 0;">
+
+      <svg width="100%" height="100%" viewBox="0 0 704 396" preserveAspectRatio="xMidYMid slice" aria-hidden="true" style="display: block;">
+        <rect x="0" y="0" width="704" height="396" fill="#13181D"></rect>
+        <ellipse cx="352" cy="300" rx="190" ry="150" fill="#181E24"></ellipse>
+        <circle cx="352" cy="132" r="54" fill="#1C232A"></circle>
+        <g stroke="#5EC8A8" stroke-width="2" fill="none" stroke-linecap="round">
+          <line x1="352" y1="186" x2="352" y2="286"></line>
+          <line x1="352" y1="206" x2="268" y2="240"></line>
+          <line x1="268" y1="240" x2="228" y2="308"></line>
+          <line x1="352" y1="206" x2="436" y2="240"></line>
+          <line x1="436" y1="240" x2="470" y2="302"></line>
+          <line x1="228" y1="308" x2="210" y2="338"></line>
+          <line x1="228" y1="308" x2="232" y2="346"></line>
+          <line x1="228" y1="308" x2="252" y2="344"></line>
+          <line x1="470" y1="302" x2="452" y2="336"></line>
+          <line x1="470" y1="302" x2="474" y2="344"></line>
+          <line x1="470" y1="302" x2="494" y2="338"></line>
+        </g>
+        <g fill="#8EDCC3">
+          <circle cx="352" cy="132" r="5"></circle>
+          <circle cx="352" cy="206" r="5"></circle>
+          <circle cx="268" cy="240" r="5"></circle>
+          <circle cx="436" cy="240" r="5"></circle>
+          <circle cx="228" cy="308" r="6"></circle>
+          <circle cx="470" cy="302" r="6"></circle>
+        </g>
+        <g fill="#E0A458">
+          <circle cx="210" cy="338" r="3.5"></circle>
+          <circle cx="232" cy="346" r="3.5"></circle>
+          <circle cx="252" cy="344" r="3.5"></circle>
+          <circle cx="452" cy="336" r="3.5"></circle>
+          <circle cx="474" cy="344" r="3.5"></circle>
+          <circle cx="494" cy="338" r="3.5"></circle>
+        </g>
+      </svg>
+
+      <div style="position: absolute; top: 16px; right: 16px; width: 214px; box-sizing: border-box; padding: 14px 16px; border-radius: 14px; background: rgba(13,17,21,0.82); border: 1px solid rgba(255,255,255,0.1); display: flex; flex-direction: column; gap: 10px;">
+        <div style="font-size: 11px; font-weight: 600; letter-spacing: 0.08em; color: #9BA5AE;">KEYPOINT CONFIDENCE</div>
+        <div style="display: flex; align-items: baseline; gap: 6px;">
+          <span style="font-family: 'IBM Plex Mono', monospace; font-size: 30px; font-weight: 500; color: #5EC8A8;">98</span>
+          <span style="font-size: 15px; color: #9BA5AE;">%</span>
+        </div>
+        <div style="display: flex; flex-direction: column; gap: 6px;">
+          <div style="display: flex; justify-content: space-between; font-size: 11px; color: #9BA5AE;"><span>Hands</span><span style="font-family: 'IBM Plex Mono', monospace; color: #D3DAE0;">42 / 42</span></div>
+          <div style="display: flex; justify-content: space-between; font-size: 11px; color: #9BA5AE;"><span>Body</span><span style="font-family: 'IBM Plex Mono', monospace; color: #D3DAE0;">17 / 19</span></div>
+          <div style="display: flex; justify-content: space-between; font-size: 11px; color: #9BA5AE;"><span>Frames</span><span style="font-family: 'IBM Plex Mono', monospace; color: #D3DAE0;">61</span></div>
+        </div>
+      </div>
+
+      <div style="position: absolute; left: 16px; right: 16px; bottom: 16px; box-sizing: border-box; padding: 11px 14px; border-radius: 14px; background: rgba(13,17,21,0.82); border: 1px solid rgba(255,255,255,0.1); display: flex; align-items: center; gap: 14px;">
+        <button type="button" aria-label="Play clip" style="width: 44px; height: 44px; flex-shrink: 0; border-radius: 11px; background: #5EC8A8; border: none; display: flex; align-items: center; justify-content: center; cursor: pointer;">
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="#0B0D0F" aria-hidden="true"><polygon points="6 4 20 12 6 20"></polygon></svg>
+        </button>
+        <span style="font-family: 'IBM Plex Mono', monospace; font-size: 12px; color: #D3DAE0; flex-shrink: 0;">0:01</span>
+        <div style="flex-grow: 1; height: 4px; border-radius: 2px; background: rgba(255,255,255,0.16); overflow: hidden;">
+          <div style="width: 38%; height: 4px; background: #E9EFF3;"></div>
+        </div>
+        <span style="font-family: 'IBM Plex Mono', monospace; font-size: 12px; color: #9BA5AE; flex-shrink: 0;">0:02</span>
+        <button type="button" aria-label="Toggle skeleton overlay" style="height: 44px; padding: 0 14px; flex-shrink: 0; border-radius: 11px; background: rgba(255,255,255,0.09); border: 1px solid rgba(255,255,255,0.14); color: #D3DAE0; font-family: inherit; font-size: 12px; font-weight: 600; cursor: pointer;">Skeleton</button>
+      </div>
+    </div>
+
+    <div style="box-sizing: border-box; padding: 16px 18px; border-radius: 14px; background: #15181B; border: 1px solid #262B31; display: flex; flex-direction: column; gap: 10px; flex-shrink: 0;">
+      <div style="display: flex; align-items: baseline; justify-content: space-between;">
+        <span style="font-size: 11px; font-weight: 600; letter-spacing: 0.1em; color: #8A949D;">PER-FRAME CONFIDENCE</span>
+        <span style="font-family: 'IBM Plex Mono', monospace; font-size: 11px; color: #6C7A85;">min 0.71 · mean 0.94</span>
+      </div>
+      <svg width="100%" height="74" viewBox="0 0 704 74" preserveAspectRatio="none" aria-hidden="true" style="display: block;">
+        <line x1="0" y1="18" x2="704" y2="18" stroke="#232930" stroke-width="1"></line>
+        <line x1="0" y1="46" x2="704" y2="46" stroke="#232930" stroke-width="1"></line>
+        <line x1="0" y1="56" x2="704" y2="56" stroke="#E5695B" stroke-width="1" stroke-dasharray="4 5" opacity="0.6"></line>
+        <polyline points="0,20 44,14 88,17 132,12 176,22 220,16 264,11 308,26 352,48 396,30 440,18 484,13 528,15 572,10 616,14 660,19 704,12" fill="none" stroke="#5EC8A8" stroke-width="2.2" stroke-linejoin="round" stroke-linecap="round"></polyline>
+        <circle cx="352" cy="48" r="4" fill="#E0A458"></circle>
+      </svg>
+    </div>
+
+    <div style="display: flex; flex-direction: column; gap: 10px; flex-grow: 1; min-height: 0;">
+      <div style="display: flex; align-items: baseline; justify-content: space-between;">
+        <span style="font-size: 11px; font-weight: 600; letter-spacing: 0.1em; color: #8A949D;">SAMPLES</span>
+        <span style="font-family: 'IBM Plex Mono', monospace; font-size: 11px; color: #6C7A85;">{{sampleCount}} clips</span>
+      </div>
+      <div style="display: grid; grid-template-columns: repeat(6, minmax(0, 1fr)); gap: 10px;">
+        <sc-for list="{{samples}}" as="s" hint-placeholder-count="6">
+          <div style="box-sizing: border-box; height: 92px; border-radius: 11px; background: #13181D; border: 1px solid {{s.border}}; padding: 9px; display: flex; flex-direction: column; justify-content: flex-end;">
+            <span style="font-family: 'IBM Plex Mono', monospace; font-size: 10px; color: #8A949D;">{{s.id}}</span>
+            <span style="font-family: 'IBM Plex Mono', monospace; font-size: 11px; color: {{s.fg}};">{{s.conf}}</span>
+          </div>
+        </sc-for>
+      </div>
+    </div>
+
+  </main>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":1366,"height":1024}}'>
+class Component extends DCLogic {
+  constructor(props) {
+    super(props);
+    this.state = { cat: 'Animals', word: 'Dog' };
+  }
+  renderVals() {
+    const self = this;
+    const cats = ['All', 'Adjectives', 'Animals', 'Clothes', 'Colours', 'Days & Time', 'Electronics', 'Greetings'];
+    const byCat = {
+      'Animals': [['Bird', 22], ['Cat', 24], ['Cow', 19], ['Dog', 26], ['Elephant', 21], ['Fish', 23], ['Horse', 18], ['Lion', 20], ['Monkey', 22], ['Rat', 17]],
+      'Adjectives': [['Big', 21], ['Small', 24], ['Happy', 19], ['Sad', 22], ['Loud', 18], ['Quiet', 20]],
+      'Colours': [['Black', 23], ['Blue', 21], ['Green', 25], ['Red', 22], ['White', 20], ['Yellow', 19]]
+    };
+    const list = byCat[this.state.cat] || byCat['Animals'];
+    const active = list.some(function (w) { return w[0] === self.state.word; }) ? this.state.word : list[0][0];
+    const count = (list.filter(function (w) { return w[0] === active; })[0] || list[0])[1];
+
+    const confs = [0.98, 0.96, 0.94, 0.91, 0.88, 0.74];
+    return {
+      crumb: 'INCLUDE / ' + this.state.cat,
+      selectedCat: this.state.cat,
+      selectedWord: active,
+      sampleCount: count,
+      pills: cats.map(function (c) {
+        const on = c === self.state.cat;
+        return {
+          name: c,
+          bg: on ? 'rgba(94,200,168,0.16)' : '#15181B',
+          border: on ? 'rgba(94,200,168,0.45)' : '#262B31',
+          fg: on ? '#5EC8A8' : '#98A2AC',
+          pick: function () { self.setState({ cat: c === 'All' ? 'Animals' : c }); }
+        };
+      }),
+      words: list.map(function (w) {
+        const on = w[0] === active;
+        return {
+          name: w[0], count: w[1],
+          bg: on ? '#1D2126' : 'transparent',
+          fg: on ? '#EEF1F3' : '#98A2AC',
+          pick: function () { self.setState({ word: w[0] }); }
+        };
+      }),
+      samples: confs.map(function (c, i) {
+        const low = c < 0.8;
+        return {
+          id: active.toLowerCase() + '_' + String(i + 1).padStart(3, '0'),
+          conf: c.toFixed(2),
+          fg: low ? '#E5695B' : '#5EC8A8',
+          border: low ? 'rgba(229,105,91,0.4)' : '#262B31'
+        };
+      })
+    };
+  }
+}
+</script>
+</body>
+</html>

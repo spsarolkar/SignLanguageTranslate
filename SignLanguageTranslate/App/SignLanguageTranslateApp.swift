@@ -15,10 +15,10 @@ struct SignLanguageTranslateApp: App {
 
     /// Extraction progress tracker for zip extraction UI
     @State private var extractionTracker = ExtractionProgressTracker()
-    
+
     /// Service for batch feature extraction (persisted across navigation)
     @StateObject private var batchExtractionService = BatchExtractionService()
-    
+
     @Environment(\.scenePhase) private var scenePhase
 
     init() {
@@ -36,6 +36,9 @@ struct SignLanguageTranslateApp: App {
                 .task {
                     // Recover any in-progress downloads from previous session
                     await downloadManager.recoverDownloads()
+
+                    // Clean up stale training runs that were "Running" when app terminated
+                    await cleanupStaleTrainingRuns()
                 }
         }
         .modelContainer(persistenceController.container)
@@ -46,19 +49,55 @@ struct SignLanguageTranslateApp: App {
             switch phase {
             case .background:
                 batchExtractionService.pause()
-                // Schedule training resume
+                // Schedule background training task
                 TrainingBackgroundManager.shared.schedule()
-                // Notify training to save state
+                // Save training checkpoint (training continues if possible)
                 NotificationCenter.default.post(name: .trainingShouldSaveAndStop, object: nil)
             case .inactive:
                 batchExtractionService.pause()
             case .active:
                 batchExtractionService.resume()
-                // Resume training if it was running?
-                // For now, let user manually resume or wait for BG task to verify flow.
-                // Or post .trainingResumeInBackground? (User requested manual lock -> BG pickup)
+                // Resume training if it was paused
+                NotificationCenter.default.post(name: .trainingResumeInBackground, object: nil)
             @unknown default: break
             }
+        }
+    }
+
+    /// Mark any orphaned "Running" training runs as interrupted on app launch
+    @MainActor
+    private func cleanupStaleTrainingRuns() async {
+        let context = persistenceController.container.mainContext
+
+        // Check if the singleton manager has an active run
+        let activeRunId = TrainingSessionManager.shared.currentRunId
+
+        do {
+            // Find all runs with "Running" or "Resumed" status
+            let staleStatuses = ["Running", "Resumed", "Started"]
+            let descriptor = FetchDescriptor<TrainingRun>(
+                predicate: #Predicate<TrainingRun> { run in
+                    staleStatuses.contains(run.status)
+                }
+            )
+
+            let staleRuns = try context.fetch(descriptor)
+
+            for run in staleRuns {
+                // Don't mark the currently active run as interrupted
+                if run.id == activeRunId {
+                    continue
+                }
+
+                run.status = "Interrupted"
+                print("[App] Marked stale run '\(run.name)' as Interrupted")
+            }
+
+            if !staleRuns.isEmpty {
+                try context.save()
+            }
+        } catch {
+            print("[App] Failed to cleanup stale training runs: \(error)")
         }
     }
 }

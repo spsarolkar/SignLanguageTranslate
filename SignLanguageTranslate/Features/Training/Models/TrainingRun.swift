@@ -48,6 +48,19 @@ public final class TrainingRun {
         }
     }
     
+    /// Serialized Logs - [String]
+    public var logsData: Data = Data()
+    
+    /// Helper to access logs
+    public var logs: [String] {
+        get {
+            (try? JSONDecoder().decode([String].self, from: logsData)) ?? []
+        }
+        set {
+            logsData = (try? JSONEncoder().encode(newValue)) ?? Data()
+        }
+    }
+    
     public init(
         name: String = "Training Run",
         config: TrainingConfig,

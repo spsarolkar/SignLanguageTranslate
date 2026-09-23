@@ -1,4 +1,5 @@
 import SwiftUI
+import SwiftData
 #if os(iOS)
 import UIKit
 #elseif os(macOS)
@@ -19,6 +20,7 @@ struct DownloadListView: View {
 
     // MARK: - Environment
 
+    @Environment(\.modelContext) private var modelContext
     @Environment(DownloadManager.self) private var downloadManager
     @Environment(\.horizontalSizeClass) private var horizontalSizeClass
 
@@ -400,7 +402,23 @@ struct DownloadListView: View {
         Group {
             Button("Cancel All", role: .destructive) {
                 Task {
-                    await downloadManager.clear()
+                    await downloadManager.cancelAll()
+                    
+                    await MainActor.run {
+                        do {
+                            let descriptor = SwiftData.FetchDescriptor<Dataset>()
+                            let datasets = try modelContext.fetch(descriptor)
+                            for dataset in datasets {
+                                dataset.pauseDownload()
+                                dataset.downloadedBytes = 0
+                                dataset.downloadedParts = 0
+                                dataset.statusRawValue = DownloadStatus.notStarted.rawValue
+                            }
+                            try modelContext.save()
+                        } catch {
+                            print("Failed to reset datasets: \\(error)")
+                        }
+                    }
                 }
             }
             Button("Keep Downloads", role: .cancel) {}
@@ -495,9 +513,31 @@ struct DownloadListView: View {
 
     private func cancelSelectedTasks() {
         Task {
+            // Group selected tasks by dataset name to reset those datasets
+            var affectedCategories = Set<String>()
             for id in selectedTasks {
+                if let task = downloadManager.getTask(id) {
+                    affectedCategories.insert(task.category)
+                }
                 await downloadManager.remove(id)
             }
+            
+            await MainActor.run {
+                do {
+                    let descriptor = SwiftData.FetchDescriptor<Dataset>()
+                    let datasets = try modelContext.fetch(descriptor)
+                    for dataset in datasets where affectedCategories.contains(dataset.name) {
+                        dataset.pauseDownload()
+                        dataset.downloadedBytes = 0
+                        dataset.downloadedParts = 0
+                        dataset.statusRawValue = DownloadStatus.notStarted.rawValue
+                    }
+                    try modelContext.save()
+                } catch {
+                    print("Failed to update selected dataset status: \\(error)")
+                }
+            }
+            
             selectedTasks.removeAll()
             isMultiSelectMode = false
         }

@@ -22,6 +22,7 @@ struct DataPipelineView: View {
     @State private var showError = false
     @State private var errorMessage = ""
     @State private var showMediaPipeAlert = false
+    @State private var showAnalysis = false // EDA Navigation
     
     // Batch extraction
     @EnvironmentObject var batchService: BatchExtractionService
@@ -65,7 +66,7 @@ struct DataPipelineView: View {
             }
         }
         .sheet(isPresented: $showSyncSheet) {
-            SyncSettingsView(isPresented: $showSyncSheet)
+            SyncSettingsView(isPresented: $showSyncSheet, selectedDataset: selectedDataset)
         }
         .alert("MediaPipe Not Supported", isPresented: $showMediaPipeAlert) {
             Button("OK", role: .cancel) { }
@@ -149,6 +150,27 @@ struct DataPipelineView: View {
                         .buttonStyle(.plain)
                         .fixedSize() // Prevent wrapping
                         .disabled(true)
+                        
+                        // Analyze Button (EDA)
+                        Button(action: { showAnalysis = true }) {
+                            HStack(spacing: 4) {
+                                Image(systemName: "chart.xyaxis.line")
+                                    .font(.system(size: 11))
+                                Text("Analyze Dataset")
+                                    .font(.system(size: 11))
+                                    .fontWeight(.medium)
+                            }
+                            .padding(.horizontal, 10)
+                            .padding(.vertical, 6)
+                            .background(Color.purple.opacity(0.1))
+                            .foregroundStyle(.purple)
+                            .overlay(
+                                Capsule()
+                                    .stroke(Color.purple.opacity(0.3), lineWidth: 1)
+                            )
+                            .clipShape(Capsule())
+                        }
+                        .buttonStyle(.plain)
                         
                         // Sync Button
                         Button(action: { showSyncSheet = true }) {
@@ -315,6 +337,11 @@ struct DataPipelineView: View {
                 onExtract: { extractSingleVideo(video) }
             )
         }
+        .navigationDestination(isPresented: $showAnalysis) {
+            if let dataset = selectedDataset {
+                AnalysisDashboardView(dataset: dataset)
+            }
+        }
     }
     
     // MARK: - Batch Extraction
@@ -377,6 +404,7 @@ struct DataPipelineView: View {
                         self.isInspectorLoading = false
                     }
                 } catch {
+                    print("[DataPipelineView] Error loading features for \(video.fileName): \(error)")
                     await MainActor.run { isInspectorLoading = false }
                 }
             } else {
@@ -413,17 +441,25 @@ struct DataPipelineView: View {
                     modelName: model.rawValue
                 )
                 
-                // Create and save feature set
                 let featureSet = FeatureSet(
                     modelName: model.rawValue,
                     filePath: outputPath,
                     frameCount: features.count
                 )
-                featureSet.videoSample = video
-                modelContext.insert(featureSet)
-                try modelContext.save()
                 
                 await MainActor.run {
+                    // Purge any existing corrupted or outdated feature sets for this model
+                    let existingSets = video.featureSets.filter { $0.modelName == model.rawValue }
+                    for oldSet in existingSets {
+                        modelContext.delete(oldSet)
+                        video.featureSets.removeAll(where: { $0.id == oldSet.id })
+                    }
+                    
+                    featureSet.videoSample = video
+                    modelContext.insert(featureSet)
+                    video.featureSets.append(featureSet)
+                    try? modelContext.save()
+                    
                     extractingVideoIDs.remove(video.id)
                     if selectedVideo?.id == video.id {
                         loadFeatures(for: video)
@@ -1001,27 +1037,320 @@ struct MetadataRow: View {
 
 struct SyncSettingsView: View {
     @Binding var isPresented: Bool
+    @Environment(\.modelContext) private var modelContext
+    @Query(sort: \Dataset.name) private var datasets: [Dataset]
+
+    @StateObject private var syncManager = SyncManager()
+    @StateObject private var legacyFixer = LegacyFeatureFixer()
+
     @State private var hfToken = ""
-    
+    @State private var repoId = ""
+    @State private var selectedDataset: Dataset?
+    @State private var showTokenHelp = false
+    @State private var tokenSaved = false
+
+    init(isPresented: Binding<Bool>, selectedDataset: Dataset? = nil) {
+        self._isPresented = isPresented
+        self._selectedDataset = State(initialValue: selectedDataset)
+    }
+
+    private var downloadedDatasets: [Dataset] {
+        datasets.filter { $0.downloadStatus == .completed }
+    }
+
     var body: some View {
         NavigationStack {
             Form {
-                Section("HuggingFace Credentials") {
-                    SecureField("Token", text: $hfToken)
+                // Credentials Section
+                Section {
+                    VStack(alignment: .leading, spacing: 12) {
+                        HStack {
+                            Image(systemName: "key.fill")
+                                .foregroundStyle(.orange)
+                            Text("HuggingFace Token")
+                                .font(.subheadline.bold())
+                            Spacer()
+                            Button(action: { showTokenHelp = true }) {
+                                Image(systemName: "questionmark.circle")
+                                    .foregroundStyle(.secondary)
+                            }
+                        }
+
+                        if syncManager.hasToken && hfToken.isEmpty {
+                            HStack {
+                                Image(systemName: "checkmark.shield.fill")
+                                    .foregroundStyle(.green)
+                                Text("Token saved securely")
+                                    .font(.caption)
+                                    .foregroundStyle(.secondary)
+                                Spacer()
+                                Button("Change") {
+                                    syncManager.deleteToken()
+                                    tokenSaved = false
+                                }
+                                .font(.caption)
+                            }
+                        } else {
+                            SecureField("hf_xxxxxxxxxxxx", text: $hfToken)
+                                .textFieldStyle(.roundedBorder)
+                                .autocorrectionDisabled()
+                                .textInputAutocapitalization(.never)
+
+                            if !hfToken.isEmpty {
+                                Button(action: saveToken) {
+                                    HStack {
+                                        Image(systemName: "lock.shield")
+                                        Text("Save to Keychain")
+                                    }
+                                }
+                                .buttonStyle(.borderedProminent)
+                                .controlSize(.small)
+                            }
+                        }
+                    }
+
+                    VStack(alignment: .leading, spacing: 8) {
+                        HStack {
+                            Image(systemName: "folder.fill")
+                                .foregroundStyle(.blue)
+                            Text("Repository ID")
+                                .font(.subheadline.bold())
+                        }
+
+                        TextField("username/dataset-name", text: $repoId)
+                            .textFieldStyle(.roundedBorder)
+                            .autocorrectionDisabled()
+                            .textInputAutocapitalization(.never)
+                            .onChange(of: repoId) { _, newValue in
+                                syncManager.saveRepoId(newValue)
+                            }
+
+                        Text("e.g., your-username/sign-language-features")
+                            .font(.caption2)
+                            .foregroundStyle(.secondary)
+                    }
+                } header: {
+                    Text("HuggingFace Hub Credentials")
+                } footer: {
+                    Text("Your token is stored securely in the iOS Keychain.")
+                }
+
+                // Dataset Selection
+                Section("Select Dataset to Sync") {
+                    if downloadedDatasets.isEmpty {
+                        HStack {
+                            Image(systemName: "exclamationmark.triangle")
+                                .foregroundStyle(.orange)
+                            Text("No datasets available. Download a dataset first.")
+                                .font(.subheadline)
+                                .foregroundStyle(.secondary)
+                        }
+                    } else {
+                        ForEach(downloadedDatasets) { dataset in
+                            DatasetSyncRow(
+                                dataset: dataset,
+                                isSelected: selectedDataset?.id == dataset.id,
+                                onSelect: { selectedDataset = dataset }
+                            )
+                        }
+                    }
+                }
+
+                // Sync Status
+                if let progress = syncManager.syncProgress {
+                    Section("Sync Progress") {
+                        VStack(alignment: .leading, spacing: 12) {
+                            HStack {
+                                switch progress.status {
+                                case .preparing:
+                                    ProgressView()
+                                        .scaleEffect(0.8)
+                                    Text("Preparing...")
+                                case .uploading:
+                                    ProgressView()
+                                        .scaleEffect(0.8)
+                                    Text("Uploading features...")
+                                case .uploadingMetadata:
+                                    ProgressView()
+                                        .scaleEffect(0.8)
+                                    Text("Uploading metadata...")
+                                case .completed:
+                                    Image(systemName: "checkmark.circle.fill")
+                                        .foregroundStyle(.green)
+                                    Text("Sync completed!")
+                                case .failed(let error):
+                                    Image(systemName: "xmark.circle.fill")
+                                        .foregroundStyle(.red)
+                                    Text("Failed: \(error)")
+                                        .lineLimit(2)
+                                }
+                                Spacer()
+                            }
+                            .font(.subheadline)
+
+                            if progress.totalFiles > 0 {
+                                ProgressView(value: progress.percentage)
+                                    .tint(.blue)
+
+                                Text("\(progress.uploadedFiles) / \(progress.totalFiles) files")
+                                    .font(.caption)
+                                    .foregroundStyle(.secondary)
+                            }
+                        }
+                    }
+                }
+
+                // Last Sync Info
+                if let lastSync = syncManager.lastSyncDate {
+                    Section {
+                        HStack {
+                            Text("Last synced")
+                            Spacer()
+                            Text(lastSync, style: .relative)
+                                .foregroundStyle(.secondary)
+                        }
+                    }
+                }
+
+                // Sync Button
+                Section {
+                    Button(action: startSync) {
+                        HStack {
+                            if syncManager.isSyncing {
+                                ProgressView()
+                                    .scaleEffect(0.8)
+                            } else {
+                                Image(systemName: "arrow.triangle.2.circlepath")
+                            }
+                            Text(syncManager.isSyncing ? "Syncing..." : "Sync to HuggingFace")
+                        }
+                        .frame(maxWidth: .infinity)
+                    }
+                    .buttonStyle(.borderedProminent)
+                    .disabled(!canSync || syncManager.isSyncing)
+                } footer: {
+                    if !canSync {
+                        Text("Configure credentials and select a dataset to enable sync.")
+                    }
                 }
                 
+                // Emergency Legacy Data Fix
                 Section {
-                    Button("Start Sync") {
-                        // TODO
+                    Button(action: startLegacyFix) {
+                        HStack {
+                            if legacyFixer.isFixing {
+                                ProgressView()
+                                    .scaleEffect(0.8)
+                            } else {
+                                Image(systemName: "wrench.and.screwdriver")
+                            }
+                            Text(legacyFixer.isFixing ? "Fixing Old Features..." : "Fix Corrupted Extracted Features")
+                        }
+                        .frame(maxWidth: .infinity)
+                    }
+                    .buttonStyle(.bordered)
+                    .tint(.orange)
+                    .disabled(legacyFixer.isFixing || selectedDataset == nil)
+                } footer: {
+                    Text("Use this if your batch-extracted datasets from older app versions are showing 'No Features Extracted'. This bypasses re-processing videos.")
+                }
+
+                // Error Display
+                if let error = syncManager.lastError {
+                    Section {
+                        HStack {
+                            Image(systemName: "exclamationmark.triangle.fill")
+                                .foregroundStyle(.red)
+                            Text(error)
+                                .font(.subheadline)
+                                .foregroundStyle(.red)
+                        }
                     }
                 }
             }
-            .navigationTitle("Sync Settings")
+            .navigationTitle("Sync Features")
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
                     Button("Done") { isPresented = false }
                 }
             }
+            .alert("HuggingFace Token", isPresented: $showTokenHelp) {
+                Button("OK", role: .cancel) { }
+            } message: {
+                Text("Get your token from huggingface.co/settings/tokens. Create a token with 'write' permissions to upload data.")
+            }
+            .onAppear {
+                repoId = syncManager.repoId
+                tokenSaved = syncManager.hasToken
+            }
         }
+    }
+
+    private var canSync: Bool {
+        (syncManager.hasToken || !hfToken.isEmpty) && !repoId.isEmpty && selectedDataset != nil
+    }
+
+    private func saveToken() {
+        if syncManager.saveToken(hfToken) {
+            tokenSaved = true
+            hfToken = ""
+        }
+    }
+
+    private func startSync() {
+        guard let dataset = selectedDataset else { return }
+
+        // Save token if entered but not saved
+        if !hfToken.isEmpty {
+            _ = syncManager.saveToken(hfToken)
+            hfToken = ""
+        }
+
+        Task {
+            await syncManager.syncDataset(name: dataset.name, modelContext: modelContext)
+        }
+    }
+    
+    private func startLegacyFix() {
+        guard let dataset = selectedDataset else { return }
+        legacyFixer.fixLegacyFeatures(for: dataset, in: modelContext)
+    }
+}
+
+// MARK: - Dataset Sync Row
+
+struct DatasetSyncRow: View {
+    let dataset: Dataset
+    let isSelected: Bool
+    let onSelect: () -> Void
+
+    var body: some View {
+        Button(action: onSelect) {
+            HStack(spacing: 12) {
+                Image(systemName: isSelected ? "checkmark.circle.fill" : "circle")
+                    .foregroundStyle(isSelected ? .blue : .secondary)
+                    .font(.title3)
+
+                VStack(alignment: .leading, spacing: 4) {
+                    Text(dataset.name)
+                        .font(.subheadline.bold())
+                        .foregroundStyle(.primary)
+
+                    HStack(spacing: 8) {
+                        SwiftUI.Label("\(dataset.totalSamples) videos", systemImage: "video")
+
+                        if dataset.totalSamples > 0 {
+                            SwiftUI.Label("Ready to sync", systemImage: "checkmark.circle")
+                                .foregroundStyle(.green)
+                        }
+                    }
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                }
+
+                Spacer()
+            }
+        }
+        .buttonStyle(.plain)
     }
 }

@@ -38,6 +38,9 @@ public final class LRSchedulerCallback: TrainingCallback, @unchecked Sendable {
     
     /// Closure to update the optimizer's learning rate.
     public let updateLR: (@Sendable (Float) -> Void)
+
+    /// Closure for logging messages to the UI/Console
+    public let onLog: (@Sendable (String) -> Void)?
     
     // MARK: - State
     
@@ -55,6 +58,7 @@ public final class LRSchedulerCallback: TrainingCallback, @unchecked Sendable {
         minLR: Float = 1e-6,
         cooldown: Int = 0,
         mode: EarlyStoppingCallback.Mode = .min,
+        onLog: (@Sendable (String) -> Void)? = nil,
         updateLR: @escaping @Sendable (Float) -> Void
     ) {
         self.monitor = monitor
@@ -63,6 +67,7 @@ public final class LRSchedulerCallback: TrainingCallback, @unchecked Sendable {
         self.minLR = minLR
         self.cooldown = cooldown
         self.mode = mode
+        self.onLog = onLog
         self.updateLR = updateLR
         self.bestValue = mode == .min ? Float.infinity : -Float.infinity
     }
@@ -96,15 +101,27 @@ public final class LRSchedulerCallback: TrainingCallback, @unchecked Sendable {
         let improved = isImproved(current: currentValue, best: bestValue)
         
         if improved {
+            if waitCount > 0 {
+                let msg = "[LRScheduler] \(monitor) improved (" + String(format: "%.4f", currentValue) + "). Patience reset."
+                print(msg)
+                onLog?(msg)
+            }
             bestValue = currentValue
             waitCount = 0
         } else {
             waitCount += 1
+            let stallMsg = "[LRScheduler] \(monitor) stalled (\(waitCount)/\(patience)). Best: " + String(format: "%.4f", bestValue)
+            print(stallMsg)
+            onLog?(stallMsg)
+            
             if waitCount >= patience {
                 if let lr = currentLR, lr > minLR {
                     let newLR = max(lr * factor, minLR)
                     if newLR != lr {
-                        print("[LRScheduler] Epoch \(epoch): \(monitor) plateaued. Reducing LR from \(lr) to \(newLR)")
+                        let reduceMsg = "[LRScheduler] Epoch \(epoch): \(monitor) plateaued. Reducing LR from \(lr) to \(newLR)"
+                        print(reduceMsg)
+                        onLog?(reduceMsg)
+                        
                         updateLR(newLR)
                         currentLR = newLR
                         cooldownCount = cooldown

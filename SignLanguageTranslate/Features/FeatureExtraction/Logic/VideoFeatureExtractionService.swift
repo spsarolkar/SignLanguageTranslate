@@ -64,57 +64,53 @@ actor VideoFeatureExtractionService {
         
         // Process frames
         while let sampleBuffer = output.copyNextSampleBuffer() {
-            if Task.isCancelled {
-                reader.cancelReading()
-                throw ExtractionError.cancelled
-            }
-            
-            let timestamp = CMSampleBufferGetPresentationTimeStamp(sampleBuffer).seconds
-            currentTime = timestamp
-            
-            // Validate Image Buffer
-            guard let imageBuffer = CMSampleBufferGetImageBuffer(sampleBuffer) else {
-                continue
-            }
-            
-            // Validate dimensions to prevent "invalid image bits/pixel" errors
-            let width = CVPixelBufferGetWidth(imageBuffer)
-            let height = CVPixelBufferGetHeight(imageBuffer)
-            let bytesPerRow = CVPixelBufferGetBytesPerRow(imageBuffer)
-            
-            guard width > 0, height > 0, bytesPerRow > 0 else {
-                continue
-            }
+            try autoreleasepool {
+                if Task.isCancelled {
+                    reader.cancelReading()
+                    throw ExtractionError.cancelled
+                }
+                
+                let timestamp = CMSampleBufferGetPresentationTimeStamp(sampleBuffer).seconds
+                currentTime = timestamp
+                
+                // Validate Image Buffer
+                guard let imageBuffer = CMSampleBufferGetImageBuffer(sampleBuffer) else {
+                    return
+                }
+                
+                // Validate dimensions to prevent "invalid image bits/pixel" errors
+                let width = CVPixelBufferGetWidth(imageBuffer)
+                let height = CVPixelBufferGetHeight(imageBuffer)
+                let bytesPerRow = CVPixelBufferGetBytesPerRow(imageBuffer)
+                
+                guard width > 0, height > 0, bytesPerRow > 0 else {
+                    return
+                }
 
-            // Check for valid bytes per row if strict validation needed
-            // But width/height > 0 covers most "empty" buffer cases.
-            
-            // Ensure buffer is backed by memory (not just metadata)
-            // Vision handles standard CVPixelBuffers fine.
-            
-            // 1. Extract Body
-            let bodyKeypoints = try poseExtractor.extractBodyFeatures(from: sampleBuffer, timestamp: timestamp)
-            
-            // 2. Extract Hands
-            // Note: Vision works best if we reuse the handler, but our classes wrap the handler creation.
-            // For optimization, we might eventually want to pass the same handler or request to a combined extractor.
-            // For now, simple independent extraction is fine for M1.
-            let handKeypoints = try handExtractor.extractHandFeatures(from: sampleBuffer, timestamp: timestamp)
-            
-            // 3. Aggregate
-            let frameFeatures = FrameFeatures(
-                timestamp: timestamp,
-                body: bodyKeypoints,
-                leftHand: handKeypoints.left,
-                rightHand: handKeypoints.right,
-                sourceModel: "AppleVision"
-            )
-            
-            processedFrames.append(frameFeatures)
-            
-            // Update progress
-            if duration > 0 {
-                onProgress?(timestamp / duration)
+                // 1. Extract Body
+                let bodyKeypoints = try poseExtractor.extractBodyFeatures(from: sampleBuffer, timestamp: timestamp)
+                
+                // 2. Extract Hands
+                let handKeypoints = try handExtractor.extractHandFeatures(from: sampleBuffer, timestamp: timestamp)
+                
+                // 3. Aggregate
+                let frameFeatures = FrameFeatures(
+                    timestamp: timestamp,
+                    body: bodyKeypoints,
+                    leftHand: handKeypoints.left,
+                    rightHand: handKeypoints.right,
+                    sourceModel: "AppleVision"
+                )
+                
+                // We shouldn't mutate processedFrames directly inside autoreleasepool 
+                // if it's value type, but in Swift it's fine. 
+                // Wait, actor isolation + autoreleasepool is synchronous.
+                processedFrames.append(frameFeatures)
+                
+                // Update progress
+                if duration > 0 {
+                    onProgress?(timestamp / duration)
+                }
             }
         }
         

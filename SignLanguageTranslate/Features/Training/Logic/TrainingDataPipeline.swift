@@ -25,6 +25,9 @@ actor TrainingDataPipeline {
         
         /// Original Video IDs in this batch (for debugging)
         let videoIds: [UUID]
+        
+        /// Shape: [Batch] type: int32 (Optional, for classification)
+        let labels: MLXArray?
     }
     
     /// Sendable representation of a sample for safe cross-actor passing
@@ -32,6 +35,7 @@ actor TrainingDataPipeline {
         let id: UUID
         let featurePath: URL
         let embedding: [Float]
+        let labelIndex: Int? // Optional class index for classification
         let split: String? // "train", "validation", or "test"
     }
     
@@ -54,7 +58,7 @@ actor TrainingDataPipeline {
     ///   - batchSize: Number of samples per batch
     ///   - shuffle: Whether to shuffle the data before batching
     /// - Returns: An async stream of TrainingBatch
-    func batchStream(samples: [SampleInfo], batchSize: Int, shuffle: Bool = true, augment: Bool = false) -> AsyncStream<TrainingBatch> {
+    func batchStream(samples: [SampleInfo], batchSize: Int, shuffle: Bool = true, augment: Bool = false, temporalAugment: Bool = true) -> AsyncStream<TrainingBatch> {
         AsyncStream { continuation in
             Task {
                 var processingSamples = samples
@@ -71,32 +75,23 @@ actor TrainingDataPipeline {
                     
                     // Parallel Load & Process
                     // Use TaskGroup to load files and process CPU tasks concurrently
-                    let batchData: [(inputs: [Float], targets: [Float], id: UUID)] = await withTaskGroup(of: (inputs: [Float], targets: [Float], id: UUID)?.self) { group in
+                    let batchData: [(inputs: [Float], targets: [Float], label: Int?, id: UUID)] = await withTaskGroup(of: (inputs: [Float], targets: [Float], label: Int?, id: UUID)?.self) { group in
                         for sample in batchSamples {
                             group.addTask {
-                                // Load (Async I/O)
-                                // Note: we call a non-actor helper or actor method. 
-                                // Since 'self' is an actor, 'await loadFeatures' hops to actor.
-                                // BUT loadFeatures does I/O.
-                                // To truly parallelize I/O, 'fileManager' should be used directly if possible or 'loadFeatures' should be nonisolated.
-                                // 'fileManager' is let, but 'FeatureFileManager' is a struct (in latest code probably?) or actor?
-                                // If FeatureFileManager is a struct/class not bound to actor, we can use it directly?
-                                // In Line 41: private let fileManager = FeatureFileManager()
-                                // Using 'self.fileManager' allows access.
-                                
-                                // Let's try calling the helper. Even if it hops, if it awaits I/O, it suspends, allowing others to run.
                                 guard let features = await self.loadFeatures(at: sample.featurePath), !features.isEmpty else {
                                     return nil
                                 }
                                 
-                                // Process (CPU) - NONISOLATED call, runs on this Task's thread pool
-                                let processedInput = self.processFeatures(features, augment: augment)
+                                // Process (CPU)
+                                let processedInput = self.processFeatures(features, augment: augment, temporalAugment: temporalAugment)
                                 
-                                return (processedInput, sample.embedding, sample.id)
+
+                                
+                                return (processedInput, sample.embedding, sample.labelIndex, sample.id)
                             }
                         }
                         
-                        var results: [(inputs: [Float], targets: [Float], id: UUID)] = []
+                        var results: [(inputs: [Float], targets: [Float], label: Int?, id: UUID)] = []
                         for await result in group {
                             if let val = result {
                                 results.append(val)
@@ -110,9 +105,10 @@ actor TrainingDataPipeline {
                     // Separate into columns
                     let inputs = batchData.map { $0.inputs }
                     let targets = batchData.map { $0.targets }
+                    let labelIndices = batchData.map { $0.label }
                     let ids = batchData.map { $0.id }
                     
-                    let batch = createBatch(inputs: inputs, targets: targets, ids: ids)
+                    let batch = createBatch(inputs: inputs, targets: targets, labels: labelIndices, ids: ids)
                     continuation.yield(batch)
                 }
                 
@@ -152,10 +148,38 @@ actor TrainingDataPipeline {
     /// Format: [TotalFrames * FeatureDim] (Row-major compatible)
     /// Converts raw [FrameFeatures] into a flat array of floats with Temporally Resampling and Augmentation
     /// Format: [TotalFrames * FeatureDim] (Row-major compatible)
-    nonisolated private func processFeatures(_ frames: [FrameFeatures], augment: Bool) -> [Float] {
-        // 1. Temporal Normalization (Framerate Independence)
+    nonisolated private func processFeatures(_ frames: [FrameFeatures], augment: Bool, temporalAugment: Bool) -> [Float] {
+        // 1. Temporal Augmentation (Random Window / Sliding Window)
+        var sourceFrames = frames
+        
+        // Temporal sliding window is allowed if GLOBAL augment is on OR specific temporal augment logic is preferred.
+        // But usually temporal augmentation is a subset of general augmentation.
+        // Here we require BOTH (augment=true AND temporalAugmented=true) to apply it,
+        // OR we treat temporalAugment as an override?
+        // Let's assume 'augment' controls geometric, and 'temporalAugment' controls temporal.
+        // Users often want both. Use 'augment' as master switch? Or separate?
+        // User asked to make it configurable. If 'augmentData' is ON, we usually want both.
+        // But if user disables 'temporalAugmentation' config, we should skip this block even if augmentData is ON.
+        if augment && temporalAugment {
+            // Randomly crop 85% - 100% of the video duration
+            // This acts like a sliding window trained on different partial segments
+            let minDuration = 0.85
+            let cropFactor = Double.random(in: minDuration...1.0)
+            
+            if cropFactor < 1.0 {
+                let cropCount = Int(Double(frames.count) * cropFactor)
+                let maxStartIndex = frames.count - cropCount
+                
+                if maxStartIndex > 0 {
+                    let startIndex = Int.random(in: 0...maxStartIndex)
+                    sourceFrames = Array(frames[startIndex..<(startIndex + cropCount)])
+                }
+            }
+        }
+        
+        // 2. Temporal Normalization (Framerate Independence)
         // Instead of truncating/padding, we resample to exactly maxFrames.
-        var processedFrames = TimeResampler.resample(frames, targetCount: Self.maxFrames)
+        var processedFrames = TimeResampler.resample(sourceFrames, targetCount: Self.maxFrames)
         
         // 2. Augmentation (Geometric Robustness)
         if augment {
@@ -247,19 +271,42 @@ actor TrainingDataPipeline {
         return params
     }
     
-    private func createBatch(inputs: [[Float]], targets: [[Float]], ids: [UUID]) -> TrainingBatch {
+    /// Target embedding dimension - must match model outputDim (384 for InferenceEngine compatibility)
+    static let targetEmbeddingDim = 384
+
+    private func createBatch(inputs: [[Float]], targets: [[Float]], labels: [Int?], ids: [UUID]) -> TrainingBatch {
         // Inputs: [Batch, Time * Features] -> Reshape [Batch, Time, Features]
         let flatInputs = inputs.flatMap { $0 }
         let batchSize = inputs.count
-        
+
         // MLXArray init(array, shape) -- no labels
         let inputTensor = MLXArray(flatInputs, [batchSize, Self.maxFrames, Self.featureDim])
-        
+
         // Targets: [Batch, EmbeddingDim]
-        let flatTargets = targets.flatMap { $0 }
-        let embeddingDim = targets.first?.count ?? 0
-        let targetTensor = MLXArray(flatTargets, [batchSize, embeddingDim])
-        
-        return TrainingBatch(inputs: inputTensor, targets: targetTensor, videoIds: ids)
+        // Pad or truncate embeddings to match model output dimension (384)
+        let paddedTargets: [[Float]] = targets.map { embedding in
+            if embedding.count < Self.targetEmbeddingDim {
+                // Pad with zeros
+                return embedding + Array(repeating: 0.0, count: Self.targetEmbeddingDim - embedding.count)
+            } else if embedding.count > Self.targetEmbeddingDim {
+                // Truncate
+                return Array(embedding.prefix(Self.targetEmbeddingDim))
+            }
+            return embedding
+        }
+
+        let flatTargets = paddedTargets.flatMap { $0 }
+        let targetTensor = MLXArray(flatTargets, [batchSize, Self.targetEmbeddingDim])
+
+        // Labels: [Batch]
+        var labelTensor: MLXArray? = nil
+        // If ANY label is missing, we might assume embedding mode, but good to handle mixed safely.
+        // For now, assume if one has label, all should.
+        let validLabels = labels.compactMap { $0 }
+        if validLabels.count == batchSize {
+            labelTensor = MLXArray(validLabels.map { Int32($0) })
+        }
+
+        return TrainingBatch(inputs: inputTensor, targets: targetTensor, videoIds: ids, labels: labelTensor)
     }
 }

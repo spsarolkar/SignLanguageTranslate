@@ -1,0 +1,195 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Keypoint Export &amp; Sync</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Instrument+Sans:wght@400;500;600;700&amp;family=IBM+Plex+Mono:wght@400;500&amp;display=swap">
+<style>
+body { margin: 0; font-family: "Instrument Sans", -apple-system, system-ui, sans-serif; background: #0B0D0F; }
+a { color: #5EC8A8; } a:hover { color: #8EDCC3; }
+</style>
+</helmet>
+<div style="width: 1366px; height: 1024px; box-sizing: border-box; padding: 34px 40px 28px 40px; display: flex; flex-direction: column; gap: 20px; background: #0B0D0F; color: #EEF1F3; font-family: 'Instrument Sans', -apple-system, system-ui, sans-serif;">
+
+  <div style="display: flex; align-items: flex-end; justify-content: space-between; flex-shrink: 0;">
+    <div style="display: flex; flex-direction: column; gap: 5px;">
+      <a href="Main.dc.html" style="font-size: 12px; text-decoration: none; color: #8A949D;">← Data Pipeline</a>
+      <h1 style="margin: 0; font-size: 40px; font-weight: 700; letter-spacing: -0.02em;">Keypoint Export</h1>
+    </div>
+    <div style="display: flex; align-items: center; gap: 8px; padding: 8px 14px; border-radius: 999px; background: rgba(224,164,88,0.12); border: 1px solid rgba(224,164,88,0.35);">
+      <span style="width: 7px; height: 7px; border-radius: 50%; background: #E0A458; display: inline-block;"></span>
+      <span style="font-size: 13px; font-weight: 600; color: #E0A458;">Extracting</span>
+    </div>
+  </div>
+
+  <div style="box-sizing: border-box; padding: 20px 24px; border-radius: 18px; background: #15181B; border: 1px solid #262B31; display: flex; align-items: center; gap: 12px; flex-shrink: 0;">
+    <sc-for list="{{stages}}" as="st" hint-placeholder-count="5">
+      <div style="flex-grow: 1; box-sizing: border-box; padding: 14px 16px; border-radius: 12px; background: {{st.bg}}; border: 1px solid {{st.border}}; display: flex; flex-direction: column; gap: 6px;">
+        <div style="display: flex; align-items: center; gap: 8px;">
+          <span style="width: 7px; height: 7px; border-radius: 50%; background: {{st.dot}}; display: inline-block; flex-shrink: 0;"></span>
+          <span style="font-size: 13px; font-weight: 600; color: {{st.fg}};">{{st.name}}</span>
+        </div>
+        <span style="font-family: 'IBM Plex Mono', monospace; font-size: 11px; color: #8A949D;">{{st.meta}}</span>
+      </div>
+    </sc-for>
+  </div>
+
+  <div style="display: flex; gap: 20px; flex-grow: 1; min-height: 0;">
+
+    <div style="width: 620px; flex-shrink: 0; display: flex; flex-direction: column; gap: 16px;">
+
+      <div style="box-sizing: border-box; padding: 22px 24px; border-radius: 18px; background: #15181B; border: 1px solid #262B31; display: flex; flex-direction: column; gap: 16px;">
+        <div style="display: flex; align-items: flex-start; justify-content: space-between;">
+          <div style="display: flex; flex-direction: column; gap: 4px;">
+            <h2 style="margin: 0; font-size: 20px; font-weight: 600;">On-device extraction</h2>
+            <span style="font-size: 12px; color: #8A949D;">Vision · body pose + two-hand pose · 61 landmarks</span>
+          </div>
+          <button type="button" style="min-height: 44px; padding: 0 18px; border-radius: 11px; background: #232930; border: 1px solid #333B43; color: #E4E9ED; font-family: inherit; font-size: 14px; font-weight: 600; cursor: pointer;">Pause</button>
+        </div>
+
+        <div style="display: flex; flex-direction: column; gap: 9px;">
+          <div style="height: 8px; border-radius: 4px; background: #232930; overflow: hidden;">
+            <div style="width: 72%; height: 8px; background: #E0A458;"></div>
+          </div>
+          <div style="display: flex; justify-content: space-between; font-family: 'IBM Plex Mono', monospace; font-size: 12px; color: #8A949D;">
+            <span>3083 of 4287 clips</span>
+            <span>~9 min remaining</span>
+          </div>
+        </div>
+
+        <div style="display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 10px;">
+          <div style="box-sizing: border-box; padding: 13px; border-radius: 11px; background: #101316; border: 1px solid #232930; display: flex; flex-direction: column; gap: 4px;">
+            <span style="font-family: 'IBM Plex Mono', monospace; font-size: 19px; font-weight: 500; color: #EEF1F3;">214</span>
+            <span style="font-size: 11px; color: #8A949D;">CLIPS / MIN</span>
+          </div>
+          <div style="box-sizing: border-box; padding: 13px; border-radius: 11px; background: #101316; border: 1px solid #232930; display: flex; flex-direction: column; gap: 4px;">
+            <span style="font-family: 'IBM Plex Mono', monospace; font-size: 19px; font-weight: 500; color: #EEF1F3;">15</span>
+            <span style="font-size: 11px; color: #8A949D;">SAMPLED FPS</span>
+          </div>
+          <div style="box-sizing: border-box; padding: 13px; border-radius: 11px; background: #101316; border: 1px solid #232930; display: flex; flex-direction: column; gap: 4px;">
+            <span style="font-family: 'IBM Plex Mono', monospace; font-size: 19px; font-weight: 500; color: #5EC8A8;">0.94</span>
+            <span style="font-size: 11px; color: #8A949D;">MEAN CONF</span>
+          </div>
+          <div style="box-sizing: border-box; padding: 13px; border-radius: 11px; background: #101316; border: 1px solid rgba(229,105,91,0.35); display: flex; flex-direction: column; gap: 4px;">
+            <span style="font-family: 'IBM Plex Mono', monospace; font-size: 19px; font-weight: 500; color: #E5695B;">64</span>
+            <span style="font-size: 11px; color: #8A949D;">QUARANTINED</span>
+          </div>
+        </div>
+      </div>
+
+      <div style="box-sizing: border-box; padding: 22px 24px; border-radius: 18px; background: #15181B; border: 1px solid #262B31; display: flex; flex-direction: column; gap: 14px; flex-grow: 1; min-height: 0;">
+        <div style="display: flex; align-items: baseline; justify-content: space-between;">
+          <h2 style="margin: 0; font-size: 20px; font-weight: 600;">Shard schema</h2>
+          <span style="font-family: 'IBM Plex Mono', monospace; font-size: 11px; color: #6C7A85;">parquet · zstd · 512 MB shards</span>
+        </div>
+        <div style="display: flex; flex-direction: column; gap: 1px; border-radius: 11px; overflow: hidden; border: 1px solid #232930;">
+          <sc-for list="{{schema}}" as="f" hint-placeholder-count="8">
+            <div style="box-sizing: border-box; padding: 11px 16px; background: #101316; display: flex; align-items: center; justify-content: space-between; gap: 16px;">
+              <span style="font-family: 'IBM Plex Mono', monospace; font-size: 13px; color: #D3DAE0;">{{f.name}}</span>
+              <span style="font-family: 'IBM Plex Mono', monospace; font-size: 12px; color: #7F98A8;">{{f.type}}</span>
+            </div>
+          </sc-for>
+        </div>
+      </div>
+    </div>
+
+    <div style="flex-grow: 1; display: flex; flex-direction: column; gap: 16px; min-width: 0;">
+
+      <div style="box-sizing: border-box; padding: 22px 24px; border-radius: 18px; background: #15181B; border: 1px solid #262B31; display: flex; flex-direction: column; gap: 16px;">
+        <div style="display: flex; flex-direction: column; gap: 4px;">
+          <h2 style="margin: 0; font-size: 20px; font-weight: 600;">Hugging Face dataset</h2>
+          <span style="font-family: 'IBM Plex Mono', monospace; font-size: 12px; color: #5EC8A8;">[YOUR-HF-USER]/isl-keypoints</span>
+        </div>
+
+        <div style="display: flex; flex-direction: column; gap: 8px;">
+          <sc-for list="{{splits}}" as="sp" hint-placeholder-count="3">
+            <div style="display: flex; align-items: center; gap: 12px;">
+              <span style="width: 64px; flex-shrink: 0; font-size: 13px; color: #C9D1D8;">{{sp.name}}</span>
+              <div style="flex-grow: 1; height: 6px; border-radius: 3px; background: #232930; overflow: hidden;">
+                <div style="width: {{sp.pct}}; height: 6px; background: {{sp.tint}};"></div>
+              </div>
+              <span style="width: 96px; flex-shrink: 0; text-align: right; font-family: 'IBM Plex Mono', monospace; font-size: 12px; color: #8A949D;">{{sp.count}}</span>
+            </div>
+          </sc-for>
+        </div>
+
+        <div style="display: flex; align-items: center; justify-content: space-between; padding-top: 14px; border-top: 1px solid #232930;">
+          <div style="display: flex; align-items: center; gap: 8px;">
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#5EC8A8" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="11" width="18" height="10" rx="2"></rect><path d="M7 11V7a5 5 0 0 1 10 0v4"></path></svg>
+            <span style="font-size: 13px; color: #C9D1D8;">Write token in Keychain</span>
+          </div>
+          <span style="font-size: 12px; font-weight: 600; color: #5EC8A8;">Connected</span>
+        </div>
+
+        <div style="display: flex; gap: 10px;">
+          <button type="button" style="flex-grow: 1; min-height: 46px; border-radius: 11px; background: #232930; border: 1px solid #333B43; color: #E4E9ED; font-family: inherit; font-size: 14px; font-weight: 600; cursor: pointer;">Dry run</button>
+          <button type="button" style="flex-grow: 1; min-height: 46px; border-radius: 11px; background: #5EC8A8; border: none; color: #0B0D0F; font-family: inherit; font-size: 14px; font-weight: 700; cursor: pointer;">Push 7 shards</button>
+        </div>
+      </div>
+
+      <div style="box-sizing: border-box; padding: 22px 24px; border-radius: 18px; background: #15181B; border: 1px solid #262B31; display: flex; flex-direction: column; gap: 14px; flex-grow: 1; min-height: 0;">
+        <div style="display: flex; align-items: baseline; justify-content: space-between;">
+          <h2 style="margin: 0; font-size: 20px; font-weight: 600;">Trained models</h2>
+          <span style="font-size: 12px; color: #8A949D;">from Colab</span>
+        </div>
+
+        <sc-for list="{{models}}" as="m" hint-placeholder-count="3">
+          <div style="box-sizing: border-box; padding: 14px 16px; border-radius: 12px; background: #101316; border: 1px solid {{m.border}}; display: flex; align-items: center; justify-content: space-between; gap: 14px;">
+            <div style="display: flex; flex-direction: column; gap: 4px; min-width: 0;">
+              <span style="font-size: 14px; font-weight: 600; color: #E4E9ED;">{{m.name}}</span>
+              <span style="font-family: 'IBM Plex Mono', monospace; font-size: 11px; color: #8A949D;">{{m.meta}}</span>
+            </div>
+            <div style="display: flex; align-items: center; gap: 12px; flex-shrink: 0;">
+              <span style="font-family: 'IBM Plex Mono', monospace; font-size: 15px; color: {{m.accFg}};">{{m.acc}}</span>
+              <button type="button" style="min-height: 40px; padding: 0 14px; border-radius: 10px; background: {{m.btnBg}}; border: 1px solid {{m.btnBorder}}; color: {{m.btnFg}}; font-family: inherit; font-size: 13px; font-weight: 600; cursor: pointer;">{{m.action}}</button>
+            </div>
+          </div>
+        </sc-for>
+      </div>
+    </div>
+  </div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":1366,"height":1024}}'>
+class Component extends DCLogic {
+  renderVals() {
+    return {
+      stages: [
+        { name: 'Ingested', meta: '4287 clips', bg: '#101316', border: 'rgba(94,200,168,0.35)', dot: '#5EC8A8', fg: '#E4E9ED' },
+        { name: 'Extract keypoints', meta: '3083 / 4287', bg: '#1D2126', border: 'rgba(224,164,88,0.5)', dot: '#E0A458', fg: '#EEF1F3' },
+        { name: 'Shard to parquet', meta: '7 pending', bg: '#101316', border: '#232930', dot: '#3C454D', fg: '#98A2AC' },
+        { name: 'Push to Hub', meta: 'last 2h ago', bg: '#101316', border: '#232930', dot: '#3C454D', fg: '#98A2AC' },
+        { name: 'Pull .mlpackage', meta: '1 available', bg: '#101316', border: 'rgba(107,168,232,0.35)', dot: '#6BA8E8', fg: '#E4E9ED' }
+      ],
+      schema: [
+        { name: 'clip_id', type: 'string' },
+        { name: 'category', type: 'string' },
+        { name: 'word', type: 'string' },
+        { name: 'keypoints', type: 'array<float16>[T,61,3]' },
+        { name: 'n_frames', type: 'int32' },
+        { name: 'sampled_fps', type: 'int32' },
+        { name: 'mean_confidence', type: 'float32' },
+        { name: 'source', type: 'string' },
+        { name: 'split', type: 'string' }
+      ],
+      splits: [
+        { name: 'train', count: '2452', pct: '80%', tint: '#5EC8A8' },
+        { name: 'val', count: '316', pct: '10%', tint: '#6BA8E8' },
+        { name: 'test', count: '315', pct: '10%', tint: '#B58BE0' }
+      ],
+      models: [
+        { name: 'lstm-v3', meta: '2-layer BiLSTM · 1.4 MB · fp16', acc: '87.2%', accFg: '#5EC8A8', border: 'rgba(94,200,168,0.35)', action: 'Active', btnBg: 'rgba(94,200,168,0.14)', btnBorder: 'rgba(94,200,168,0.4)', btnFg: '#5EC8A8' },
+        { name: 'transformer-v1', meta: '4-head · 6 layers · 8.1 MB · fp16', acc: '89.6%', accFg: '#6BA8E8', border: 'rgba(107,168,232,0.35)', action: 'Download', btnBg: '#232930', btnBorder: '#333B43', btnFg: '#E4E9ED' },
+        { name: 'reservoir-readout-v0', meta: 'MaleCNS frozen · readout only', acc: '—', accFg: '#8A949D', border: '#232930', action: 'Queued', btnBg: '#1A1E22', btnBorder: '#2A3238', btnFg: '#8A949D' }
+      ]
+    };
+  }
+}
+</script>
+</body>
+</html>

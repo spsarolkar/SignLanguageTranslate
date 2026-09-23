@@ -6,7 +6,8 @@ import MLXNN
 public struct SignLanguageModelConfig: Codable, Sendable {
     public var inputDim: Int
     public var modelDim: Int
-    public var outputDim: Int
+    public var outputDim: Int       // Embedding dimension (used in embedding mode)
+    public var numClasses: Int      // Number of classes for classification mode
     public var numLayers: Int
     public var numHeads: Int
     public var dropout: Float
@@ -14,6 +15,7 @@ public struct SignLanguageModelConfig: Codable, Sendable {
     public var layerScaleInit: Float
     public var poolingType: PoolingType
     public var useRelativePositionBias: Bool
+    public var outputMode: OutputMode
 
     public enum PoolingType: String, Codable, Sendable {
         case mean       // Average all timesteps
@@ -21,31 +23,41 @@ public struct SignLanguageModelConfig: Codable, Sendable {
         case attention  // Learned attention pooling
     }
 
+    /// Output mode: embedding for contrastive learning, classification for softmax
+    public enum OutputMode: String, Codable, Sendable {
+        case embedding      // Output L2-normalized embeddings for contrastive loss
+        case classification // Output logits for cross-entropy loss
+    }
+
     public static let `default` = SignLanguageModelConfig(
         inputDim: 180,
-        modelDim: 256,
+        modelDim: 384,        // Increased from 256 for better capacity
         outputDim: 384,
-        numLayers: 4,
-        numHeads: 4,
-        dropout: 0.1,
+        numClasses: 100,      // Default, will be set based on actual labels
+        numLayers: 6,         // Increased from 4 for deeper representations
+        numHeads: 6,          // Increased from 4 (384 / 6 = 64 dim per head)
+        dropout: 0.15,        // Slightly higher for regularization
         useLayerScale: true,
         layerScaleInit: 1e-4,
         poolingType: .attention,
-        useRelativePositionBias: false
+        useRelativePositionBias: true,  // Enable for better temporal understanding
+        outputMode: .classification     // Default to classification for direct supervision
     )
 
     /// Smaller model for faster experimentation
     public static let small = SignLanguageModelConfig(
         inputDim: 180,
-        modelDim: 128,
+        modelDim: 192,        // Increased from 128
         outputDim: 384,
-        numLayers: 2,
+        numClasses: 100,
+        numLayers: 3,         // Increased from 2
         numHeads: 4,
         dropout: 0.1,
         useLayerScale: true,
         layerScaleInit: 1e-4,
         poolingType: .mean,
-        useRelativePositionBias: false
+        useRelativePositionBias: false,
+        outputMode: .classification
     )
 
     /// Larger model for better accuracy
@@ -53,14 +65,68 @@ public struct SignLanguageModelConfig: Codable, Sendable {
         inputDim: 180,
         modelDim: 512,
         outputDim: 384,
+        numClasses: 100,
+        numLayers: 8,         // Increased from 6
+        numHeads: 8,
+        dropout: 0.2,         // Higher dropout for larger model
+        useLayerScale: true,
+        layerScaleInit: 1e-4,
+        poolingType: .attention,
+        useRelativePositionBias: true,
+        outputMode: .classification
+    )
+
+    /// T5 Small architecture (approx 60M params)
+    public static let t5_small = SignLanguageModelConfig(
+        inputDim: 180,
+        modelDim: 512,
+        outputDim: 384,
+        numClasses: 100,
         numLayers: 6,
         numHeads: 8,
         dropout: 0.1,
         useLayerScale: true,
         layerScaleInit: 1e-4,
         poolingType: .attention,
-        useRelativePositionBias: true
+        useRelativePositionBias: true,
+        outputMode: .classification
     )
+
+    /// T5 Base architecture (approx 220M params)
+    public static let t5_base = SignLanguageModelConfig(
+        inputDim: 180,
+        modelDim: 768,
+        outputDim: 384,
+        numClasses: 100,
+        numLayers: 12,
+        numHeads: 12,
+        dropout: 0.1,
+        useLayerScale: true,
+        layerScaleInit: 1e-4,
+        poolingType: .attention,
+        useRelativePositionBias: true,
+        outputMode: .classification
+    )
+
+    /// Helper to find valid number of heads for a given modelDim
+    public static func findValidHeads(for modelDim: Int) -> Int {
+        let preferred = [4, 6, 8, 2, 1]
+        for heads in preferred {
+            if modelDim % heads == 0 {
+                return heads
+            }
+        }
+        return 1 // Fallback
+    }
+
+    /// Validate and auto-correct numHeads if needed
+    public func validated() -> SignLanguageModelConfig {
+        var copy = self
+        if modelDim % numHeads != 0 {
+            copy.numHeads = SignLanguageModelConfig.findValidHeads(for: modelDim)
+        }
+        return copy
+    }
 }
 
 /// A Transformer-based model for translating sign language pose sequences into semantic embeddings.
@@ -96,6 +162,12 @@ public class SignLanguageModel: @unchecked Sendable {
     // MARK: - Initialization
 
     public init(config: SignLanguageModelConfig = .default) {
+        // Validate that modelDim is divisible by numHeads
+        precondition(
+            config.modelDim % config.numHeads == 0,
+            "modelDim (\(config.modelDim)) must be divisible by numHeads (\(config.numHeads)). Try numHeads=\(SignLanguageModelConfig.findValidHeads(for: config.modelDim))"
+        )
+
         self.config = config
 
         // Input projection with normalization
@@ -127,7 +199,8 @@ public class SignLanguageModel: @unchecked Sendable {
             self.poolingLayer = nil
         }
 
-        self.outputProjection = Linear(config.modelDim, config.outputDim)
+        let finalOutputDim = config.outputMode == .classification ? config.numClasses : config.outputDim
+        self.outputProjection = Linear(config.modelDim, finalOutputDim)
         self.dropoutLayer = Dropout(p: config.dropout)
     }
 
@@ -144,13 +217,15 @@ public class SignLanguageModel: @unchecked Sendable {
             inputDim: inputDim,
             modelDim: modelDim,
             outputDim: outputDim,
+            numClasses: 100,
             numLayers: numLayers,
             numHeads: numHeads,
             dropout: dropout,
             useLayerScale: true,
             layerScaleInit: 1e-4,
             poolingType: .mean,
-            useRelativePositionBias: false
+            useRelativePositionBias: false,
+            outputMode: .classification
         )
         self.init(config: config)
     }
@@ -210,11 +285,9 @@ public class SignLanguageModel: @unchecked Sendable {
     nonisolated public func modules() -> [Module] {
         var mods: [Module] = [inputProjection, inputNorm, outputNorm, outputProjection, dropoutLayer]
         if let pooling = poolingLayer {
-            mods.append(contentsOf: pooling.modules())
+            mods.append(pooling)
         }
-        for enc in encoderLayers {
-            mods.append(contentsOf: enc.modules())
-        }
+        mods.append(contentsOf: encoderLayers)
         return mods
     }
 
@@ -235,7 +308,7 @@ public class SignLanguageModel: @unchecked Sendable {
 /// - **Layer Scale**: Learnable per-channel scaling (from CaiT paper) for training stability
 /// - **Stochastic Depth**: Random layer dropout during training for regularization
 /// - **Pre-Norm**: LayerNorm before attention/MLP (more stable gradients)
-public class ImprovedTransformerEncoderLayer: @unchecked Sendable {
+public class ImprovedTransformerEncoderLayer: Module, @unchecked Sendable {
 
     public let attention: MultiHeadAttention
     public let norm1: LayerNorm
@@ -251,7 +324,11 @@ public class ImprovedTransformerEncoderLayer: @unchecked Sendable {
     // Stochastic depth
     private let dropPath: Float
 
-    public init(
+    nonisolated public override init() {
+        fatalError("Use init(dims:...)")
+    }
+
+    nonisolated public init(
         dims: Int,
         numHeads: Int,
         mlpDims: Int,
@@ -283,9 +360,10 @@ public class ImprovedTransformerEncoderLayer: @unchecked Sendable {
             Linear(mlpDims, dims),
             Dropout(p: dropout)
         ])
+        super.init()
     }
 
-    public func callAsFunction(_ x: MLXArray, mask: MLXArray? = nil) -> MLXArray {
+    nonisolated public func callAsFunction(_ x: MLXArray, mask: MLXArray? = nil) -> MLXArray {
         // Pre-norm attention block
         var y = norm1(x)
         y = attention(y, keys: y, values: y, mask: mask)
@@ -319,16 +397,11 @@ public class ImprovedTransformerEncoderLayer: @unchecked Sendable {
     }
 
     /// Stochastic depth: randomly drop the entire residual path
-    /// Stochastic depth: randomly drop the entire residual path
     private func dropPathForward(_ x: MLXArray) -> MLXArray {
         // FIXME: MLX doesn't expose a clean 'training' flag here, so proper stochastic depth 
         // (dropping with probability p during training, identity during inference) is hard 
         // without API changes. For now, disable it to prevent signal attenuation bug.
         return x
-    }
-
-    nonisolated public func modules() -> [Module] {
-        return [attention, norm1, norm2, mlp, dropout]
     }
 }
 
@@ -378,22 +451,27 @@ public class CustomTransformerEncoderLayer: @unchecked Sendable {
 ///
 /// Learns to weight different timesteps instead of simple mean pooling.
 /// Uses a learnable query vector that attends to all positions.
-public class AttentionPooling: @unchecked Sendable {
+public class AttentionPooling: Module, @unchecked Sendable {
     private let query: MLXArray
     private let keyProj: Linear
     private let valueProj: Linear
     private let dims: Int
 
-    public init(dims: Int) {
+    nonisolated public override init() {
+        fatalError("Use init(dims:...)")
+    }
+
+    nonisolated public init(dims: Int) {
         self.dims = dims
         // Learnable query vector - initialize with small random values
         let queryData = (0..<dims).map { _ in Float.random(in: -0.02...0.02) }
         self.query = MLXArray(queryData).reshaped([1, 1, dims])
         self.keyProj = Linear(dims, dims)
         self.valueProj = Linear(dims, dims)
+        super.init()
     }
 
-    public func callAsFunction(_ x: MLXArray) -> MLXArray {
+    nonisolated public func callAsFunction(_ x: MLXArray) -> MLXArray {
         // x: [B, T, D]
         let batchSize = x.dim(0)
 
@@ -411,10 +489,6 @@ public class AttentionPooling: @unchecked Sendable {
         let pooled = matmul(attnWeights, v)
         return pooled.squeezed(axis: 1)
     }
-
-    nonisolated public func modules() -> [Module] {
-        return [keyProj, valueProj]
-    }
 }
 
 public class SinusoidalPositionalEncoding: @unchecked Sendable {
@@ -427,8 +501,11 @@ public class SinusoidalPositionalEncoding: @unchecked Sendable {
     public func callAsFunction(_ x: MLXArray) -> MLXArray {
         let T = x.dim(1)
         let position = MLXArray(0..<T).asType(.float32).reshaped([T, 1])
-        let divTerm = exp(MLXArray(stride(from: 0, to: dModel, by: 2)).asType(.float32) * (-log(10000.0) / Float(dModel)))
+        let halfDim = dModel / 2
+        let divTermRaw = exp(MLXArray(stride(from: 0, to: dModel, by: 2)).asType(.float32) * (-log(10000.0) / Float(dModel)))
+        let divTerm = divTermRaw.reshaped([1, halfDim])
         
+        // Broadcasts [T, 1] * [1, halfDim] -> [T, halfDim]
         let sinPart = sin(position * divTerm)
         let cosPart = cos(position * divTerm)
         

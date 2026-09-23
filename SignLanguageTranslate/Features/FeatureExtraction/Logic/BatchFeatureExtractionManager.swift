@@ -170,19 +170,19 @@ public actor BatchFeatureExtractionManager {
             throw BatchExtractionError.noFeaturesExtracted
         }
         
-        // Save features to disk
-        let featurePath = try await saveFeatures(
+        // Generate standard relative path using FeatureFileManager
+        let featurePath = try fileManager.saveFeatures(
             frames,
-            for: video,
-            modelType: modelType
+            forVideoPath: video.localPath,
+            modelName: modelType.rawValue
         )
         
         // Create FeatureSet record
         await MainActor.run {
             let featureSet = FeatureSet(
-                modelName: "\(modelType.identifier)_\(modelType.rawValue)",
+                modelName: modelType.rawValue, // Match AppleVision not vision_AppleVision
                 extractedAt: .now,
-                filePath: featurePath.relativePath,
+                filePath: featurePath, // This is already relative to the datasets directory
                 frameCount: frames.count
             )
             
@@ -190,46 +190,6 @@ public actor BatchFeatureExtractionManager {
             
             try? modelContext.save()
         }
-    }
-    
-    private func saveFeatures(
-        _ frames: [FrameFeatures],
-        for video: VideoSample,
-        modelType: ExtractionModel
-    ) async throws -> URL {
-        
-        // Create relative path: Features/{Dataset}/{Category}/{video_id}_{model}.json
-        let category = video.labels.first?.name ?? "Uncategorized"
-        let videoID = video.fileNameWithoutExtension
-        let fileName = "\(videoID)_\(modelType.identifier).json"
-        
-        let relativePath = "Features/\(video.datasetName)/\(category)/\(fileName)"
-        
-        // Convert frames to JSON
-        let featuresData = FeatureFileData(
-            modelName: modelType.identifier,
-            version: 1,
-            frameCount: frames.count,
-            frames: frames
-        )
-        
-        // Save using FeatureFileManager
-        let encoder = JSONEncoder()
-        encoder.outputFormatting = [.prettyPrinted, .sortedKeys]
-        let jsonData = try encoder.encode(featuresData)
-        
-        let docsDir = await MainActor.run { FileManager.default.documentsDirectory }
-        let fullPath = docsDir.appendingPathComponent(relativePath)
-        
-        // Create directory
-        try FileManager.default.createDirectory(
-            at: fullPath.deletingLastPathComponent(),
-            withIntermediateDirectories: true
-        )
-        
-        try jsonData.write(to: fullPath)
-        
-        return fullPath
     }
     
     private func updateProgress(
@@ -251,15 +211,6 @@ public actor BatchFeatureExtractionManager {
     private func yieldProgress() {
         progressContinuation?.yield(currentProgress)
     }
-}
-
-// MARK: - Supporting Types
-
-private struct FeatureFileData: Codable, Sendable {
-    let modelName: String
-    let version: Int
-    let frameCount: Int
-    let frames: [FrameFeatures]
 }
 
 // MARK: - Errors

@@ -151,7 +151,11 @@ struct DatasetListView: View {
                         .swipeActions(edge: .leading) {
                             pauseSwipeAction(for: dataset)
                         }
+                        .swipeActions(edge: .trailing, allowsFullSwipe: false) {
+                            cancelSwipeAction(for: dataset)
+                        }
                 }
+
             }
         } header: {
             downloadingSectionHeader
@@ -297,6 +301,15 @@ struct DatasetListView: View {
         }
         .tint(.orange)
     }
+
+    private func cancelSwipeAction(for dataset: Dataset) -> some View {
+        Button(role: .destructive) {
+            cancelDownload(for: dataset)
+        } label: {
+            SwiftUI.Label("Cancel", systemImage: "xmark.circle.fill")
+        }
+    }
+
 
     private func deleteSwipeAction(for dataset: Dataset) -> some View {
         Button(role: .destructive) {
@@ -454,6 +467,12 @@ struct DatasetListView: View {
         dataset.downloadedBytes = 0
         dataset.downloadedParts = 0
         dataset.statusRawValue = DownloadStatus.notStarted.rawValue
+        
+        // Let the manager cancel any active tasks and clean up part files
+        let managerTasks = downloadManager.getTasksForCategory(dataset.name)
+        for task in managerTasks {
+            downloadManager.cancelTask(task.id)
+        }
     }
 
     private func pauseAllDownloads() {

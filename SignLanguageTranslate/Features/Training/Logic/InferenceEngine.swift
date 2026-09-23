@@ -284,54 +284,68 @@ public class InferenceEngine: ObservableObject {
         return params
     }
 
+    /// Standard embedding dimension (must match Label.embeddingDimension and model outputDim)
+    private static let embeddingDimension = 384
+
     private func generateTextEmbedding(for text: String) -> [Float]? {
         guard let embedding = NLEmbedding.wordEmbedding(for: .english) else {
             return nil
         }
 
+        let targetDim = Self.embeddingDimension
+
         // Try to get embedding for the text
         if let vector = embedding.vector(for: text.lowercased()) {
-            // Pad or truncate to 384 dimensions to match model output
-            var result = vector.map { Float($0) }
-            if result.count < 384 {
-                result.append(contentsOf: Array(repeating: 0.0, count: 384 - result.count))
-            } else if result.count > 384 {
-                result = Array(result.prefix(384))
-            }
-
-            // Normalize
-            let norm = sqrt(result.reduce(0) { $0 + $1 * $1 })
-            if norm > 0 {
-                result = result.map { $0 / norm }
-            }
-
-            return result
+            return normalizeEmbedding(vector.map { Float($0) }, toDimension: targetDim)
         }
 
-        // Fallback: try splitting compound words
+        // Fallback: average of individual words for phrases
         let words = text.lowercased().split(separator: " ")
-        var combined: [Float] = Array(repeating: 0, count: 384)
+        var combined: [Double] = []
         var count = 0
 
         for word in words {
             if let vector = embedding.vector(for: String(word)) {
-                for (i, v) in vector.prefix(384).enumerated() {
-                    combined[i] += Float(v)
+                if combined.isEmpty {
+                    combined = vector
+                } else {
+                    for (i, v) in vector.enumerated() where i < combined.count {
+                        combined[i] += v
+                    }
                 }
                 count += 1
             }
         }
 
         if count > 0 {
-            combined = combined.map { $0 / Float(count) }
-            let norm = sqrt(combined.reduce(0) { $0 + $1 * $1 })
-            if norm > 0 {
-                combined = combined.map { $0 / norm }
-            }
-            return combined
+            let averaged = combined.map { Float($0 / Double(count)) }
+            return normalizeEmbedding(averaged, toDimension: targetDim)
         }
 
         return nil
+    }
+
+    /// Normalizes an embedding to a target dimension and L2-normalizes it
+    private func normalizeEmbedding(_ embedding: [Float], toDimension targetDim: Int) -> [Float] {
+        var result: [Float]
+
+        if embedding.count < targetDim {
+            // Pad with zeros
+            result = embedding + Array(repeating: 0.0, count: targetDim - embedding.count)
+        } else if embedding.count > targetDim {
+            // Truncate
+            result = Array(embedding.prefix(targetDim))
+        } else {
+            result = embedding
+        }
+
+        // L2 normalize
+        let norm = sqrt(result.reduce(0) { $0 + $1 * $1 })
+        if norm > 0 {
+            result = result.map { $0 / norm }
+        }
+
+        return result
     }
 
     private func findClosestLabels(embedding: [Float], topK: Int) -> [(String, Float)] {

@@ -37,7 +37,8 @@ final class PersistenceController {
     static let models: [any PersistentModel.Type] = [
         Dataset.self,
         Label.self,
-        VideoSample.self
+        VideoSample.self,
+        TrainingRun.self
     ]
 
     /// The complete schema for the app
@@ -218,6 +219,77 @@ final class PersistenceController {
         context.insert(islDataset)
 
         try? context.save()
+    }
+
+    // MARK: - Embedding Regeneration
+
+    /// Regenerates all label embeddings to ensure they have the correct dimension (384)
+    /// Call this after updating the embedding generation logic or to fix dimension mismatches
+    /// - Returns: Number of labels updated
+    @discardableResult
+    func regenerateAllEmbeddings() async -> Int {
+        let context = mainContext
+
+        let descriptor = FetchDescriptor<Label>()
+        guard let labels = try? context.fetch(descriptor) else {
+            print("[PersistenceController] Failed to fetch labels")
+            return 0
+        }
+
+        var updatedCount = 0
+        let targetDim = Label.embeddingDimension
+
+        for label in labels {
+            // Check if embedding needs regeneration
+            let needsUpdate = label.embedding == nil || label.embedding?.count != targetDim
+
+            if needsUpdate {
+                if label.generateEmbedding() != nil {
+                    updatedCount += 1
+                    print("[Embedding] Regenerated: \(label.name) -> \(label.embedding?.count ?? 0) dims")
+                } else {
+                    print("[Embedding] Failed to generate for: \(label.name)")
+                }
+            }
+        }
+
+        // Save changes
+        do {
+            try context.save()
+            print("[PersistenceController] Regenerated \(updatedCount) embeddings")
+        } catch {
+            print("[PersistenceController] Failed to save embeddings: \(error)")
+        }
+
+        return updatedCount
+    }
+
+    /// Checks how many labels have incorrect embedding dimensions
+    func checkEmbeddingDimensions() -> (correct: Int, incorrect: Int, missing: Int) {
+        let context = mainContext
+        let descriptor = FetchDescriptor<Label>()
+        guard let labels = try? context.fetch(descriptor) else {
+            return (0, 0, 0)
+        }
+
+        let targetDim = Label.embeddingDimension
+        var correct = 0
+        var incorrect = 0
+        var missing = 0
+
+        for label in labels {
+            if let embedding = label.embedding {
+                if embedding.count == targetDim {
+                    correct += 1
+                } else {
+                    incorrect += 1
+                }
+            } else {
+                missing += 1
+            }
+        }
+
+        return (correct, incorrect, missing)
     }
 }
 

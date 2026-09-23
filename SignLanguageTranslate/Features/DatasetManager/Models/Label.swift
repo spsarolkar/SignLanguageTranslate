@@ -77,9 +77,12 @@ public final class Label {
     }
     
     // MARK: - Embedding Generation
-    
+
+    /// Standard embedding dimension for the model (must match SignLanguageModel outputDim)
+    public static let embeddingDimension = 384
+
     /// Generates and stores a semantic embedding for this label using Apple's NaturalLanguage framework.
-    /// This allows for semantic search and zero-shot learning capabilities.
+    /// The embedding is normalized to 384 dimensions (padded/truncated and L2-normalized) for consistency.
     /// - Returns: The generated embedding if successful
     @discardableResult
     public func generateEmbedding() -> [Float]? {
@@ -88,22 +91,83 @@ public final class Label {
             print("[Label] Failed to load NLEmbedding for English")
             return nil
         }
-        
+
+        var rawVector: [Float]?
+
         // Try to get vector for the exact name
         if let vector = embeddingModel.vector(for: self.name) {
-            self.embedding = vector.map { Float($0) }
-            return self.embedding
+            rawVector = vector.map { Float($0) }
         }
-        
-        // Fallback: If it's a phrase (e.g. "Thank You"), try average of words or neighbors
-        // For simplicity, we'll try case-insensitive
-        if let vector = embeddingModel.vector(for: self.name.lowercased()) {
-            self.embedding = vector.map { Float($0) }
-            return self.embedding
+        // Fallback: try case-insensitive
+        else if let vector = embeddingModel.vector(for: self.name.lowercased()) {
+            rawVector = vector.map { Float($0) }
         }
-        
-        print("[Label] No embedding found for '\(self.name)'")
-        return nil
+        // Fallback: average of individual words for phrases
+        else {
+            let words = self.name.lowercased().split(separator: " ")
+            var combined: [Double] = []
+            var count = 0
+
+            for word in words {
+                if let vector = embeddingModel.vector(for: String(word)) {
+                    if combined.isEmpty {
+                        combined = vector
+                    } else {
+                        for (i, v) in vector.enumerated() where i < combined.count {
+                            combined[i] += v
+                        }
+                    }
+                    count += 1
+                }
+            }
+
+            if count > 0 {
+                rawVector = combined.map { Float($0 / Double(count)) }
+            }
+        }
+
+        guard var vector = rawVector else {
+            print("[Label] No embedding found for '\(self.name)'")
+            return nil
+        }
+
+        // Normalize to standard dimension (384)
+        vector = Self.normalizeEmbedding(vector, toDimension: Self.embeddingDimension)
+
+        self.embedding = vector
+        return self.embedding
+    }
+
+    /// Normalizes an embedding to a target dimension and L2-normalizes it
+    private static func normalizeEmbedding(_ embedding: [Float], toDimension targetDim: Int) -> [Float] {
+        var result: [Float]
+
+        if embedding.count < targetDim {
+            // Pad with zeros
+            result = embedding + Array(repeating: 0.0, count: targetDim - embedding.count)
+        } else if embedding.count > targetDim {
+            // Truncate
+            result = Array(embedding.prefix(targetDim))
+        } else {
+            result = embedding
+        }
+
+        // L2 normalize
+        let norm = sqrt(result.reduce(0) { $0 + $1 * $1 })
+        if norm > 0 {
+            result = result.map { $0 / norm }
+        }
+
+        return result
+    }
+
+    /// Regenerates embedding if it's missing or has wrong dimension
+    @discardableResult
+    public func ensureValidEmbedding() -> [Float]? {
+        if let existing = embedding, existing.count == Self.embeddingDimension {
+            return existing
+        }
+        return generateEmbedding()
     }
 }
 

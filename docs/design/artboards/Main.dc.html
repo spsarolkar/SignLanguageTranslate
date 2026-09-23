@@ -1,0 +1,216 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Data Pipeline — Downloading</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Instrument+Sans:wght@400;500;600;700&amp;family=IBM+Plex+Mono:wght@400;500&amp;display=swap">
+<style>
+body { margin: 0; font-family: "Instrument Sans", -apple-system, system-ui, sans-serif; background: #0B0D0F; }
+a { color: #5EC8A8; } a:hover { color: #8EDCC3; }
+</style>
+</helmet>
+<div style="width: 1366px; height: 1024px; box-sizing: border-box; display: flex; background: #0B0D0F; color: #EEF1F3; font-family: 'Instrument Sans', -apple-system, system-ui, sans-serif;">
+
+  <aside style="width: 320px; flex-shrink: 0; box-sizing: border-box; background: #111417; border-right: 1px solid #262B31; display: flex; flex-direction: column; padding: 28px 20px 20px 20px; gap: 22px;">
+
+    <div style="display: flex; align-items: center; gap: 10px;">
+      <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#5EC8A8" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M8 3v6a4 4 0 0 0 8 0V3"></path><path d="M6 11c0 5 3 8 6 10 3-2 6-5 6-10"></path></svg>
+      <span style="font-size: 14px; font-weight: 600; letter-spacing: 0.01em; color: #C9D1D8;">SignLanguageTranslate</span>
+    </div>
+
+    <div style="display: flex; flex-direction: column; gap: 10px;">
+      <div style="font-size: 11px; font-weight: 600; letter-spacing: 0.1em; color: #8A949D;">DATASETS</div>
+
+      <div style="box-sizing: border-box; padding: 14px; border-radius: 12px; background: #1D2126; border: 1px solid #33414A; display: flex; flex-direction: column; gap: 10px;">
+        <div style="display: flex; align-items: baseline; justify-content: space-between;">
+          <span style="font-size: 15px; font-weight: 600;">INCLUDE</span>
+          <span style="font-family: 'IBM Plex Mono', monospace; font-size: 12px; color: #5EC8A8;">43%</span>
+        </div>
+        <div style="height: 5px; border-radius: 3px; background: #2C333A; overflow: hidden;">
+          <div style="width: 43%; height: 5px; background: #5EC8A8;"></div>
+        </div>
+        <div style="font-size: 12px; color: #8A949D;">19 of 44 parts · 3 downloading</div>
+      </div>
+
+      <div style="box-sizing: border-box; padding: 14px; border-radius: 12px; background: #15181B; border: 1px solid #262B31; display: flex; flex-direction: column; gap: 10px;">
+        <div style="display: flex; align-items: baseline; justify-content: space-between;">
+          <span style="font-size: 15px; font-weight: 500; color: #C9D1D8;">ISL‑CSLTR</span>
+          <span style="font-family: 'IBM Plex Mono', monospace; font-size: 12px; color: #E0A458;">QUEUED</span>
+        </div>
+        <div style="font-size: 12px; color: #8A949D;">Sentence-level · 1 archive</div>
+      </div>
+
+      <div style="box-sizing: border-box; padding: 14px; border-radius: 12px; background: #15181B; border: 1px solid #262B31; display: flex; flex-direction: column; gap: 10px;">
+        <div style="display: flex; align-items: baseline; justify-content: space-between;">
+          <span style="font-size: 15px; font-weight: 500; color: #C9D1D8;">My Recordings</span>
+          <span style="font-family: 'IBM Plex Mono', monospace; font-size: 12px; color: #8A949D;">LOCAL</span>
+        </div>
+        <div style="font-size: 12px; color: #8A949D;">128 clips · 12 words</div>
+      </div>
+    </div>
+
+    <div style="display: flex; flex-direction: column; gap: 10px;">
+      <div style="font-size: 11px; font-weight: 600; letter-spacing: 0.1em; color: #8A949D;">PIPELINE</div>
+
+      <a href="Export.dc.html" style="box-sizing: border-box; padding: 13px 14px; border-radius: 12px; background: #15181B; border: 1px solid #262B31; display: flex; align-items: center; justify-content: space-between; text-decoration: none; min-height: 44px;">
+        <span style="font-size: 14px; font-weight: 500; color: #C9D1D8;">Keypoint Extraction</span>
+        <span style="font-family: 'IBM Plex Mono', monospace; font-size: 12px; color: #5EC8A8;">1204</span>
+      </a>
+
+      <a href="Export.dc.html" style="box-sizing: border-box; padding: 13px 14px; border-radius: 12px; background: #15181B; border: 1px solid #262B31; display: flex; align-items: center; justify-content: space-between; text-decoration: none; min-height: 44px;">
+        <span style="font-size: 14px; font-weight: 500; color: #C9D1D8;">Hugging Face Sync</span>
+        <span style="font-size: 12px; color: #8A949D;">2h ago</span>
+      </a>
+    </div>
+
+    <div style="flex-grow: 1;"></div>
+
+    <div style="box-sizing: border-box; padding: 14px; border-radius: 12px; background: #15181B; border: 1px solid #262B31; display: flex; flex-direction: column; gap: 9px;">
+      <div style="display: flex; align-items: baseline; justify-content: space-between;">
+        <span style="font-size: 12px; color: #8A949D;">Storage</span>
+        <span style="font-family: 'IBM Plex Mono', monospace; font-size: 12px; color: #C9D1D8;">412 GB / 2 TB</span>
+      </div>
+      <div style="height: 5px; border-radius: 3px; background: #2C333A; overflow: hidden;">
+        <div style="width: 21%; height: 5px; background: #6C7A85;"></div>
+      </div>
+    </div>
+  </aside>
+
+  <main style="flex-grow: 1; box-sizing: border-box; padding: 34px 40px 28px 40px; display: flex; flex-direction: column; gap: 22px; overflow: hidden;">
+
+    <div style="display: flex; align-items: center; justify-content: space-between;">
+      <h1 style="margin: 0; font-size: 40px; font-weight: 700; letter-spacing: -0.02em;">Data Pipeline</h1>
+      <div style="display: flex; align-items: center; gap: 8px; padding: 8px 14px; border-radius: 999px; background: rgba(94,200,168,0.12); border: 1px solid rgba(94,200,168,0.35);">
+        <span style="width: 7px; height: 7px; border-radius: 50%; background: #5EC8A8; display: inline-block;"></span>
+        <span style="font-size: 13px; font-weight: 600; color: #5EC8A8; letter-spacing: 0.02em;">Processing</span>
+      </div>
+    </div>
+
+    <div style="box-sizing: border-box; padding: 24px; border-radius: 18px; background: #15181B; border: 1px solid #262B31; display: flex; flex-direction: column; gap: 18px;">
+      <div style="display: flex; align-items: flex-start; justify-content: space-between; gap: 20px;">
+        <div style="display: flex; flex-direction: column; gap: 6px;">
+          <h2 style="margin: 0; font-size: 24px; font-weight: 600; letter-spacing: -0.01em;">INCLUDE</h2>
+          <div style="font-size: 13px; color: #8A949D;">Word-level · Zenodo record 4010759 · 15 categories · 44 parts</div>
+        </div>
+        <div style="display: flex; gap: 10px; flex-shrink: 0;">
+          <button type="button" style="min-height: 44px; padding: 0 18px; border-radius: 11px; background: #232930; border: 1px solid #333B43; color: #E4E9ED; font-size: 14px; font-weight: 600; font-family: inherit; cursor: pointer;">Pause All</button>
+          <button type="button" style="min-height: 44px; padding: 0 18px; border-radius: 11px; background: #5EC8A8; border: none; color: #0B0D0F; font-size: 14px; font-weight: 700; font-family: inherit; cursor: pointer;">Download All</button>
+        </div>
+      </div>
+
+      <div style="display: flex; flex-direction: column; gap: 9px;">
+        <div style="height: 8px; border-radius: 4px; background: #232930; overflow: hidden; display: flex;">
+          <div style="width: 43%; height: 8px; background: #5EC8A8;"></div>
+          <div style="width: 9%; height: 8px; background: rgba(94,200,168,0.32);"></div>
+        </div>
+        <div style="display: flex; justify-content: space-between; font-family: 'IBM Plex Mono', monospace; font-size: 12px; color: #8A949D;">
+          <span>19 complete · 3 active · 22 queued</span>
+          <span>184.2 GB of 428.6 GB</span>
+        </div>
+      </div>
+    </div>
+
+    <div style="display: flex; flex-direction: column; gap: 12px;">
+      <div style="display: flex; align-items: baseline; justify-content: space-between;">
+        <span style="font-size: 11px; font-weight: 600; letter-spacing: 0.1em; color: #8A949D;">ACTIVE TRANSFERS</span>
+        <span style="font-family: 'IBM Plex Mono', monospace; font-size: 11px; color: #6C7A85;">3 of 3 slots</span>
+      </div>
+
+      <div style="display: flex; flex-direction: column; gap: 8px;">
+
+        <div style="box-sizing: border-box; padding: 14px 18px; border-radius: 12px; background: #15181B; border: 1px solid #262B31; display: flex; align-items: center; gap: 18px;">
+          <div style="width: 300px; flex-shrink: 0; display: flex; flex-direction: column; gap: 3px;">
+            <span style="font-size: 14px; font-weight: 600;">Adjectives_5of8.zip</span>
+            <span style="font-size: 12px; color: #8A949D;">Adjectives</span>
+          </div>
+          <div style="flex-grow: 1; height: 6px; border-radius: 3px; background: #232930; overflow: hidden;">
+            <div style="width: 68%; height: 6px; background: #5EC8A8;"></div>
+          </div>
+          <span style="width: 190px; flex-shrink: 0; text-align: right; font-family: 'IBM Plex Mono', monospace; font-size: 12px; color: #C9D1D8;">6.4 / 9.4 GB · 41 MB/s</span>
+          <button type="button" aria-label="Pause Adjectives part 5 of 8" style="width: 44px; height: 44px; flex-shrink: 0; border-radius: 10px; background: #232930; border: 1px solid #333B43; display: flex; align-items: center; justify-content: center; cursor: pointer;">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#C9D1D8" stroke-width="2.4" stroke-linecap="round" aria-hidden="true"><line x1="8" y1="5" x2="8" y2="19"></line><line x1="16" y1="5" x2="16" y2="19"></line></svg>
+          </button>
+        </div>
+
+        <div style="box-sizing: border-box; padding: 14px 18px; border-radius: 12px; background: #15181B; border: 1px solid #262B31; display: flex; align-items: center; gap: 18px;">
+          <div style="width: 300px; flex-shrink: 0; display: flex; flex-direction: column; gap: 3px;">
+            <span style="font-size: 14px; font-weight: 600;">People_3of5.zip</span>
+            <span style="font-size: 12px; color: #8A949D;">People</span>
+          </div>
+          <div style="flex-grow: 1; height: 6px; border-radius: 3px; background: #232930; overflow: hidden;">
+            <div style="width: 34%; height: 6px; background: #5EC8A8;"></div>
+          </div>
+          <span style="width: 190px; flex-shrink: 0; text-align: right; font-family: 'IBM Plex Mono', monospace; font-size: 12px; color: #C9D1D8;">3.1 / 9.1 GB · 38 MB/s</span>
+          <button type="button" aria-label="Pause People part 3 of 5" style="width: 44px; height: 44px; flex-shrink: 0; border-radius: 10px; background: #232930; border: 1px solid #333B43; display: flex; align-items: center; justify-content: center; cursor: pointer;">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#C9D1D8" stroke-width="2.4" stroke-linecap="round" aria-hidden="true"><line x1="8" y1="5" x2="8" y2="19"></line><line x1="16" y1="5" x2="16" y2="19"></line></svg>
+          </button>
+        </div>
+
+        <div style="box-sizing: border-box; padding: 14px 18px; border-radius: 12px; background: #15181B; border: 1px solid #262B31; display: flex; align-items: center; gap: 18px;">
+          <div style="width: 300px; flex-shrink: 0; display: flex; flex-direction: column; gap: 3px;">
+            <span style="font-size: 14px; font-weight: 600;">Home_2of4.zip</span>
+            <span style="font-size: 12px; color: #E0A458;">Home · resumed at 12%</span>
+          </div>
+          <div style="flex-grow: 1; height: 6px; border-radius: 3px; background: #232930; overflow: hidden;">
+            <div style="width: 12%; height: 6px; background: #E0A458;"></div>
+          </div>
+          <span style="width: 190px; flex-shrink: 0; text-align: right; font-family: 'IBM Plex Mono', monospace; font-size: 12px; color: #C9D1D8;">1.0 / 8.3 GB · 29 MB/s</span>
+          <button type="button" aria-label="Pause Home part 2 of 4" style="width: 44px; height: 44px; flex-shrink: 0; border-radius: 10px; background: #232930; border: 1px solid #333B43; display: flex; align-items: center; justify-content: center; cursor: pointer;">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#C9D1D8" stroke-width="2.4" stroke-linecap="round" aria-hidden="true"><line x1="8" y1="5" x2="8" y2="19"></line><line x1="16" y1="5" x2="16" y2="19"></line></svg>
+          </button>
+        </div>
+      </div>
+    </div>
+
+    <div style="display: flex; flex-direction: column; gap: 12px; flex-grow: 1; min-height: 0;">
+      <div style="display: flex; align-items: baseline; justify-content: space-between;">
+        <span style="font-size: 11px; font-weight: 600; letter-spacing: 0.1em; color: #8A949D;">CATEGORIES</span>
+        <a href="Browser.dc.html" style="font-size: 13px; font-weight: 600; text-decoration: none;">Browse ingested →</a>
+      </div>
+
+      <div style="display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 10px;">
+        <sc-for list="{{categories}}" as="cat" hint-placeholder-count="15">
+          <div style="box-sizing: border-box; padding: 12px 13px; border-radius: 11px; background: #15181B; border: 1px solid #262B31; display: flex; flex-direction: column; gap: 8px;">
+            <span style="font-size: 13px; font-weight: 600; color: #E4E9ED; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">{{cat.name}}</span>
+            <div style="height: 4px; border-radius: 2px; background: #232930; overflow: hidden;">
+              <div style="width: {{cat.pct}}; height: 4px; background: {{cat.tint}};"></div>
+            </div>
+            <span style="font-family: 'IBM Plex Mono', monospace; font-size: 11px; color: #8A949D;">{{cat.parts}}</span>
+          </div>
+        </sc-for>
+      </div>
+    </div>
+
+  </main>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"accent":{"editor":"color","default":"#5EC8A8","options":["#5EC8A8","#6BA8E8","#D97757","#B58BE0"]},"$preview":{"width":1366,"height":1024}}'>
+class Component extends DCLogic {
+  renderVals() {
+    const accent = this.props.accent ?? '#5EC8A8';
+    const raw = [
+      ['Adjectives', 8, 4], ['Animals', 2, 2], ['Clothes', 2, 2], ['Colours', 2, 2], ['Days & Time', 3, 3],
+      ['Electronics', 2, 2], ['Greetings', 2, 2], ['Home', 4, 1], ['Jobs', 2, 0], ['Transportation', 2, 0],
+      ['People', 5, 1], ['Places', 4, 0], ['Pronouns', 2, 0], ['Seasons', 1, 0], ['Society', 3, 0]
+    ];
+    return {
+      categories: raw.map(function (r) {
+        const done = r[2], total = r[1];
+        return {
+          name: r[0],
+          parts: done + ' / ' + total,
+          pct: Math.round((done / total) * 100) + '%',
+          tint: done === 0 ? '#2C333A' : (done === total ? accent : '#E0A458')
+        };
+      })
+    };
+  }
+}
+</script>
+</body>
+</html>

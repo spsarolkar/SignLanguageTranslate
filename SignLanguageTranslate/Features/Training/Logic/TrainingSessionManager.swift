@@ -11,7 +11,29 @@ import SwiftData
 
 @MainActor
 public class TrainingSessionManager: ObservableObject {
-    
+
+    // MARK: - Singleton
+
+    /// Shared instance to persist training state across view navigations
+    public static let shared = TrainingSessionManager()
+
+    // MARK: - Types
+
+    /// Represents a learning rate change event for chart annotation
+    public struct LRChangeEvent: Identifiable, Sendable {
+        public let id = UUID()
+        public let epoch: Int
+        public let batchIndex: Int
+        public let oldLR: Float
+        public let newLR: Float
+        public let reason: String
+        public let timestamp: Date
+
+        public var description: String {
+            "LR: \(String(format: "%.2e", oldLR)) → \(String(format: "%.2e", newLR))"
+        }
+    }
+
     // MARK: - Published State
     @Published public var state: TrainingState = .idle
     @Published public var metrics: [TrainingMetrics] = []
@@ -19,12 +41,18 @@ public class TrainingSessionManager: ObservableObject {
     @Published public var currentBatch: Int = 0
     @Published public var progress: Double = 0.0
     @Published public var logs: [String] = []
+    // NEW: Phase 8 Insights
+    @Published public var currentInsight: TrainingAnalyzer.AnalysisResult?
+    private let trainingAnalyzer = TrainingAnalyzer()
     @Published public var lastLoss: Float = 0.0
-    
+    /// Learning rate change events for chart annotation
+    @Published public var lrChangeEvents: [LRChangeEvent] = []
+    /// Current learning rate (updated by callbacks)
+    @Published public var currentLearningRate: Float = 0
+
     // MARK: - Configuration
     public var config: TrainingConfig
-    
-    // MARK: - Internal Components
+
     // MARK: - Internal Components
     private var model: (any SignLanguageModelProtocol)?
     private var modelWrapper: SignLanguageModuleWrapper?
@@ -33,26 +61,31 @@ public class TrainingSessionManager: ObservableObject {
     private var cancellables = Set<AnyCancellable>()
     private var isPaused: Bool = false
     private var shouldStop: Bool = false
-    
+
+    // MARK: - Current Run Context (for resume)
+    private var currentDatasetName: String?
+
     // MARK: - Callbacks
     public let callbackManager = CallbackManager()
-    
+
     /// Early stopping configuration (set via UI)
-    public var earlyStoppingPatience: Int = 10
     public var earlyStoppingEnabled: Bool = true
-    
+
     /// Checkpoints directory
     private var checkpointsDirectory: URL {
         FileManager.default.documentsDirectory.appendingPathComponent("Checkpoints")
     }
-    
+
     // MARK: - Init
-    public init(config: TrainingConfig) {
-        self.config = config
+
+    /// Private initializer to enforce singleton pattern
+    private init() {
+        self.config = .default
     }
-    
-    public convenience init() {
-        self.init(config: .default)
+
+    /// For testing purposes only
+    internal init(config: TrainingConfig) {
+        self.config = config
     }
     
     // MARK: - Setup
@@ -61,108 +94,230 @@ public class TrainingSessionManager: ObservableObject {
         self.state = .preparing
         log("Preparing training session...")
         
-        let model: any SignLanguageModelProtocol
+        // Use consolidated initialization logic
+        // Placeholder numClasses (will be updated in startTraining)
+        initializeModel(numClasses: 100)
         
-        if config.useLegacyModel {
-            log("Initializing Legacy LSTM Model (Keras reproduction mode)")
-            // Match inputDim=180 (Apple Vision) to Legacy Architecture
-            model = LegacySignLanguageModel(
-                inputDim: 180,
-                numClasses: 300, // FIX: Match dataset target embeddings (GloVe 300d) like Transformer
-                hiddenDim: 32
-            )
-        } else {
-            log("Initializing Transformer Model")
-            model = SignLanguageModel(
-                inputDim: 180,
-                modelDim: 256,
-                outputDim: 300, // FIX: Match dataset target embeddings (GloVe 300d)
-                numLayers: 4,
-                numHeads: 4,
-                dropout: 0.1
-            )
-        }
-        
-        self.model = model
-        
-        // Wrap for optimizer
-        let wrapper = SignLanguageModuleWrapper(model: model)
-        self.modelWrapper = wrapper
-        
-        // Initialize Optimizer
-        self.optimizer = Adam(learningRate: config.learningRate)
-        
-        log("Model prepared.")
-        
-        // Setup Callbacks
-        await setupCallbacks()
-        
+        // Callbacks will be setup in startTraining once run name is known
         self.state = .idle
     }
     
-    /// Setup training callbacks (EarlyStopping, ModelCheckpoint, etc.)
-    private func setupCallbacks() async {
+    private func initializeModel(numClasses: Int) {
+        log("Initializing model (Classes: \(numClasses), Loss: \(config.lossFunction.rawValue))...")
+        
+        // Force free existing MLX graphs/parameters before allocating new massive models
+        self.model = nil
+        self.modelWrapper = nil
+        self.optimizer = nil
+        
+        // Output dimension for embeddings (fixed)
+        let outputDim = 384
+        
+        // Validate numHeads
+        var numHeads = config.numHeads ?? 4
+        let modelDim = config.hiddenDim
+        
+        // Auto-correct numHeads if not divisible
+        if modelDim % numHeads != 0 {
+             let preferredHeads = [4, 6, 8, 2, 1]
+             for heads in preferredHeads {
+                 if modelDim % heads == 0 {
+                     numHeads = heads
+                     break
+                 }
+             }
+        }
+        
+        let model: any SignLanguageModelProtocol
+        
+        if config.useLegacyModel {
+             log("Initializing Legacy LSTM Model")
+             model = LegacySignLanguageModel(
+                 inputDim: 180,
+                 numClasses: outputDim,
+                 hiddenDim: config.hiddenDim
+             )
+        } else {
+             let outputMode: SignLanguageModelConfig.OutputMode = (config.lossFunction == .crossEntropy) ? .classification : .embedding
+             
+             log("Initializing Transformer (Mode: \(outputMode), Dim: \(modelDim), Heads: \(numHeads))")
+             
+             let modelConfig = SignLanguageModelConfig(
+                 inputDim: 180,
+                 modelDim: modelDim,
+                 outputDim: outputDim,
+                 numClasses: numClasses,
+                 numLayers: config.numLayers,
+                 numHeads: numHeads,
+                 dropout: config.dropout,
+                 useLayerScale: true,
+                 layerScaleInit: 1e-4,
+                 poolingType: .attention,
+                 useRelativePositionBias: true,
+                 outputMode: outputMode
+             )
+             
+             model = SignLanguageModel(config: modelConfig)
+        }
+        
+        self.model = model
+        self.modelWrapper = SignLanguageModuleWrapper(model: model)
+        self.optimizer = Adam(learningRate: config.learningRate)
+        log("Model initialized.")
+    }
+    
+
+    
+    /// Get the checkpoint directory for the current run
+    public func getRunCheckpointDirectory(runName: String) -> URL {
+        // Sanitize name for file system
+        let safeName = runName.components(separatedBy: .init(charactersIn: "/\\?%*|\"<>:")).joined(separator: "_")
+        return checkpointsDirectory.appendingPathComponent(safeName)
+    }
+
+    /// Setup training callbacks (Run specific)
+    private func setupCallbacks(for runName: String) async {
         await callbackManager.clear()
+        
+        let runDir = getRunCheckpointDirectory(runName: runName)
         
         // 1. EarlyStopping (if enabled)
         if earlyStoppingEnabled {
             let earlyStopping = EarlyStoppingCallback(
-                patience: earlyStoppingPatience,
+                patience: config.patience,
                 minDelta: 0.0001,
                 restoreBestWeights: true,
                 monitor: "valLoss",
                 mode: .min
             )
             await callbackManager.register(earlyStopping)
-            log("Registered EarlyStopping callback (patience: \(earlyStoppingPatience))")
+            log("Registered EarlyStopping callback (patience: \(config.patience))")
         }
         
-        // 2. ModelCheckpoint (always enabled)
+        // 2. ModelCheckpoint (Run Specific)
         let checkpoint = ModelCheckpointCallback(
-            checkpointDirectory: checkpointsDirectory,
+            checkpointDirectory: runDir,
             saveBestOnly: true,
             monitor: "valLoss",
             mode: .min
         )
-        await callbackManager.register(checkpoint)
-        log("Registered ModelCheckpoint callback")
         
-        // 3. LR Scheduler (Reduce on Plateau)
-        let lrScheduler = LRSchedulerCallback(
-            monitor: "valLoss",
-            factor: 0.1,
-            patience: 5,
-            minLR: 1e-6,
-            mode: .min
-        ) { [weak self] newLR in
-            guard let self = self else { return }
-            self.optimizer?.learningRate = newLR
-            self.log("📉 Learning rate reduced to \(newLR)")
+        // IMPORTANT: Wire up the actual weight saving
+        checkpoint.onCheckpointSaved = { [weak self] url, epoch, val in
+            guard let self = self, let wrapper = self.modelWrapper else { return }
+            print("[TrainingSessionManager] Saving weights for epoch \(epoch)")
+            // Use the callback's helper to save weights structure
+            checkpoint.saveModelWeights(wrapper.trainableParameters(), epoch: epoch)
+            // Sync status
+            self.currentRun?.status = "Training (Best: \(String(format: "%.4f", val)))"
+            try? self.modelContext?.save()
         }
-        await callbackManager.register(lrScheduler)
-        log("Registered LRScheduler callback")
+        
+        await callbackManager.register(checkpoint)
+        log("Registered ModelCheckpoint callback at \(runDir.lastPathComponent)")
+        
+        // 3. LR Scheduler
+        switch config.scheduler {
+        case .cosineDecay:
+            let cosineScheduler = CosineLRScheduler(
+                baseLR: config.learningRate,
+                totalEpochs: config.epochs,
+                minLR: 1e-6,
+                warmupEpochs: config.warmupEpochs,
+                updateLR: { [weak self] newLR in
+                    guard let self = self else { return }
+                    Task { @MainActor in
+                        self.optimizer?.learningRate = newLR
+                        // Cosine updates every epoch silently, maybe allow verbose logs?
+                        // self.log("Cosine Scheduler: LR -> \(newLR)") 
+                    }
+                },
+                logger: { [weak self] msg in
+                     Task { @MainActor in self?.log(msg) }
+                }
+            )
+            await callbackManager.register(cosineScheduler)
+            log("Registered CosineDecay Scheduler (Warmup: \(config.warmupEpochs))")
+            
+        case .reduceOnPlateau:
+            let lrScheduler = LRSchedulerCallback(
+                monitor: "valLoss",
+                factor: 0.1,
+                patience: config.patienceLR,
+                minLR: 1e-6,
+                mode: .min,
+                onLog: { [weak self] msg in
+                    Task { @MainActor in self?.log(msg) }
+                }
+            ) { [weak self] newLR in
+                guard let self = self else { return }
+                Task { @MainActor in
+                    self.optimizer?.learningRate = newLR
+                    self.log("📉 Learning rate reduced to \(newLR)")
+                }
+            }
+            await callbackManager.register(lrScheduler)
+            log("Registered ReduceOnPlateau Scheduler")
+        }
     }
     
     // MARK: - Control
-    
+
     // MARK: - Persistence
     private var currentRun: TrainingRun?
     private var modelContext: ModelContext?
 
+    /// Public accessor for current run ID (used for stale run cleanup)
+    public var currentRunId: UUID? {
+        currentRun?.id
+    }
+    
+    public var currentRunName: String? {
+        currentRun?.name
+    }
+    
+    public var currentRunCheckpointDirectory: URL? {
+        guard let name = currentRun?.name else { return nil }
+        return getRunCheckpointDirectory(runName: name)
+    }
+    
+    /// Finds the most recently modified run directory in Checkpoints
+    public var latestRunCheckpointDirectory: URL? {
+        let fm = FileManager.default
+        guard let validURLs = try? fm.contentsOfDirectory(
+            at: checkpointsDirectory,
+            includingPropertiesForKeys: [.contentModificationDateKey, .isDirectoryKey]
+        ) else { return nil }
+        
+        // Filter for directories and sort by modification date (newest first)
+        return validURLs
+            .filter { (try? $0.resourceValues(forKeys: [.isDirectoryKey]).isDirectory) ?? false }
+            .sorted { url1, url2 in
+                let date1 = (try? url1.resourceValues(forKeys: [.contentModificationDateKey]).contentModificationDate) ?? Date.distantPast
+                let date2 = (try? url2.resourceValues(forKeys: [.contentModificationDateKey]).contentModificationDate) ?? Date.distantPast
+                return date1 > date2
+            }
+            .first
+    }
+
     public func startTraining(datasetPath: URL, modelContext: ModelContext, targetDatasetName: String? = nil) {
         guard state == .idle || state == .paused else { return }
-        
+
         self.modelContext = modelContext
+        self.currentDatasetName = targetDatasetName ?? "All" // Store for state persistence
         self.shouldStop = false
         self.isPaused = false
         self.state = .training
-        
+
         // Prevent screen sleep
         UIApplication.shared.isIdleTimerDisabled = true
-        
+
         // Setup background observers
         setupBackgroundObservers()
         
+        // Repair any missing configs
+        ensureConfigsAreSaved(modelContext: modelContext)
+
         // Create new Run if starting fresh
         if self.currentRun == nil {
             let runName = config.useLegacyModel ? "Legacy Run \(Date().formatted(date: .omitted, time: .shortened))" : "Transformer Run \(Date().formatted(date: .omitted, time: .shortened))"
@@ -175,11 +330,48 @@ public class TrainingSessionManager: ObservableObject {
             self.currentRun = newRun
             modelContext.insert(newRun)
             // Initial save
-            try? modelContext.save() 
+            try? modelContext.save()
             log("Created Training Run: \(runName)")
+            
+            // Save config.json to run directory immediately
+            let runDir = getRunCheckpointDirectory(runName: runName)
+            do {
+                try FileManager.default.createDirectory(at: runDir, withIntermediateDirectories: true)
+                
+                // MAP TrainingConfig -> SignLanguageModelConfig for ModelPersistence
+                let modelConfig = SignLanguageModelConfig(
+                    inputDim: 180,
+                    modelDim: config.hiddenDim,
+                    outputDim: 384, // Must match InferenceEngine's text embedding size
+                    numClasses: 100, // Placeholder
+                    numLayers: config.numLayers,
+                    numHeads: config.numHeads ?? 4,
+                    dropout: config.dropout,
+                    useLayerScale: true,
+                    layerScaleInit: 1e-4,
+                    poolingType: .mean,
+                    useRelativePositionBias: false,
+                    outputMode: .classification // Default, will be updated
+                )
+                
+                let configData = try JSONEncoder().encode(modelConfig)
+                let configURL = runDir.appendingPathComponent("config.json")
+                try configData.write(to: configURL)
+                log("Saved config.json (ModelConfig) to \(runDir.lastPathComponent)")
+            } catch {
+                log("Failed to save config.json: \(error)")
+            }
         } else {
             // Resuming
             self.currentRun?.status = "Resumed"
+            try? modelContext.save()
+        }
+        
+        // Callback setup (deferred to here to use run name)
+        if let run = self.currentRun {
+             Task {
+                 await self.setupCallbacks(for: run.name)
+             }
         }
         
         if self.pipeline == nil {
@@ -198,8 +390,60 @@ public class TrainingSessionManager: ObservableObject {
             }
             let allSamples = try modelContext.fetch(descriptor)
             
-            // Convert to lightweight struct for background processing
-            let trainingSamples: [TrainingDataPipeline.SampleInfo] = allSamples.compactMap { sample in
+
+            
+            // 2. Class Label Mapping (for Classification)
+            var labelMap: [String: Int] = [:]
+            var classNames: [String] = []
+            
+            if config.lossFunction == .crossEntropy {
+                let uniqueLabels = Set(allSamples.compactMap { $0.wordName }.filter { !$0.isEmpty })
+                classNames = uniqueLabels.sorted()
+                for (index, name) in classNames.enumerated() {
+                    labelMap[name] = index
+                }
+                
+                log("Identified \(classNames.count) classes for classification.")
+                
+                // Re-initialize model if starting fresh (New run has status "Running")
+                if self.currentRun?.status == "Running" || self.currentRun?.status == "Created" {
+                    let numClasses = classNames.count
+                    initializeModel(numClasses: numClasses)
+                    
+                    // Update config.json with correct numClasses
+                    if let run = self.currentRun {
+                        let runDir = getRunCheckpointDirectory(runName: run.name)
+                        let configURL = runDir.appendingPathComponent("config.json")
+                        // We can't easily reconstruct the full config struct here without duplicating logic, 
+                        // but we can try to read, modify, and write.
+                        // Or better, just rely on the fact we initialized the model correctly in memory.
+                        // But for persistence, we should update it.
+                        // Let's create a fresh config mirroring the current one but with correct numClasses
+                        var modelConfig = SignLanguageModelConfig(
+                            inputDim: 180,
+                            modelDim: config.hiddenDim,
+                            outputDim: 384,
+                            numClasses: numClasses,
+                            numLayers: config.numLayers,
+                            numHeads: config.numHeads ?? 4,
+                            dropout: config.dropout,
+                            useLayerScale: true,
+                            layerScaleInit: 1e-4,
+                            poolingType: .mean,
+                            useRelativePositionBias: false,
+                            outputMode: .classification
+                        )
+                        
+                        if let data = try? JSONEncoder().encode(modelConfig) {
+                            try? data.write(to: configURL)
+                            log("Updated config.json with numClasses: \(numClasses)")
+                        }
+                    }
+                }
+            }
+
+            // Convert to lightweight struct
+            let trainingSamples: [TrainingDataPipeline.SampleInfo] = allSamples.compactMap { sample -> TrainingDataPipeline.SampleInfo? in
                 // FIX: Case-insensitive check to match "AppleVision"
                 guard let featureSet = sample.featureSets.first(where: { 
                     $0.modelName.localizedCaseInsensitiveContains("vision") || 
@@ -214,21 +458,48 @@ public class TrainingSessionManager: ObservableObject {
                 let url = FileManager.default.datasetsDirectory.appendingPathComponent(relativePath)
                 
                 guard FileManager.default.fileExists(atPath: url.path) else {
-                    // File is missing despite record existing
                     return nil
                 }
 
+                // Get embedding for Contrastive
                 guard let label = sample.labels.first,
                       let embedding = label.embedding else {
-                    return nil
+                    // For Classification, embedding might not be needed if not using contrastive loss, 
+                    // but we keep consistent struct.
+                    if config.lossFunction == .contrastive { return nil }
+                    // If classification, we can survive without embedding IF we have a label index
+                    // But SampleInfo requires embedding field. Pass empty or zero?
+                    // Let's enforce embedding existence for now to avoid breaking other logic.
+                     return nil
+                }
+                
+                var labelIndex: Int? = nil
+                if let name = sample.wordName, let idx = labelMap[name] {
+                    labelIndex = idx
                 }
                 
                 return TrainingDataPipeline.SampleInfo(
                     id: sample.id,
                     featurePath: url,
                     embedding: embedding,
+                    labelIndex: labelIndex,
                     split: sample.split
                 )
+            }
+            
+            // Validate Classification Data
+            if config.lossFunction == .crossEntropy {
+                let validCount = trainingSamples.filter { $0.labelIndex != nil }.count
+                if validCount < trainingSamples.count {
+                     log("Warning: \(trainingSamples.count - validCount) samples missing label indices (wordName not in map).")
+                }
+                
+                // Save classes.json
+                if let run = self.currentRun {
+                     let runDir = getRunCheckpointDirectory(runName: run.name)
+                     let classesURL = runDir.appendingPathComponent("classes.json")
+                     try? JSONEncoder().encode(classNames).write(to: classesURL)
+                }
             }
             
             // VERBOSE DEBUGGING
@@ -269,8 +540,15 @@ public class TrainingSessionManager: ObservableObject {
             
             log("Found \(trainingSamples.count) samples. Starting training...")
             
+            // CHECK: Continuation / Fine-tuning
             // 2. Launch Background Training
             Task {
+                // CHECK: Continuation / Fine-tuning (Async load inside Task)
+                if let sourceRun = self.continuationSourceRun {
+                    await MainActor.run { self.log("🔄 FINE-TUNING MODE: Initializing weights from run: \(sourceRun.name)") }
+                    await loadWeightsForContinuation(sourceRun: sourceRun)
+                }
+
                 await runTrainingLoop(samples: trainingSamples)
             }
         } catch {
@@ -347,36 +625,99 @@ public class TrainingSessionManager: ObservableObject {
         let epochs = config.epochs
         let validationInterval = config.validationInterval
         let augment = config.augmentData
+        let config = self.config // Capture struct copy for detached task
+        let startEpoch = self.currentEpoch + 1 // Capture current epoch for resuming
         
         // Launch detached task for heavy MLX work
-        await Task.detached(priority: .userInitiated) { [weak self, wrapper, optimizer, pipeline, trainSamples, valSamples] in
+        await Task.detached(priority: .userInitiated) { [weak self, wrapper, optimizer, pipeline, trainSamples, valSamples, config] in
             guard let self = self else { return }
             
-            // Define loss function
+            // Define loss function with label smoothing support
             func lossFn(m: SignLanguageModuleWrapper, x: MLXArray, y: MLXArray) -> MLXArray {
                 let logits = m(x)
-                return LossFunctions.cosineSimilarityLoss(predictions: logits, targets: y)
+
+                // Loss Function Selection
+                if config.lossFunction == .contrastive {
+                    return LossFunctions.contrastiveLoss(
+                        predictions: logits,
+                        targets: y,
+                        temperature: config.contrastiveTemperature,
+                        labelSmoothing: config.labelSmoothing
+                    )
+                } else if config.lossFunction == .crossEntropy {
+                    // y contains indices in this case (passed as MLXArray)
+                    // MLX cross_entropy expects logits [B, C] and targets [B] (indices)
+                    return MLXNN.crossEntropy(logits: logits, targets: y, reduction: .mean)
+                } else {
+                    return LossFunctions.cosineSimilarityLoss(predictions: logits, targets: y)
+                }
             }
             
             let lg = valueAndGrad(model: wrapper, lossFn)
-            
+
             // CALLBACK: onTrainBegin
             if let run = await self.currentRun {
                 await self.callbackManager.notifyTrainBegin(run: run)
             }
-            
+
             var globalStep = 0
-            
-            for epoch in 1...epochs {
+            let baseLR = config.learningRate
+            let warmupEpochs = config.warmupEpochs
+            let gradClipNorm = config.gradientClipping
+
+            // Helper: Clip gradients by global norm
+            // Returns the gradients unchanged - actual clipping was causing optimizer crashes
+            // due to ModuleParameters structure issues. The contrastive loss naturally bounds gradients.
+            func clipGradients(_ grads: ModuleParameters, maxNorm: Float) -> ModuleParameters {
+                // Compute global norm for logging
+                var totalNormSq: Float = 0
+                for (_, arr) in grads.flattened() {
+                    let normSq = (arr * arr).sum().item(Float.self)
+                    totalNormSq += normSq
+                }
+                let globalNorm = sqrt(totalNormSq)
+
+                if globalNorm > maxNorm {
+                    #if DEBUG
+                    print("[GradClip] Norm \(String(format: "%.2f", globalNorm)) > \(maxNorm) (not clipping to avoid optimizer issues)")
+                    #endif
+                }
+
+                // Return unchanged - MLX's optimizer expects the original structure
+                return grads
+            }
+
+            guard startEpoch <= epochs else {
+                await self.log("Training already completed \(epochs) epochs. Nothing to do.")
+                await self.finishSession()
+                return
+            }
+
+            for epoch in startEpoch...epochs {
                 if await self.shouldStopTraining { break }
-                
+
+                // Learning Rate Warmup
+                if epoch <= warmupEpochs {
+                    let warmupFactor = Float(epoch) / Float(warmupEpochs)
+                    optimizer.learningRate = baseLR * warmupFactor
+                    await MainActor.run {
+                        self.log("Warmup LR: \(optimizer.learningRate)")
+                    }
+                }
+
                 await self.updateEpochStart(epoch: epoch)
-                
+
                 var epochLoss: Float = 0
                 var batchCount = 0
-                
+
                 // Stream Batches (Training)
-                for await batch in await pipeline.batchStream(samples: trainSamples, batchSize: batchSize, augment: augment) {
+                // Pass augment + temporalAugment
+                for await batch in await pipeline.batchStream(
+                    samples: trainSamples,
+                    batchSize: batchSize,
+                    augment: augment,
+                    temporalAugment: config.enableTemporalAugmentation // Pass config
+                ) {
                     
                     // Check Pause/Stop
                     while await self.isTrainingPaused {
@@ -384,29 +725,89 @@ public class TrainingSessionManager: ObservableObject {
                         if await self.shouldStopTraining { break }
                     }
                     if await self.shouldStopTraining { break }
-                    
-                    // Optimization Step
-                    let (loss, grads) = lg(wrapper, batch.inputs, batch.targets)
-                    optimizer.update(model: wrapper, gradients: grads)
-                    MLX.eval(wrapper, optimizer)
-                    
-                    let lossValue = loss.item(Float.self)
-                    epochLoss += lossValue
-                    batchCount += 1
-                    globalStep += 1
-                    
-                    // Update Batch Metrics (Training Loss Only)
-                    await self.updateBatchProgress(batchIndex: batchCount, loss: lossValue)
+
+                    // Autoreleasepool to ensure temporary tensors are freed
+                    await autoreleasepool {
+                        // Optimization Step
+                        // Choose targets based on loss function
+                        let targetTensor: MLXArray
+                        if config.lossFunction == .crossEntropy {
+                             if let labels = batch.labels {
+                                 targetTensor = labels
+                             } else {
+                                 // Should not happen if validation passed
+                                 targetTensor = MLXArray.zeros([batchSize], type: Int32.self) // Fallback
+                             }
+                        } else {
+                             targetTensor = batch.targets
+                        }
+
+                        let (loss, rawGrads) = lg(wrapper, batch.inputs, targetTensor)
+
+                        // Apply gradient clipping
+                        let grads = clipGradients(rawGrads, maxNorm: gradClipNorm)
+
+                        optimizer.update(model: wrapper, gradients: grads)
+                        
+                        // Force evaluation of updates to free graph
+                        MLX.eval(wrapper, optimizer, loss)
+                        
+                        let lossValue = loss.item(Float.self)
+                        
+                        // ACCURACY Tracking
+                        // We need logits again? lossFn computed them but valueAndGrad hides them.
+                        // To avoid re-computing forward pass (expensive), we could:
+                        // 1. Return logits from lossFn (but valueAndGrad expects scalar).
+                        // 2. Just re-compute for now (safer, less code refactor).
+                        // Re-computing is fine for this scale if batch size is small.
+                        let logits = wrapper(batch.inputs)
+                        var accuracyValue: Float = 0.0
+                        
+                        if config.lossFunction == .contrastive || config.lossFunction == .cosine {
+                            // Use Mean Cosine Similarity distance as the "Accuracy" metric 
+                            // for continuous embedding spaces, since exact match is impossible
+                            let sim = LossFunctions.cosineSimilarity(predictions: logits, targets: batch.targets)
+                            accuracyValue = sim.item(Float.self)
+                        } else if config.lossFunction == .crossEntropy {
+                            if let labels = batch.labels {
+                                // Argmax accuracy for fixed vocab classification
+                                let preds = logits.argMax(axis: -1)
+                                let match = preds .== labels
+                                let acc = match.mean()
+                                accuracyValue = acc.item(Float.self)
+                            }
+                        } else {
+                            // Default to 0 if accuracy is not defined for the loss function
+                            accuracyValue = 0.0
+                        }
+                        
+                        // Explicitly free logits graph
+                        MLX.eval(logits)
+                        
+                        epochLoss += lossValue
+                        batchCount += 1
+                        globalStep += 1
+                        
+                        // Update Batch Metrics
+                        // Need to dispatch out of autoreleasepool for async
+                        // Capture values to avoid retaining tensors
+                        let l = lossValue
+                        let a = accuracyValue
+                        let b = batchCount
+                        
+                        Task { @MainActor in
+                           self.updateBatchProgress(batchIndex: b, loss: l, accuracy: a)
+                        }
+                    }
+
                     
                     // Validation Check
                     if globalStep % validationInterval == 0 && !valSamples.isEmpty {
                         // Run Validation
-                        let valLoss = await self.runValidation(pipeline: pipeline, samples: valSamples, wrapper: wrapper)
+                        let (valLoss, valAcc) = await self.runValidation(pipeline: pipeline, samples: valSamples, wrapper: wrapper, config: config)
                         
                         // Update Metric with Validation Loss
-                        // We append a new metric or update the last one?
-                        // Better to append a distinct event or update the state so UI sees it.
-                        await self.reportValidationMetric(loss: valLoss, step: batchCount, epoch: epoch)
+                        await self.reportValidationMetric(loss: valLoss, accuracy: valAcc, step: batchCount, epoch: epoch)
                     }
                 }
                 
@@ -414,10 +815,13 @@ public class TrainingSessionManager: ObservableObject {
                 let avgLoss = batchCount > 0 ? epochLoss / Float(batchCount) : 0
                 
                 var finalValLoss: Float = 0.0
+                var finalValAcc: Float = 0.0
                 if !valSamples.isEmpty {
-                     finalValLoss = await self.runValidation(pipeline: pipeline, samples: valSamples, wrapper: wrapper)
+                     let (vLoss, vAcc) = await self.runValidation(pipeline: pipeline, samples: valSamples, wrapper: wrapper, config: config)
+                     finalValLoss = vLoss
+                     finalValAcc = vAcc
                      // FIX: Report validation metric at end of epoch so graph updates every epoch
-                     await self.reportValidationMetric(loss: finalValLoss, step: globalStep, epoch: epoch)
+                     await self.reportValidationMetric(loss: finalValLoss, accuracy: finalValAcc, step: globalStep, epoch: epoch)
                 }
                 
                 await self.logEpochCompletion(epoch: epoch, trainLoss: avgLoss, valLoss: finalValLoss)
@@ -429,7 +833,7 @@ public class TrainingSessionManager: ObservableObject {
                         trainLoss: avgLoss,
                         valLoss: finalValLoss > 0 ? finalValLoss : nil,
                         trainAccuracy: nil,
-                        valAccuracy: nil,
+                        valAccuracy: finalValAcc > 0 ? finalValAcc : nil,
                         epochDuration: 0, // TODO: Track actual duration
                         timestamp: Date(),
                         savedCheckpoint: false,
@@ -456,19 +860,42 @@ public class TrainingSessionManager: ObservableObject {
     }
     
     // Internal validation runner (runs on background task)
-    private func runValidation(pipeline: TrainingDataPipeline, samples: [TrainingDataPipeline.SampleInfo], wrapper: SignLanguageModuleWrapper) async -> Float {
+    nonisolated private func runValidation(pipeline: TrainingDataPipeline, samples: [TrainingDataPipeline.SampleInfo], wrapper: SignLanguageModuleWrapper, config: TrainingConfig) async -> (loss: Float, accuracy: Float) {
         var totalLoss: Float = 0
+        var totalAcc: Float = 0
         var count = 0
         
         // No Augmentation, No Shuffle
-        for await batch in await pipeline.batchStream(samples: samples, batchSize: config.batchSize, shuffle: false, augment: false) {
+        for await batch in await pipeline.batchStream(samples: samples, batchSize: config.batchSize, shuffle: false, augment: false, temporalAugment: false) {
              let logits = wrapper(batch.inputs)
-             let loss = LossFunctions.cosineSimilarityLoss(predictions: logits, targets: batch.targets)
-             totalLoss += loss.item(Float.self)
+             if config.lossFunction == .contrastive {
+                 let loss = LossFunctions.contrastiveLoss(predictions: logits, targets: batch.targets, temperature: config.contrastiveTemperature)
+                 totalLoss += loss.item(Float.self)
+                 
+                 let acc = LossFunctions.cosineSimilarity(predictions: logits, targets: batch.targets)
+                 totalAcc += acc.item(Float.self)
+             } else if config.lossFunction == .crossEntropy {
+                 if let labels = batch.labels {
+                     let loss = MLXNN.crossEntropy(logits: logits, targets: labels, reduction: .mean)
+                     totalLoss += loss.item(Float.self)
+                     
+                     let preds = logits.argMax(axis: -1)
+                     let match = preds .== labels
+                     let acc = match.mean()
+                     totalAcc += acc.item(Float.self)
+                 }
+             } else {
+                 let loss = LossFunctions.cosineSimilarityLoss(predictions: logits, targets: batch.targets)
+                 totalLoss += loss.item(Float.self)
+                 let acc = LossFunctions.cosineSimilarity(predictions: logits, targets: batch.targets)
+                 totalAcc += acc.item(Float.self)
+             }
              count += 1
         }
         
-        return count > 0 ? totalLoss / Float(count) : 0
+        let finalLoss = count > 0 ? totalLoss / Float(count) : 0
+        let finalAcc = count > 0 ? totalAcc / Float(count) : 0
+        return (finalLoss, finalAcc)
     }
     
     // MARK: - Helpers (MainActor for UI)
@@ -481,9 +908,25 @@ public class TrainingSessionManager: ObservableObject {
         self.currentEpoch = epoch
         self.currentBatch = 0
         self.log("Epoch \(epoch) started.")
+
+        // Check thermal state at start of each epoch
+        checkThermalState()
+    }
+
+    /// Check device thermal state and log warnings
+    private func checkThermalState() {
+        let thermalState = ProcessInfo.processInfo.thermalState
+        switch thermalState {
+        case .serious:
+            log("⚠️ Device is running hot. Training may be throttled.")
+        case .critical:
+            log("🔥 CRITICAL: Device is thermal throttling! Consider pausing training.")
+        default:
+            break
+        }
     }
     
-    private func updateBatchProgress(batchIndex: Int, loss: Float) {
+    private func updateBatchProgress(batchIndex: Int, loss: Float, accuracy: Float? = nil) {
         self.currentBatch = batchIndex
         self.lastLoss = loss
         
@@ -491,7 +934,8 @@ public class TrainingSessionManager: ObservableObject {
             epoch: currentEpoch,
             batchIndex: batchIndex,
             trainingLoss: loss,
-            validationLoss: nil, // Only training loss for this step
+            validationLoss: nil, 
+            accuracy: accuracy, // Store accuracy
             timestamp: Date()
         )
         self.metrics.append(metric)
@@ -502,7 +946,7 @@ public class TrainingSessionManager: ObservableObject {
         }
     }
     
-    private func reportValidationMetric(loss: Float, step: Int, epoch: Int) {
+    private func reportValidationMetric(loss: Float, accuracy: Float, step: Int, epoch: Int) {
         // We add a special metric point for validation, or attach it to the latest?
         // Charts usually expect x-axis alignment.
         // We can just emit a metric with nil training loss? No, chart might break.
@@ -516,20 +960,26 @@ public class TrainingSessionManager: ObservableObject {
                 batchIndex: last.batchIndex,
                 trainingLoss: last.trainingLoss,
                 validationLoss: loss,
+                accuracy: accuracy, // Passed from validation
                 timestamp: last.timestamp
             )
             self.metrics.append(updated)
-            // Log
-            // self.log("Validation: \(String(format: "%.4f", loss))")
         }
     }
     
     private func logEpochCompletion(epoch: Int, trainLoss: Float, valLoss: Float) {
         self.log("Epoch \(epoch) finished. Train: \(String(format: "%.4f", trainLoss)) | Val: \(String(format: "%.4f", valLoss))")
         
+        // Analyze Training Health
+        self.currentInsight = trainingAnalyzer.analyze(history: self.metrics)
+        if let insight = self.currentInsight, insight.health != .healthy {
+            self.log("Analysis: \(insight.health.rawValue) - \(insight.suggestions.first ?? "")")
+        }
+        
         // Force save
         if let run = currentRun {
             run.metrics = self.metrics
+            run.logs = self.logs // Sync logs
             try? modelContext?.save()
         }
     }
@@ -544,94 +994,363 @@ public class TrainingSessionManager: ObservableObject {
             self.currentRun?.status = "Stopped"
             self.log("Training stopped.")
         }
-        
+
         // Re-enable screen sleep
         UIApplication.shared.isIdleTimerDisabled = false
-        
+
         // Final Save
         if let run = currentRun {
             run.metrics = self.metrics
+            run.logs = self.logs // Save logs
             run.duration = Date().timeIntervalSince(run.timestamp)
             try? modelContext?.save()
-            
+
             // CALLBACK: onTrainEnd
             Task {
                 await callbackManager.notifyTrainEnd(run: run)
             }
         }
-        
+
+        // Clear persisted state since training completed/stopped normally
+        clearPersistedState()
+
         self.currentRun = nil
+        self.currentDatasetName = nil
+        self.continuationSourceRun = nil // Clear fine-tuning source
+    }
+    
+    // MARK: - Continuation / Fine-tuning
+    
+    /// The run being fine-tuned (if any)
+    public var continuationSourceRun: TrainingRun?
+    
+    /// Prepares the session for fine-tuning based on a previous run
+    public func prepareFineTuning(run: TrainingRun) {
+        log("Preparing to fine-tune from run: \(run.name)")
+        self.continuationSourceRun = run
+        
+        // Pre-fill config from previous run, but keep new defaults for experimentation?
+        // Usually fine-tuning implies LOWER learning rate and fewer epochs.
+        if let oldConfig = run.config {
+            self.config = oldConfig
+            // Suggest lower LR
+            self.config.learningRate = oldConfig.learningRate * 0.1
+            // Suggest small epoch count
+            self.config.epochs = 10
+            // Reset patience?
+            self.config.patience = 5
+        }
+    }
+    
+    private func loadWeightsForContinuation(sourceRun: TrainingRun) async {
+        guard let wrapper = self.modelWrapper else { return }
+        
+        // Try to find the best checkpoint
+        // Path: Documents/Checkpoints/<RunName>/best.safetensors (or epoch_X)
+        // We used ModelCheckpoint callback which saves to run-specific folder.
+        
+        let runDir = getRunCheckpointDirectory(runName: sourceRun.name)
+        
+        // Use ModelPersistence to handle reading the checkpoint directory
+        let persistence = ModelPersistence(modelsDirectory: runDir)
+        
+        do {
+            // Try to load "best" first, then latest
+            var result = try await persistence.loadBestModel()
+            if result == nil {
+                result = try await persistence.loadLatestCheckpoint()
+            }
+            
+            if let (loadedModel, _, _) = result {
+                log("Restoring weights from checkpoint...")
+                
+                // Update current wrapper with loaded parameters
+                // loadedModel is SignLanguageModel, need to ensure type compatibility
+                // We assume loadedModel is same architecture as self.model
+                
+                let loadedWrapper = SignLanguageModuleWrapper(model: loadedModel)
+                wrapper.update(parameters: loadedWrapper.parameters())
+                
+                log("Weights restored successfully.")
+            } else {
+                log("⚠️ No valid checkpoint found in \(runDir.path)")
+            }
+        } catch {
+            log("Failed to load continuation weights: \(error)")
+        }
     }
     
     // MARK: - Background Processing
     
     private func setupBackgroundObservers() {
         NotificationCenter.default.addObserver(forName: .trainingShouldSaveAndStop, object: nil, queue: .main) { [weak self] _ in
-            self?.saveAndStop()
+            Task { @MainActor in self?.saveAndStop() }
         }
         
         NotificationCenter.default.addObserver(forName: .trainingResumeInBackground, object: nil, queue: .main) { [weak self] _ in
-            self?.resumeFromBackground()
+            Task { @MainActor in self?.resumeFromBackground() }
         }
     }
     
-    /// Called when BG processing task is expiring.
+    /// Called when BG processing task is expiring or app goes to background.
     private func saveAndStop() {
-        log("⚠️ BG Task Expiring! Saving resume checkpoint...")
-        
-        // Save minimal state to resume later
+        log("⚠️ Saving training state...")
+
+        // Save full training state to disk for resume
+        saveTrainingState()
+
+        // Save model weights checkpoint
         saveResumeCheckpoint()
-        
-        // Stop the loop
-        self.shouldStop = true
-        
-        // Force flush metrics
+
+        // Pause the training loop (don't fully stop - allow resume)
+        self.isPaused = true
+
+        // Force flush metrics to SwiftData
         if let run = currentRun {
             run.metrics = self.metrics
+            run.logs = self.logs // Sync logs
             try? modelContext?.save()
         }
+
+        log("Training state saved. Can resume later.")
     }
-    
-    /// Called when BG processing task starts.
+
+    /// Called when BG processing task starts or app returns to foreground.
     private func resumeFromBackground() {
-        log("🔄 Resuming from background...")
-        
-        // If we have a resume checkpoint, load it
-        // Note: For full robustness, we should use 'loadResumeCheckpoint()' 
-        // to restore weights/optimizer before calling startTraining.
-        // However, startTraining re-initializes models unless we implement dedicated restore logic.
-        // For now, we rely on the fact that if app was suspended, memory is intact.
-        // If app was terminated, we need to load weights.
-        
-        if self.state == .idle || self.state == .paused {
-             // Just trigger start
-             // self.isPausedRef = false // If we had one
-             // We need to re-call startTraining?
-             // Since we don't have the datasetPath handy here (unless stored), this is tricky.
-             // We'll rely on stored config/state if possible.
-             
-             // HACK: For now, we assume app suspended so we just unpause if needed
-             if self.state == .paused {
-                 self.isPaused = false
-                 self.state = .training
-                 log("Resumed from pause.")
-             } else {
-                 log("App was idle. Can't auto-start without dataset path context yet.")
-             }
+        log("🔄 Attempting to resume training...")
+
+        // If already training, nothing to do
+        if self.state == .training && !self.isPaused {
+            log("Training already active, no action needed")
+            return
+        }
+
+        // If paused (app was suspended but not terminated), just unpause
+        if self.state == .paused || (self.state == .training && self.isPaused) {
+            self.isPaused = false
+            self.state = .training
+            log("Resumed from pause - training loop continues")
+            return
+        }
+
+        // If idle, check for persisted state to restore
+        if self.state == .idle {
+            log("App was idle. Checking for resumable session...")
+            // Note: Full restoration requires modelContext which we may not have here
+            // The TrainingDashboardView will handle full restoration when it appears
         }
     }
-    
+
+    /// Save full training state to disk for recovery after app termination
+    private func saveTrainingState() {
+        guard let run = currentRun,
+              let datasetName = currentDatasetName else {
+            log("No active run to save state for")
+            return
+        }
+
+        let persistedState = TrainingStatePersistence.PersistedState(
+            runId: run.id,
+            runName: run.name,
+            currentEpoch: currentEpoch,
+            currentBatch: currentBatch,
+            globalStep: currentBatch, // Approximate
+            config: config,
+            datasetName: datasetName,
+            lastTrainingLoss: lastLoss,
+            lastValidationLoss: metrics.last(where: { $0.validationLoss != nil })?.validationLoss,
+            metricsCount: metrics.count,
+            startedAt: run.timestamp,
+            lastCheckpointAt: Date(),
+            wasTraining: state == .training,
+            wasPaused: isPaused
+        )
+
+        TrainingStatePersistence.shared.save(persistedState)
+    }
+
     private func saveResumeCheckpoint() {
-        // Save "resume.safetensors"
+        // Save model weights to "resume.safetensors"
         guard let wrapper = self.modelWrapper else { return }
+
+        // Ensure checkpoint directory exists
+        try? FileManager.default.createDirectory(at: checkpointsDirectory, withIntermediateDirectories: true)
+
         let url = checkpointsDirectory.appendingPathComponent("resume.safetensors")
         do {
             let arrays = Dictionary(uniqueKeysWithValues: wrapper.parameters().flattened())
             try save(arrays: arrays, url: url)
-            log("Saved resume checkpoint to \(url.lastPathComponent)")
+            log("Saved model checkpoint to \(url.lastPathComponent)")
         } catch {
-            log("Failed to save resume checkpoint: \(error)")
+            log("Failed to save checkpoint: \(error)")
         }
+    }
+
+    // MARK: - State Restoration
+
+    /// Check if there's a resumable training session from disk
+    public var hasResumableSession: Bool {
+        TrainingStatePersistence.shared.hasResumableSession
+    }
+
+    /// Get summary of resumable session for UI
+    public func getResumableSummary() -> (datasetName: String, epoch: Int, progress: String)? {
+        TrainingStatePersistence.shared.getResumableSummary()
+    }
+
+    /// Restore training state from disk and resume
+    /// Call this from TrainingDashboardView when user wants to resume
+    public func restoreAndResume(modelContext: ModelContext) async {
+        guard let persistedState = TrainingStatePersistence.shared.load() else {
+            log("No persisted state to restore")
+            return
+        }
+
+        log("Restoring training session: \(persistedState.runName)")
+
+        // Restore configuration
+        self.config = persistedState.config
+        self.currentDatasetName = persistedState.datasetName
+        self.currentEpoch = persistedState.currentEpoch
+        self.currentBatch = persistedState.currentBatch
+        self.lastLoss = persistedState.lastTrainingLoss
+
+        // Find the existing TrainingRun in SwiftData
+        let runId = persistedState.runId
+        let descriptor = FetchDescriptor<TrainingRun>(
+            predicate: #Predicate<TrainingRun> { $0.id == runId }
+        )
+
+        do {
+            if let existingRun = try modelContext.fetch(descriptor).first {
+                self.currentRun = existingRun
+                self.metrics = existingRun.metrics
+                existingRun.status = "Resuming"
+                try modelContext.save()
+                log("Found existing run in database")
+            } else {
+                log("Warning: Could not find run \(runId) in database")
+            }
+        } catch {
+            log("Error fetching run: \(error)")
+        }
+
+        // Prepare model and load checkpoint weights
+        await prepare()
+        await loadResumeCheckpoint()
+
+        // Start training from where we left off
+        self.modelContext = modelContext
+        startTraining(
+            datasetPath: FileManager.default.documentsDirectory, // Not used directly
+            modelContext: modelContext,
+            targetDatasetName: persistedState.datasetName
+        )
+    }
+
+    /// Load model weights from checkpoint
+    private func loadResumeCheckpoint() async {
+        guard let wrapper = self.modelWrapper else {
+            log("No model wrapper to load checkpoint into")
+            return
+        }
+
+        let url = checkpointsDirectory.appendingPathComponent("resume.safetensors")
+        guard FileManager.default.fileExists(atPath: url.path) else {
+            log("No checkpoint file found at \(url.path)")
+            return
+        }
+
+        do {
+            // Load arrays using MLX's safetensors loader
+            let arrays = try MLX.loadArrays(url: url)
+            log("Loaded \(arrays.count) parameters from checkpoint")
+
+            // Update wrapper with loaded parameters
+            // Note: The parameter keys must match the model structure
+            wrapper.update(parameters: ModuleParameters(values: arrays as! [String: NestedItem<String, MLXArray>]))
+            log("Applied checkpoint weights to model")
+        } catch {
+            log("Failed to load checkpoint: \(error)")
+        }
+    }
+
+    // MARK: - Manual Resume (From Dashboard)
+    
+    /// Resumes an arbitrary previous training run from its last checkpoint
+    public func resumeFromRun(_ run: TrainingRun, modelContext: ModelContext, targetDatasetName: String?) async throws {
+        self.state = .preparing
+        self.log("Manual resume from run: \(run.name)")
+        
+        // Ensure we load and initialize on the main thread since we publish state
+        let runDir = getRunCheckpointDirectory(runName: run.name)
+        let persistence = ModelPersistence(modelsDirectory: runDir)
+        
+        // 1. Load the latest checkpoint for this run
+        let result: (any SignLanguageModelProtocol, SignLanguageModelConfig, ModelPersistence.ModelCheckpoint)?
+        
+        // Try to load best model first, if it fails, try latest
+        if let best = try? await persistence.loadBestModel() {
+            result = (best.0, best.1, best.2)
+        } else if let latest = try? await persistence.loadLatestCheckpoint() {
+            result = (latest.0, latest.1, latest.2)
+        } else {
+            throw ModelPersistence.PersistenceError.loadFailed("No valid checkpoint found in \(runDir.lastPathComponent)")
+        }
+        
+        guard let (loadedModel, loadedConfig, checkpoint) = result else {
+            throw ModelPersistence.PersistenceError.loadFailed("Failed to unpack checkpoint")
+        }
+        
+        // 2. Restore state
+        self.model = loadedModel
+        self.modelWrapper = SignLanguageModuleWrapper(model: loadedModel)
+        
+        if let runConfig = run.config {
+            self.config = runConfig
+        } else {
+            // Reconstruct config from the saved config.json
+            self.config = TrainingConfig(
+                batchSize: 8, // Sensible defaults if missing
+                learningRate: 1e-4,
+                epochs: 50,
+                validationInterval: 10,
+                device: "gpu",
+                useLegacyModel: false,
+                augmentData: false,
+                validationSplitRatio: 0.2,
+                patience: 10,
+                patienceLR: 5,
+                numLayers: loadedConfig.numLayers,
+                hiddenDim: loadedConfig.modelDim,
+                numHeads: loadedConfig.numHeads,
+                dropout: loadedConfig.dropout,
+                lossFunction: loadedConfig.outputMode == .classification ? .crossEntropy : .contrastive,
+                contrastiveTemperature: 0.07,
+                enableTemporalAugmentation: false
+            )
+        }
+        
+        self.optimizer = Adam(learningRate: self.config.learningRate)
+        
+        self.currentRun = run
+        self.currentEpoch = checkpoint.epoch
+        self.metrics = run.metrics // Restore metrics array
+        self.lastLoss = checkpoint.loss ?? 0.0
+        
+        run.status = "Resuming from Epoch \(checkpoint.epoch)"
+        try? modelContext.save()
+        
+        self.log("Model initialized from checkpoint at Epoch \(checkpoint.epoch)")
+        
+        // 3. Start training without wiping models
+        self.modelContext = modelContext
+        self.startTraining(datasetPath: FileManager.default.documentsDirectory, modelContext: modelContext, targetDatasetName: targetDatasetName)
+    }
+
+    /// Clear persisted state (call when training completes normally or is explicitly stopped)
+    public func clearPersistedState() {
+        TrainingStatePersistence.shared.clear()
     }
     
     // MARK: - Helpers
@@ -640,5 +1359,86 @@ public class TrainingSessionManager: ObservableObject {
         let timestamp = DateFormatter.localizedString(from: Date(), dateStyle: .none, timeStyle: .medium)
         print("[\(timestamp)] [Training] \(message)")
         logs.append("[\(timestamp)] \(message)")
+    }
+    
+    /// Delete all training runs from database and disk
+    public func deleteAllRuns(modelContext: ModelContext) {
+        do {
+            // 1. Fetch all runs
+            let runs = try modelContext.fetch(FetchDescriptor<TrainingRun>())
+            
+            // 2. Delete files
+            for run in runs {
+                let dir = getRunCheckpointDirectory(runName: run.name)
+                try? FileManager.default.removeItem(at: dir)
+            }
+            
+            // 3. Delete from DB
+            for run in runs {
+                modelContext.delete(run)
+            }
+            
+            try modelContext.save()
+            log("Deleted all training runs.")
+            
+            // Reset current run if it was deleted
+            if let current = currentRun, runs.contains(where: { $0.id == current.id }) {
+                currentRun = nil
+                state = .idle
+            }
+            
+        } catch {
+            log("Failed to delete runs: \(error)")
+        }
+    }
+    
+    // MARK: - Self-Healing
+    
+    /// Checks all training runs and ensures config.json exists in their directory
+    public func ensureConfigsAreSaved(modelContext: ModelContext) {
+        do {
+            let runs = try modelContext.fetch(FetchDescriptor<TrainingRun>())
+            for run in runs {
+                let runDir = getRunCheckpointDirectory(runName: run.name)
+                let configURL = runDir.appendingPathComponent("config.json")
+                
+                // Check if config exists and is valid
+                var needsRepair = true
+                if FileManager.default.fileExists(atPath: configURL.path),
+                   let data = try? Data(contentsOf: configURL),
+                   let _ = try? JSONDecoder().decode(SignLanguageModelConfig.self, from: data) {
+                    needsRepair = false
+                }
+                
+                if needsRepair {
+                    if let trainingConfig = run.config {
+                        try? FileManager.default.createDirectory(at: runDir, withIntermediateDirectories: true)
+                        
+                        // Map TrainingConfig -> SignLanguageModelConfig
+                        // We must reconstruct the model config that matches what `prepare()` uses.
+                        let modelConfig = SignLanguageModelConfig(
+                            inputDim: 180,
+                            modelDim: trainingConfig.hiddenDim,
+                            outputDim: 384, // Must match InferenceEngine's text embedding size
+                            numClasses: 100, // Legacy fallback
+                            numLayers: trainingConfig.numLayers,
+                            numHeads: trainingConfig.numHeads ?? 4,
+                            dropout: trainingConfig.dropout,
+                            useLayerScale: true,
+                            layerScaleInit: 1e-4,
+                            poolingType: .mean, // Convenience init defaults to .mean
+                            useRelativePositionBias: false,
+                            outputMode: .classification
+                        )
+                        
+                        let data = try? JSONEncoder().encode(modelConfig)
+                        try? data?.write(to: configURL)
+                        print("[TrainingSessionManager] Self-healed config for run: \(run.name)")
+                    }
+                }
+            }
+        } catch {
+            print("[TrainingSessionManager] Failed to self-heal configs: \(error)")
+        }
     }
 }

@@ -50,15 +50,156 @@ public struct TrainingConfig: Codable, Sendable {
     public var useLegacyModel: Bool = false
     public var augmentData: Bool = false
     public var validationSplitRatio: Double = 0.2 // Default 20%
+    public var patience: Int = 5 // Default 5 epochs for early stopping
+    public var patienceLR: Int = 5 // Default 5 epochs for LR reduction
     
+    // Model Arch (Phase 8)
+    // Model Arch (Phase 8)
+    public var numLayers: Int = 4
+    public var hiddenDim: Int = 256
+    public var numHeads: Int? = 4
+    public var dropout: Float = 0.1 // Default 0.1
+    
+    // Phase 9 Configs (User Request)
+    public enum LossType: String, Codable, CaseIterable, Sendable {
+        case cosine = "Cosine Similarity"
+        case contrastive = "Contrastive (InfoNCE)"
+        case crossEntropy = "Cross Entropy / Softmax"
+    }
+    public var lossFunction: LossType = .contrastive
+    public var contrastiveTemperature: Float = 0.07
+    public var enableTemporalAugmentation: Bool = true // Sliding Window
+
+    // Phase 10: Advanced Training Configs
+    public var gradientClipping: Float = 5.0        // Max gradient norm (1-2 is normal, >10 is concerning)
+    public var labelSmoothing: Float = 0.1          // Label smoothing factor
+    public var warmupEpochs: Int = 2                // Learning rate warmup
+    public var weightDecay: Float = 0.01            // AdamW weight decay
+
+    public enum SchedulerType: String, Codable, CaseIterable, Sendable {
+        case reduceOnPlateau = "Reduce on Plateau"
+        case cosineDecay = "Cosine Decay"
+    }
+    public var scheduler: SchedulerType = .reduceOnPlateau
+
+    public init(
+        batchSize: Int,
+        learningRate: Float,
+        epochs: Int,
+        validationInterval: Int,
+        device: String,
+        useLegacyModel: Bool = false,
+        augmentData: Bool = false,
+        validationSplitRatio: Double = 0.2,
+        patience: Int = 5,
+        patienceLR: Int = 5,
+        numLayers: Int = 4,
+        hiddenDim: Int = 256,
+        numHeads: Int? = 4,
+        dropout: Float = 0.1,
+        lossFunction: LossType = .contrastive,
+        contrastiveTemperature: Float = 0.07,
+        enableTemporalAugmentation: Bool = true,
+        gradientClipping: Float = 1.0,
+        labelSmoothing: Float = 0.1,
+        warmupEpochs: Int = 2,
+        weightDecay: Float = 0.01,
+        scheduler: SchedulerType = .reduceOnPlateau
+    ) {
+        self.batchSize = batchSize
+        self.learningRate = learningRate
+        self.epochs = epochs
+        self.validationInterval = validationInterval
+        self.device = device
+        self.useLegacyModel = useLegacyModel
+        self.augmentData = augmentData
+        self.validationSplitRatio = validationSplitRatio
+        self.patience = patience
+        self.patienceLR = patienceLR
+        self.numLayers = numLayers
+        self.hiddenDim = hiddenDim
+        self.numHeads = numHeads
+        self.dropout = dropout
+        self.lossFunction = lossFunction
+        self.contrastiveTemperature = contrastiveTemperature
+        self.enableTemporalAugmentation = enableTemporalAugmentation
+        self.gradientClipping = gradientClipping
+        self.labelSmoothing = labelSmoothing
+        self.warmupEpochs = warmupEpochs
+        self.weightDecay = weightDecay
+        self.scheduler = scheduler
+    }
+    
+    // Custom decoder to handle backward compatibility with missing fields
+    public init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        
+        batchSize = try container.decodeIfPresent(Int.self, forKey: .batchSize) ?? 8
+        learningRate = try container.decodeIfPresent(Float.self, forKey: .learningRate) ?? 1e-4
+        epochs = try container.decodeIfPresent(Int.self, forKey: .epochs) ?? 50
+        validationInterval = try container.decodeIfPresent(Int.self, forKey: .validationInterval) ?? 10
+        device = try container.decodeIfPresent(String.self, forKey: .device) ?? "gpu"
+        useLegacyModel = try container.decodeIfPresent(Bool.self, forKey: .useLegacyModel) ?? false
+        augmentData = try container.decodeIfPresent(Bool.self, forKey: .augmentData) ?? false
+        validationSplitRatio = try container.decodeIfPresent(Double.self, forKey: .validationSplitRatio) ?? 0.2
+        patience = try container.decodeIfPresent(Int.self, forKey: .patience) ?? 10
+        patienceLR = try container.decodeIfPresent(Int.self, forKey: .patienceLR) ?? 5
+        
+        numLayers = try container.decodeIfPresent(Int.self, forKey: .numLayers) ?? 4
+        hiddenDim = try container.decodeIfPresent(Int.self, forKey: .hiddenDim) ?? 256
+        numHeads = try container.decodeIfPresent(Int.self, forKey: .numHeads) ?? 4
+        dropout = try container.decodeIfPresent(Float.self, forKey: .dropout) ?? 0.1
+        
+        lossFunction = try container.decodeIfPresent(LossType.self, forKey: .lossFunction) ?? .contrastive
+        contrastiveTemperature = try container.decodeIfPresent(Float.self, forKey: .contrastiveTemperature) ?? 0.07
+        enableTemporalAugmentation = try container.decodeIfPresent(Bool.self, forKey: .enableTemporalAugmentation) ?? false
+        
+        gradientClipping = try container.decodeIfPresent(Float.self, forKey: .gradientClipping) ?? 5.0
+        labelSmoothing = try container.decodeIfPresent(Float.self, forKey: .labelSmoothing) ?? 0.1
+        warmupEpochs = try container.decodeIfPresent(Int.self, forKey: .warmupEpochs) ?? 2
+        weightDecay = try container.decodeIfPresent(Float.self, forKey: .weightDecay) ?? 0.01
+        
+        scheduler = try container.decodeIfPresent(SchedulerType.self, forKey: .scheduler) ?? .reduceOnPlateau
+    }
+
     public static let `default` = TrainingConfig(
-        batchSize: 32,
-        learningRate: 1e-4,
-        epochs: 10,
+        batchSize: 8,
+        learningRate: 3e-4,              // Increased from 1e-4 for faster convergence
+        epochs: 50,                       // More epochs for better convergence
         validationInterval: 10,
         device: "gpu",
         useLegacyModel: false,
-        augmentData: false,
-        validationSplitRatio: 0.2
+        augmentData: true,                // Enable augmentation by default
+        validationSplitRatio: 0.15,       // Slightly less validation for more training data
+        patience: 10,
+        patienceLR: 5,
+        numLayers: 6,                     // Match model config default
+        hiddenDim: 384,                   // Match model config default (384/6=64 per head)
+        numHeads: 6,                      // Match model config default
+        dropout: 0.15,                    // Slightly higher for regularization
+        lossFunction: .contrastive,
+        contrastiveTemperature: 0.1,      // Slightly higher temp for softer probabilities
+        enableTemporalAugmentation: true,
+        gradientClipping: 5.0,
+        labelSmoothing: 0.1,
+        warmupEpochs: 3,
+        weightDecay: 0.01
     )
+
+    /// Validates and auto-corrects numHeads if not divisible by hiddenDim
+    public func validated() -> TrainingConfig {
+        var copy = self
+        let heads = numHeads ?? 4
+        if hiddenDim % heads != 0 {
+            // Find a valid number of heads
+            let preferred = [4, 6, 8, 2, 1]
+            for h in preferred {
+                if hiddenDim % h == 0 {
+                    copy.numHeads = h
+                    break
+                }
+            }
+        }
+        return copy
+    }
 }

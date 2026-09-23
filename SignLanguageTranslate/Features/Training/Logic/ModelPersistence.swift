@@ -135,38 +135,99 @@ actor ModelPersistence {
     // MARK: - Load
 
     /// Load model from checkpoint directory
-    func loadModel(from checkpointDir: URL) async throws -> (SignLanguageModel, SignLanguageModelConfig, ModelCheckpoint) {
-        // Load metadata
-        let metadataURL = checkpointDir.appendingPathComponent("checkpoint.json")
+    func loadModel(from url: URL) async throws -> (SignLanguageModel, SignLanguageModelConfig, ModelCheckpoint) {
+        let metadataURL: URL
+        let weightsURL: URL
+        
+        // Handle both directory (standard) and file (legacy flat) URLs
+        var isDirectory: ObjCBool = false
+        if FileManager.default.fileExists(atPath: url.path, isDirectory: &isDirectory), isDirectory.boolValue {
+             metadataURL = url.appendingPathComponent("checkpoint.json")
+             weightsURL = url.appendingPathComponent("weights.safetensors")
+        } else {
+             // Assume url is the metadata json file
+             metadataURL = url
+             // Derive weights URL: "xxx_metadata.json" -> "xxx.safetensors"
+             let filename = url.deletingPathExtension().lastPathComponent
+             if filename.hasSuffix("_metadata") {
+                 let basename = filename.replacingOccurrences(of: "_metadata", with: "")
+                 weightsURL = url.deletingLastPathComponent().appendingPathComponent("\(basename).safetensors")
+             } else {
+                 // Fallback/Guess
+                 weightsURL = url.deletingPathExtension().appendingPathExtension("safetensors")
+             }
+        }
+
+        // 1. Load Metadata
         guard FileManager.default.fileExists(atPath: metadataURL.path) else {
-            throw PersistenceError.fileNotFound(metadataURL)
+             throw PersistenceError.fileNotFound(metadataURL)
+        }
+        
+        let data = try Data(contentsOf: metadataURL)
+        
+        // Attempt to decode
+        let checkpoint: ModelCheckpoint
+        let config: SignLanguageModelConfig
+        
+        // Decoders
+        let decoder = JSONDecoder()
+        
+        // PATH A: Standard Checkpoint (serialized by ModelPersistence)
+        if let standardCheckpoint = try? decoder.decode(ModelCheckpoint.self, from: data) {
+            checkpoint = standardCheckpoint
+            config = try decoder.decode(SignLanguageModelConfig.self, from: standardCheckpoint.configJSON)
+        } 
+        // PATH B: Callback Checkpoint (serialized by ModelCheckpointCallback - simplified JSON)
+        else {
+             // We need to find the config.json in the directory (it should be saved at start of training)
+             let parentConfigURL = url.deletingLastPathComponent().appendingPathComponent("config.json")
+             
+             // If config.json doesn't exist, we can't reconstruct the model
+             guard FileManager.default.fileExists(atPath: parentConfigURL.path) else {
+                 print("[ModelPersistence] Critical: No config found for checkpoint \(url.lastPathComponent)")
+                 throw PersistenceError.configMismatch
+             }
+             
+             let configData = try Data(contentsOf: parentConfigURL)
+             config = try decoder.decode(SignLanguageModelConfig.self, from: configData)
+             
+             // Construct valid ModelCheckpoint struct from simplified JSON dict
+             guard let dict = try JSONSerialization.jsonObject(with: data) as? [String: Any] else {
+                 throw PersistenceError.invalidFormat
+             }
+             
+             let epoch = dict["epoch"] as? Int ?? 0
+             let loss = dict["value"] as? Float
+             let timestampStr = dict["timestamp"] as? String
+             let timestamp = ISO8601DateFormatter().date(from: timestampStr ?? "") ?? Date()
+             
+             checkpoint = ModelCheckpoint(
+                configJSON: configData,
+                timestamp: timestamp,
+                epoch: epoch,
+                step: 0,
+                loss: loss,
+                modelVersion: "1.0"
+             )
         }
 
-        let metadataData = try Data(contentsOf: metadataURL)
-        let checkpoint = try JSONDecoder().decode(ModelCheckpoint.self, from: metadataData)
-
-        // Decode config
-        let config = try JSONDecoder().decode(SignLanguageModelConfig.self, from: checkpoint.configJSON)
-
-        // Create model with config
-        let model = SignLanguageModel(config: config)
-
-        // Load weights
-        let weightsURL = checkpointDir.appendingPathComponent("weights.safetensors")
-        guard FileManager.default.fileExists(atPath: weightsURL.path) else {
-            throw PersistenceError.fileNotFound(weightsURL)
+        // 2. Initialize Model (validate config to fix numHeads if needed)
+        let validatedConfig = config.validated()
+        if validatedConfig.numHeads != config.numHeads {
+            print("[ModelPersistence] Auto-corrected numHeads: \(config.numHeads) → \(validatedConfig.numHeads) for modelDim=\(config.modelDim)")
         }
+        let model = SignLanguageModel(config: validatedConfig)
 
-        let loadedParams = try loadArrays(url: weightsURL)
-
-        // Apply loaded parameters to model
-        // Note: This requires matching the parameter keys
-        try applyParameters(loadedParams, to: model)
-
-        print("[ModelPersistence] Loaded checkpoint from: \(checkpointDir.path)")
-        print("[ModelPersistence] Epoch: \(checkpoint.epoch), Loss: \(checkpoint.loss ?? -1)")
-
-        return (model, config, checkpoint)
+        // 3. Load Weights
+        if FileManager.default.fileExists(atPath: weightsURL.path) {
+            let loadedParams = try loadArrays(url: weightsURL)
+            try applyParameters(loadedParams, to: model)
+            print("[ModelPersistence] Loaded model weights from \(weightsURL.lastPathComponent)")
+        } else {
+            print("[ModelPersistence] Warning: Weights file not found at \(weightsURL.path)")
+        }
+        
+        return (model, validatedConfig, checkpoint)
     }
 
     /// Load the latest checkpoint
@@ -180,7 +241,8 @@ actor ModelPersistence {
 
     // MARK: - List Checkpoints
 
-    struct CheckpointInfo {
+    struct CheckpointInfo: Identifiable, Hashable, Sendable {
+        var id: URL { url }
         let url: URL
         let epoch: Int
         let step: Int
@@ -191,28 +253,77 @@ actor ModelPersistence {
     /// List all available checkpoints sorted by timestamp (newest first)
     func listCheckpoints() -> [CheckpointInfo] {
         let fm = FileManager.default
+        print("[ModelPersistence] Listing checkpoints in: \(modelsDirectory.path)")
+        
         guard let contents = try? fm.contentsOfDirectory(
             at: modelsDirectory,
             includingPropertiesForKeys: [.isDirectoryKey]
         ) else {
+            print("[ModelPersistence] Failed to list contents or directory is empty.")
             return []
         }
+        
+        print("[ModelPersistence] Found \(contents.count) items: \(contents.map { $0.lastPathComponent })")
 
-        return contents.compactMap { url in
+        let validCheckpoints: [CheckpointInfo] = contents.compactMap { url in
             let metadataURL = url.appendingPathComponent("checkpoint.json")
-            guard let data = try? Data(contentsOf: metadataURL),
-                  let checkpoint = try? JSONDecoder().decode(ModelCheckpoint.self, from: data) else {
+            
+            // Check existence
+            if !fm.fileExists(atPath: metadataURL.path) {
+                // Not a checkpoint folder (might be a file or random folder)
+                // print("[ModelPersistence] No checkpoint.json in \(url.lastPathComponent)") 
                 return nil
             }
-
-            return CheckpointInfo(
-                url: url,
-                epoch: checkpoint.epoch,
-                step: checkpoint.step,
-                loss: checkpoint.loss,
-                timestamp: checkpoint.timestamp
-            )
-        }.sorted { $0.timestamp > $1.timestamp }
+            
+            do {
+                let data = try Data(contentsOf: metadataURL)
+                let checkpoint = try JSONDecoder().decode(ModelCheckpoint.self, from: data)
+                return CheckpointInfo(
+                    url: url,
+                    epoch: checkpoint.epoch,
+                    step: checkpoint.step,
+                    loss: checkpoint.loss,
+                    timestamp: checkpoint.timestamp
+                )
+            } catch {
+                print("[ModelPersistence] Failed to decode metadata for \(url.lastPathComponent): \(error)")
+                return nil
+            }
+        }
+        
+        // FLAT FILE SCANNING (New)
+        // Scan for *_metadata.json files in the root directory
+        if let files = try? fm.contentsOfDirectory(at: modelsDirectory, includingPropertiesForKeys: nil) {
+            let jsonFiles = files.filter { $0.pathExtension == "json" && $0.lastPathComponent.hasSuffix("_metadata.json") }
+            
+            let flatCheckpoints: [CheckpointInfo] = jsonFiles.compactMap { url in
+                 // Decode simple metadata
+                 guard let data = try? Data(contentsOf: url),
+                       let dict = try? JSONSerialization.jsonObject(with: data) as? [String: Any] else {
+                     return nil
+                 }
+                 
+                 let epoch = dict["epoch"] as? Int ?? 0
+                 let loss = dict["value"] as? Float
+                 let timestampStr = dict["timestamp"] as? String
+                 let timestamp = ISO8601DateFormatter().date(from: timestampStr ?? "") ?? Date()
+                 
+                 return CheckpointInfo(
+                    url: url, // CheckpointInfo.url now points to the METADATA FILE
+                    epoch: epoch,
+                    step: 0,
+                    loss: loss,
+                    timestamp: timestamp
+                 )
+            }
+            
+            // Merge valid checkpoints
+            var finalCheckpoints = validCheckpoints
+            finalCheckpoints.append(contentsOf: flatCheckpoints)
+            return finalCheckpoints.sorted { $0.timestamp > $1.timestamp }
+        }
+        
+        return validCheckpoints.sorted { $0.timestamp > $1.timestamp }
     }
 
     /// Delete old checkpoints, keeping the N most recent
@@ -249,8 +360,9 @@ actor ModelPersistence {
         let wrapper = SignLanguageModuleWrapper(model: model)
 
         // Use MLX's update mechanism
-        // This matches parameter keys from the saved dictionary
-        wrapper.update(parameters: ModuleParameters(values: params as! [String : NestedItem<String, MLXArray>]))
+        // Unflatten the parameters to match module structure
+        let unflattened = ModuleParameters.unflattened(params)
+        wrapper.update(parameters: unflattened)
     }
 }
 

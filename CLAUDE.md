@@ -120,8 +120,8 @@ architecture.** The designs restyle it; they do not replace it.
 - Folder names like `12. Dog` are cleaned by stripping leading digits, dots and
   whitespace (`12. Dog` → `Dog`).
 - ⚠️ The SwiftData model `Label` **shadows SwiftUI's `Label`** in every file of
-  this module. Until it is resolved (see realign-00), write `SwiftUI.Label(...)`
-  in views.
+  this module. This is deliberate (D7, `docs/decisions.md`): always write
+  `SwiftUI.Label(...)` in views. Do not rename the model.
 - **Features: 60 landmarks × 3 = 180 values per frame** — body 18 + left hand 21
   + right hand 21 (`TrainingDataPipeline.featureDim`). This is authoritative;
   if a design or doc says 61, the design is wrong.

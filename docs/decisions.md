@@ -19,3 +19,7 @@ silent-audio keep-alive before any distribution build.
 **D6 — Future model arms need controls.** A connectome reservoir is only
 reported alongside a degree-matched shuffled-graph control. Connectome source:
 MaleCNS v1.0, HHMI Janelia FlyEM, CC-BY 4.0.
+
+**D7 — Keep the SwiftData model name `Label`.** It shadows SwiftUI's `Label`, so
+views write `SwiftUI.Label(...)`. Renaming would change the store's entity name
+and need a migration plan, which isn't worth it for a naming issue.

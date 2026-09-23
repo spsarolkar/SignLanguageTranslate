@@ -36,6 +36,8 @@ Present both options with the files affected, then wait:
   name, so the dev store must be deleted or a `SchemaMigrationPlan` added.
 - B) Keep `Label`; use `SwiftUI.Label` in views (and add a note to CLAUDE.md).
 
+**Decided 2026-09-23: B.** Recorded as D7 in `docs/decisions.md`.
+
 ## 0.5 Secrets
 - [x] Move R2 credentials from `UserDefaults` to Keychain (small wrapper in
       `Core/Utilities/`). Same for the Hugging Face token if it is not already.

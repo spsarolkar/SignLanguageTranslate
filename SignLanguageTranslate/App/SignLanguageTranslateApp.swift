@@ -29,6 +29,8 @@ struct SignLanguageTranslateApp: App {
     var body: some Scene {
         WindowGroup {
             MainNavigationView()
+                .background(Palette.ground.ignoresSafeArea())
+                .preferredColorScheme(.dark)
                 .onAppear {
                     // Seed initial datasets if this is first launch
                     persistenceController.seedInitialDatasetsIfNeeded()

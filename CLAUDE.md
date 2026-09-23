@@ -30,11 +30,15 @@ Target: iPad Pro M1, 2 TB. Read this whole file before starting any task.
   **Never edit `project.pbxproj` to add or remove files.**
 - Deployment target **iOS 26.2**. Swift **5** language mode. Do not switch to
   Swift 6 mode as part of any other task.
-- **MLX Swift is pinned at 0.30.2.** Its API differs from PyTorch, Keras and
-  Python MLX. Before using any MLX/MLXNN type or initializer, confirm it exists
-  in the pinned source (`~/Library/Developer/Xcode/DerivedData/*/SourcePackages/checkouts/mlx-swift/Source/`).
-  Example of what went wrong: `ELU` is not a layer type in 0.30.2; only the
-  function `elu(_:alpha:)` exists.
+- **MLX Swift version: `Package.resolved` is authoritative** (currently 0.30.6;
+  the project requires ≥ 0.30.2, up to next major). Its API differs from
+  PyTorch, Keras and Python MLX. Before using any MLX/MLXNN type or initializer,
+  always confirm it exists in the resolved checkout
+  (`~/Library/Developer/Xcode/DerivedData/*/SourcePackages/checkouts/mlx-swift/Source/`),
+  and check that checkout matches the version in `Package.resolved`.
+  Example: `LegacySignLanguageModel` failed to build on `ELU` against an older
+  resolved version; 0.30.6 has both the `ELU` layer and the `elu(_:alpha:)`
+  function. What exists depends on the resolved version, so check, don't recall.
 - Other dependency: ZIPFoundation. **Do not add dependencies** without asking.
 
 ## Build and test

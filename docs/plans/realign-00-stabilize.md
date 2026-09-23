@@ -14,13 +14,16 @@ feature work, no UI changes.
       exists under `SignLanguageTranslate/`. List what you delete in the commit.
 
 ## 0.2 Green build
-- [ ] Fix `Features/Training/Models/LegacySignLanguageModel.swift` against
+- [x] Fix `Features/Training/Models/LegacySignLanguageModel.swift` against
       **MLX Swift 0.30.2 as pinned** (check the source in SourcePackages):
       replace the non-existent `ELU` layer with the `elu(_:alpha:)` function in
       the forward pass; correct initializer labels (`BatchNorm` etc.); remove the
       stray `indices:` label; resolve the main-actor `init` override mismatch.
-- [ ] If any part is unclear, exclude nothing silently — ask.
-- [ ] `xcodebuild build` green.
+      *Already done in the WIP snapshot (ee8ddf1); `buildlog.txt` predated it.
+      MLX resolved at 0.30.6 (see CLAUDE.md). The only remaining error was a
+      missing `import SwiftData` in `AnalysisDashboardView.swift`.*
+- [x] If any part is unclear, exclude nothing silently — ask.
+- [x] `xcodebuild build` green.
 
 ## 0.3 Test baseline
 - [ ] Run `xcodebuild test`. Create `docs/status.md` with date, pass/fail

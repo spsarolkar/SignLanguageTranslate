@@ -1,4 +1,5 @@
 import SwiftUI
+import SwiftData
 
 struct AnalysisDashboardView: View {
     let dataset: Dataset

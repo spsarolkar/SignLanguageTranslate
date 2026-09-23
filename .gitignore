@@ -33,3 +33,16 @@ XCBuildData/
 # Xcode build cache
 ModuleCache.noindex/
 SDKStatCaches.noindex/
+
+# Python (automation/)
+automation/venv/
+__pycache__/
+*.pyc
+
+# Build logs (logs go to /tmp)
+build.log
+build_log*.txt
+buildlog.txt
+
+# Dashboard screenshots
+automation/dashboard/screenshots/*.png

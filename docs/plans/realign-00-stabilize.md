@@ -4,10 +4,10 @@
 feature work, no UI changes.
 
 ## 0.1 Hygiene (one commit)
-- [ ] Add to `.gitignore`: `automation/venv/`, `__pycache__/`, `*.pyc`,
+- [x] Add to `.gitignore`: `automation/venv/`, `__pycache__/`, `*.pyc`,
       `build.log`, `build_log*.txt`, `buildlog.txt`, `automation/dashboard/screenshots/*.png`.
-- [ ] `git rm -r --cached` those paths (keep files on disk if useful).
-- [ ] Delete the stray root-level Swift files (`DownloadManager.swift`,
+- [x] `git rm -r --cached` those paths (keep files on disk if useful).
+- [x] Delete the stray root-level Swift files (`DownloadManager.swift`,
       `DownloadQueueActor.swift`, `DownloadTask.swift`, `DownloadTaskRowView.swift`,
       `SignLanguageTranslateApp.swift`) and root `App/`, `Features/` folders
       **after confirming** each is not part of the target and a real version

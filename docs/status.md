@@ -67,3 +67,17 @@ diagnosis. None of these were fixed in realign-00.
 
 After a crash the simulator clone sometimes failed to relaunch the test host
 ("Simulator device failed to launch"); xcodebuild recovered and finished the run.
+
+## Re-run — 2026-09-24 (realign-01)
+
+After realign-00 §0.5 and realign-01. Same simulator and destination.
+
+**568 tests: 535 passed, 33 failed.** The +6 tests are the new `KeychainStoreTests`
+(all pass). The 32 failures above are unchanged. One more failure:
+
+- `BackgroundSessionManagerTests.test_resumeDownload_createsNewTask`: fails
+  every time now (3/3 in isolation), and **also fails at baseline commit
+  `0fbc10e`**, so realign-01 did not cause it. It passed in the 2026-09-23 run.
+  The test passes mock resume data to a real background `URLSession`; the task
+  seems to be dropped before `isDownloading` is checked. It depends on timing or
+  environment and has not been investigated.

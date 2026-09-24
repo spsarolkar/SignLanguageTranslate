@@ -245,6 +245,33 @@ final class Dataset {
         lastError = error
     }
 
+    /// Align `downloadStatus` with this dataset's download tasks. Called on
+    /// every progress tick while the detail view is open.
+    func syncStatus(with tasks: [DownloadTask]) {
+        let isDownloading = tasks.contains { $0.status == .downloading }
+        let isPaused = tasks.contains { $0.status == .paused } && !isDownloading
+        let isFailed = tasks.contains { $0.status == .failed } && !isDownloading && !isPaused
+        let allCompleted = tasks.allSatisfy { $0.status == .completed } && !tasks.isEmpty
+
+        if allCompleted {
+            if downloadStatus != .completed {
+                completeDownload()
+            }
+        } else if isDownloading {
+            if downloadStatus != .downloading {
+                startDownload()
+            }
+        } else if isPaused {
+            if downloadStatus != .paused {
+                pauseDownload()
+            }
+        } else if isFailed {
+            if downloadStatus != .failed {
+                failDownload(error: "One or more downloads failed")
+            }
+        }
+    }
+
     /// Update download progress
     func updateProgress(downloadedBytes: Int64, totalBytes: Int64) {
         self.downloadedBytes = downloadedBytes

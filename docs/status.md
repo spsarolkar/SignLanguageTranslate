@@ -123,3 +123,24 @@ Follow-ups, not done in this screen:
   later extraction/ingestion progress line was reported to the first-run view
   and is not shown.
 
+
+## realign-02 screen 2 (dataset detail) — 2026-09-24
+
+- **Pause All / Resume All (fixed, `fix:` commit).** Pause only set
+  `dataset.downloadStatus`; the transfers kept running and the next 1 s sync
+  tick set the status back to downloading. It now calls
+  `DownloadManager.pauseAll()`. Resume calls `resumeAll()` and then
+  `resumeTask` for each of the dataset's paused tasks, because `resumeAll()`
+  only lifts the queue pause and never restarts `.paused` tasks.
+  Needs on-device verification.
+  - **Needs scoping per dataset.** The engine has no per-dataset pause, so
+    Pause All pauses every dataset's transfers and Resume lifts the global
+    queue pause.
+  - **Resume can exceed 3 slots.** `resumeTask` goes through
+    `DownloadCoordinator.startTask`, which does not check the concurrency
+    limit, while `resumeAll()` lets the engine start pending tasks too.
+- **"resumed at n%" / "resumed" (not shown).** The artboard's amber note on a
+  resumed transfer has no data behind it: `DownloadCoordinator.startTask`
+  clears `resumeDataPath` as the part restarts and nothing records the resume
+  point. Needs new state in the downloads internals; `TransferRow` supports
+  the amber note but nothing sets it yet.

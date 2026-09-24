@@ -223,33 +223,8 @@ struct DatasetDetailView: View {
         if dataset.downloadedParts != completedParts {
             dataset.downloadedParts = completedParts
         }
-        
-        // Sync status roughly
-        // If any task is downloading -> Downloading
-        // If all completed -> Completed
-        let isDownloading = tasks.contains { $0.status == .downloading }
-        let isPaused = tasks.contains { $0.status == .paused } && !isDownloading
-        let isFailed = tasks.contains { $0.status == .failed } && !isDownloading && !isPaused
-        let allCompleted = tasks.allSatisfy { $0.status == .completed } && !tasks.isEmpty
-        
-        // Update status if it differs significantly to match tasks
-        if allCompleted {
-            if dataset.downloadStatus != .completed {
-                dataset.completeDownload()
-            }
-        } else if isDownloading {
-            if dataset.downloadStatus != .downloading {
-                dataset.startDownload()
-            }
-        } else if isPaused {
-            if dataset.downloadStatus != .paused {
-                dataset.pauseDownload()
-            }
-        } else if isFailed {
-            if dataset.downloadStatus != .failed {
-                dataset.failDownload(error: "One or more downloads failed")
-            }
-        }
+
+        dataset.syncStatus(with: tasks)
     }
 
     // MARK: - Toolbar
@@ -316,11 +291,23 @@ struct DatasetDetailView: View {
         downloadActions.startDownload()
     }
 
+    // Setting only the dataset status left the transfers running, and the
+    // next sync tick flipped it back to downloading. Pause and resume the
+    // tasks themselves. The engine has no per-dataset pause, so this pauses
+    // every dataset (recorded in docs/status.md).
     private func pauseDownload() {
+        downloadManager.pauseAll()
         dataset.pauseDownload()
     }
 
+    // `resumeAll()` only lifts the queue pause; paused tasks need an explicit
+    // resume to restart from their resume data.
     private func resumeDownload() {
+        downloadManager.resumeAll()
+        for task in downloadManager.tasks
+        where task.datasetName == dataset.name && task.status == .paused {
+            downloadManager.resumeTask(task.id)
+        }
         dataset.startDownload()
     }
 

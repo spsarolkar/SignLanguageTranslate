@@ -1040,37 +1040,45 @@ final class DownloadTaskTests: XCTestCase {
 
     // MARK: - Hashable/Equatable Tests
 
-    func test_downloadTask_hashable_sameIDHasSameHash() {
+    // DownloadTask uses value equality (all fields), not ID-only equality, so
+    // SwiftUI sees a change when progress or status updates.
+
+    func test_downloadTask_hashable_equalValuesHaveSameHash() {
         let id = UUID()
+        let createdAt = Date()
         let task1 = DownloadTask(
             id: id,
             url: URL(string: "https://example.com/file.zip")!,
             category: "Test",
             partNumber: 1,
             totalParts: 1,
-            datasetName: "TEST"
+            datasetName: "TEST",
+            createdAt: createdAt
         )
         let task2 = DownloadTask(
             id: id,
-            url: URL(string: "https://example.com/different.zip")!,
-            category: "Different",
-            partNumber: 2,
-            totalParts: 3,
-            datasetName: "OTHER"
+            url: URL(string: "https://example.com/file.zip")!,
+            category: "Test",
+            partNumber: 1,
+            totalParts: 1,
+            datasetName: "TEST",
+            createdAt: createdAt
         )
 
         XCTAssertEqual(task1.hashValue, task2.hashValue)
     }
 
-    func test_downloadTask_equatable_sameIDIsEqual() {
+    func test_downloadTask_equatable_sameValuesAreEqual() {
         let id = UUID()
+        let createdAt = Date()
         let task1 = DownloadTask(
             id: id,
             url: URL(string: "https://example.com/file.zip")!,
             category: "Test",
             partNumber: 1,
             totalParts: 1,
-            datasetName: "TEST"
+            datasetName: "TEST",
+            createdAt: createdAt
         )
         let task2 = DownloadTask(
             id: id,
@@ -1078,10 +1086,27 @@ final class DownloadTaskTests: XCTestCase {
             category: "Test",
             partNumber: 1,
             totalParts: 1,
-            datasetName: "TEST"
+            datasetName: "TEST",
+            createdAt: createdAt
         )
 
         XCTAssertEqual(task1, task2)
+    }
+
+    func test_downloadTask_equatable_sameIDDifferentProgressIsNotEqual() {
+        let task = DownloadTask(
+            url: URL(string: "https://example.com/file.zip")!,
+            category: "Test",
+            partNumber: 1,
+            totalParts: 1,
+            datasetName: "TEST",
+            totalBytes: 1_000
+        )
+        var updated = task
+        updated.updateProgress(bytesDownloaded: 500, totalBytes: 1_000)
+
+        XCTAssertEqual(task.id, updated.id)
+        XCTAssertNotEqual(task, updated)
     }
 
     func test_downloadTask_equatable_differentIDIsNotEqual() {

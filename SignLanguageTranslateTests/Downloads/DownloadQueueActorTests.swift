@@ -751,8 +751,8 @@ final class DownloadQueueActorTests: XCTestCase {
         let data = try await queue.exportState()
         XCTAssertFalse(data.isEmpty)
 
-        // Verify it's valid JSON
-        let decoded = try JSONDecoder().decode(DownloadQueueState.self, from: data)
+        // Verify it's valid JSON (dates are ISO 8601, so use the matching decoder)
+        let decoded = try DownloadQueueState.fromData(data)
         XCTAssertEqual(decoded.tasks.count, 1)
         XCTAssertEqual(decoded.tasks.first?.id, task.id)
     }
@@ -810,6 +810,8 @@ final class DownloadQueueActorTests: XCTestCase {
 
         await queue.enqueue(task)
         await queue.pauseAll()
+        // pauseAll() moves the downloading task to .paused; that is the state exported
+        let exported = await queue.getTask(task.id)
 
         // Export
         let data = try await queue.exportState()
@@ -821,7 +823,8 @@ final class DownloadQueueActorTests: XCTestCase {
         // Verify
         let restored = await newQueue.getTask(task.id)
         XCTAssertEqual(restored?.id, task.id)
-        XCTAssertEqual(restored?.status, task.status)
+        XCTAssertEqual(restored?.status, exported?.status)
+        XCTAssertEqual(restored?.status, .paused)
         XCTAssertEqual(restored?.progress ?? 0, task.progress ?? 0, accuracy: 0.01)
         XCTAssertEqual(restored?.bytesDownloaded, task.bytesDownloaded)
         let isPaused = await newQueue.getIsPaused()

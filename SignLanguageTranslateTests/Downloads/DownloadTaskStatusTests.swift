@@ -303,9 +303,12 @@ final class DownloadTaskStatusTests: XCTestCase {
     }
 
     func test_stateTransitionLogic_terminalStatusesCannotStart() {
-        for status in DownloadTaskStatus.allCases where status.isTerminal {
+        // .failed is terminal but retryable, so it can start; see
+        // test_canStart_trueForPendingPausedFailed.
+        for status in DownloadTaskStatus.allCases where status.isTerminal && status != .failed {
             XCTAssertFalse(status.canStart, "Terminal status \(status) should not be startable")
         }
+        XCTAssertTrue(DownloadTaskStatus.failed.canStart, "Failed downloads can be retried")
     }
 
     func test_stateTransitionLogic_activeStatusesCannotStart() {

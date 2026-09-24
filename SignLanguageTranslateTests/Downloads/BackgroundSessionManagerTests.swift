@@ -159,14 +159,17 @@ final class BackgroundSessionManagerTests: XCTestCase {
 
     // MARK: - Resume Download Tests
 
+    // The mock resume data is not real resume data, so the session fails the
+    // task almost at once and the delegate removes it from tracking. Assert
+    // only what resumeDownload guarantees synchronously, not isDownloading.
+
     func test_resumeDownload_createsNewTask() {
         let taskId = UUID()
         let resumeData = createMockResumeData()
 
         let downloadTask = manager.resumeDownload(resumeData: resumeData, taskId: taskId)
 
-        XCTAssertNotNil(downloadTask)
-        XCTAssertTrue(manager.isDownloading(taskId: taskId))
+        XCTAssertNotEqual(downloadTask.state, .suspended, "resumeDownload should start the task")
     }
 
     func test_resumeDownload_replacesExistingTask() {
@@ -175,13 +178,16 @@ final class BackgroundSessionManagerTests: XCTestCase {
         let resumeData = createMockResumeData()
 
         // Start with a normal download
-        manager.startDownload(url: url, taskId: taskId)
+        let original = manager.startDownload(url: url, taskId: taskId)
 
-        // Resume should replace it
+        // Resume should cancel it and start a new task
         let resumedTask = manager.resumeDownload(resumeData: resumeData, taskId: taskId)
 
-        XCTAssertNotNil(resumedTask)
-        XCTAssertTrue(manager.isDownloading(taskId: taskId))
+        XCTAssertNotEqual(resumedTask.taskIdentifier, original.taskIdentifier)
+        XCTAssertTrue(
+            original.state == .canceling || original.state == .completed,
+            "The original task should be cancelled"
+        )
     }
 
     // MARK: - Pause Download Tests

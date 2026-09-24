@@ -167,7 +167,9 @@ final class ResumeDataManagerTests: XCTestCase {
         let url = manager.fileURL(for: taskId)
 
         XCTAssertEqual(url.lastPathComponent, "\(taskId.uuidString).resume")
-        XCTAssertEqual(url.deletingLastPathComponent(), testDirectory)
+        // Compare paths: deletingLastPathComponent() adds a trailing slash, so URLs differ
+        XCTAssertEqual(url.deletingLastPathComponent().standardizedFileURL.path,
+                       testDirectory.standardizedFileURL.path)
     }
 
     func test_filePath_returnsPathString() {

@@ -283,67 +283,30 @@ struct DatasetDetailView: View {
         }
     }
     
-    // MARK: - Import Handler
-    
-    private func handleImport(_ result: Result<[URL], Error>) {
-        switch result {
-        case .success(let urls):
-            guard let url = urls.first else { return }
-            
-            // Access security scoped resource
-            guard url.startAccessingSecurityScopedResource() else {
-                importError = "Permission denied to access the file."
+    // MARK: - Download and Import
+
+    private var downloadActions: DatasetDownloadActions {
+        DatasetDownloadActions(
+            dataset: dataset,
+            modelContext: modelContext,
+            downloadManager: downloadManager,
+            setIngesting: { isIngesting = $0 },
+            setIngestionProgress: { ingestionProgress = $0 },
+            onImportError: { message in
+                importError = message
                 showImportError = true
-                return
             }
-            
-            Task {
-                defer { url.stopAccessingSecurityScopedResource() }
-                do {
-                    // Start download tracking if not present so tasks exist for the zip importer
-                    if downloadManager.getTasksForCategory(dataset.name).isEmpty {
-                        await downloadManager.loadINCLUDEManifest(datasetName: dataset.name)
-                        dataset.startDownload()
-                        try? modelContext.save()
-                    }
-                    
-                    try await downloadManager.importFromLocalZip(url: url)
-                    await MainActor.run {
-                        // Refresh UI if needed, though manager updates should propagate
-                        // Ensure it's not paused so it detects completion
-                        if dataset.downloadStatus == .paused || dataset.downloadStatus == .notStarted {
-                            dataset.startDownload()
-                        }
-                        
-                        
-                        // Automatically ingest videos to populate the Data Pipeline dataset tables
-                        performExtractionAndIngestion()
-                    }
-                } catch {
-                    await MainActor.run {
-                        importError = error.localizedDescription
-                        showImportError = true
-                    }
-                }
-            }
-            
-        case .failure(let error):
-            importError = error.localizedDescription
-            showImportError = true
-        }
+        )
+    }
+
+    private func handleImport(_ result: Result<[URL], Error>) {
+        downloadActions.handleImport(result)
     }
 
     // MARK: - Actions
 
     private func startDownload() {
-        dataset.startDownload()
-        try? modelContext.save()
-        
-        // Load manifest and start downloads via the engine
-        Task {
-            await downloadManager.loadINCLUDEManifest(datasetName: dataset.name)
-            await downloadManager.startDownloads()
-        }
+        downloadActions.startDownload()
     }
 
     private func pauseDownload() {
@@ -436,91 +399,6 @@ struct DatasetDetailView: View {
                     ingestionProgress = "Failed: \(error.localizedDescription)"
                 }
                 print("[DetailColumnView] Ingestion failed: \(error)")
-            }
-        }
-    }
-
-    private func performExtractionAndIngestion() {
-        Task {
-            await MainActor.run {
-                isIngesting = true
-                ingestionProgress = "Starting extraction..."
-            }
-            
-            do {
-                // 1. Find Downloaded ZIP Files
-                let fileManager = DownloadFileManager()
-                let dir = fileManager.completedDownloadsDirectory
-                let contents = try? FileManager.default.contentsOfDirectory(at: dir, includingPropertiesForKeys: nil)
-                let downloadedFiles = (contents ?? []).filter { $0.pathExtension.lowercased() == "zip" }
-                
-                if !downloadedFiles.isEmpty {
-                    var fileMapping: [String: URL] = [:]
-                    for file in downloadedFiles {
-                        let filename = file.lastPathComponent
-                        let originalFilename: String
-                        if filename.count > 37,
-                           let underscoreIndex = filename.index(filename.startIndex, offsetBy: 36, limitedBy: filename.endIndex),
-                           filename[underscoreIndex] == "_" {
-                            originalFilename = String(filename[filename.index(after: underscoreIndex)...])
-                        } else {
-                            originalFilename = filename
-                        }
-                        // Ensure we only extract zipped parts that belong to this dataset (simplified check)
-                        if originalFilename.contains(dataset.name) {
-                            fileMapping[originalFilename] = file
-                        }
-                    }
-                    
-                    if !fileMapping.isEmpty {
-                        // 2. Extract
-                        let coordinator = ExtractionCoordinator()
-                        _ = try await coordinator.extractDatasetWithMapping(
-                            datasetName: dataset.name,
-                            fileMapping: fileMapping,
-                            progressHandler: nil
-                        )
-                    }
-                }
-                
-                // 3. Ingest
-                await MainActor.run {
-                    ingestionProgress = "Starting ingestion..."
-                }
-                
-                let ingestionService = VideoIngestionService(modelContext: modelContext)
-                let datasetDir = dataset.storageDirectory
-                
-                let onProgress: @Sendable (IngestionProgress) -> Void = { progress in
-                    Task { @MainActor in
-                        ingestionProgress = "Processing (\(progress.filesProcessedInCategory)/\(progress.totalFilesInCategory))"
-                    }
-                }
-                
-                let result = try await ingestionService.ingestDataset(
-                    name: dataset.name,
-                    type: DatasetType(rawValue: dataset.typeRawValue) ?? .include,
-                    directory: datasetDir,
-                    onProgress: onProgress
-                )
-                
-                await MainActor.run {
-                    isIngesting = false
-                    ingestionProgress = "Completed: \(result.samplesCreated) samples"
-                    dataset.totalSamples = result.samplesCreated
-                }
-                
-                try? await Task.sleep(nanoseconds: 3_000_000_000)
-                await MainActor.run {
-                    ingestionProgress = ""
-                }
-                
-            } catch {
-                await MainActor.run {
-                    isIngesting = false
-                    ingestionProgress = "Failed: \(error.localizedDescription)"
-                }
-                print("[DetailColumnView] Extraction/Ingestion failed: \(error)")
             }
         }
     }

@@ -6,7 +6,7 @@ final class ManifestIntegrationTest: XCTestCase {
     func test_manifestEntriesGeneration() {
         let entries = INCLUDEManifest.generateAllEntries()
         print("Generated \(entries.count) entries")
-        XCTAssertEqual(entries.count, 46, "Should generate 46 entries")
+        XCTAssertEqual(entries.count, 44, "Should generate 44 entries (one per zip)")
     }
 
     // TODO: Re-enable once DownloadManager.loadINCLUDEManifest() is implemented

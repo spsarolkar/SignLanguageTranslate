@@ -6,15 +6,18 @@ import Foundation
 ///
 /// Dataset structure:
 /// - 15 categories of sign language words
-/// - 46 total zip files (some categories split into multiple parts)
+/// - 44 zip files (some categories split into multiple parts). The record also
+///   holds README.md and download_data.sh, which are not part of the manifest.
 /// - Approximately 50 GB total size
 /// - Categories include: Adjectives, Animals, Clothes, Colors, Days and Time,
 ///   Electronics, Greetings, Home, Jobs, Transportation, People, Places,
 ///   Pronouns, Seasons, and Society
 ///
-/// File naming convention:
-/// - Single file: "CategoryName.zip"
+/// File naming convention (every file carries a part suffix):
+/// - Single file: "Seasons_1of1.zip"
 /// - Multi-part: "CategoryName_1of2.zip", "CategoryName_2of2.zip", etc.
+///
+/// Download URLs are `<baseURL><filename>/content`.
 enum INCLUDEManifest {
 
     // MARK: - Constants
@@ -111,7 +114,7 @@ enum INCLUDEManifest {
 
     // MARK: - Computed Properties
 
-    /// Total number of files in the manifest (should be 46)
+    /// Total number of files in the manifest (should be 44)
     static var totalFileCount: Int {
         categories.reduce(0) { $0 + $1.partCount }
     }
@@ -155,7 +158,7 @@ enum INCLUDEManifest {
     // MARK: - Manifest Entry Generation
 
     /// Generate all manifest entries for the entire dataset
-    /// - Returns: Array of 46 ManifestEntry objects
+    /// - Returns: Array of 44 ManifestEntry objects
     static func generateAllEntries() -> [ManifestEntry] {
         categories.flatMap { category in
             category.generateManifestEntries(baseURL: baseURL)
@@ -212,8 +215,8 @@ extension INCLUDEManifest {
         var errors: [String] = []
 
         // Check total file count
-        if totalFileCount != 46 {
-            errors.append("Total file count should be 46, got \(totalFileCount)")
+        if totalFileCount != 44 {
+            errors.append("Total file count should be 44, got \(totalFileCount)")
         }
 
         // Check category count

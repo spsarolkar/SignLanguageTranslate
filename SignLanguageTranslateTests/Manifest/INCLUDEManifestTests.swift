@@ -6,12 +6,13 @@ final class INCLUDEManifestTests: XCTestCase {
 
     // MARK: - Basic Manifest Tests
 
-    /// Test that total file count is exactly 46
-    func test_totalFileCount_isExactly46() {
+    /// Test that total file count is exactly 44 zips.
+    /// Zenodo record 4010759 lists 46 files: 44 zips plus README.md and download_data.sh.
+    func test_totalFileCount_isExactly44() {
         XCTAssertEqual(
             INCLUDEManifest.totalFileCount,
-            46,
-            "INCLUDE dataset should have exactly 46 files"
+            44,
+            "INCLUDE dataset should have exactly 44 zip files"
         )
     }
 
@@ -45,7 +46,7 @@ final class INCLUDEManifestTests: XCTestCase {
 
     // MARK: - Single-Part Category Tests
 
-    /// Test that single-part categories generate correct filename (not _1of1)
+    /// Test that single-part categories use the _1of1 suffix, as on Zenodo
     func test_singlePartCategory_generatesCorrectFilename() {
         // Given: Seasons is a single-part category
         guard let seasons = INCLUDEManifest.category(named: "Seasons") else {
@@ -59,7 +60,7 @@ final class INCLUDEManifestTests: XCTestCase {
 
         let filenames = seasons.generateFilenames()
         XCTAssertEqual(filenames.count, 1)
-        XCTAssertEqual(filenames.first, "Seasons.zip", "Should be 'Seasons.zip', not 'Seasons_1of1.zip'")
+        XCTAssertEqual(filenames.first, "Seasons_1of1.zip", "Zenodo names the file 'Seasons_1of1.zip'")
     }
 
     /// Test that all single-file categories generate correct filenames
@@ -73,10 +74,9 @@ final class INCLUDEManifestTests: XCTestCase {
             XCTAssertEqual(filenames.count, 1)
             XCTAssertEqual(
                 filenames.first,
-                "\(category.name).zip",
-                "Single-file category should not have _1of1 suffix"
+                "\(category.name)_1of1.zip",
+                "Single-file category should have the _1of1 suffix"
             )
-            XCTAssertFalse(filenames.first?.contains("_1of1") ?? false)
         }
     }
 
@@ -148,7 +148,7 @@ final class INCLUDEManifestTests: XCTestCase {
     func test_allURLs_areValidAndUseCorrectBase() {
         let allURLs = INCLUDEManifest.generateAllURLs()
 
-        XCTAssertEqual(allURLs.count, 46, "Should have 46 URLs")
+        XCTAssertEqual(allURLs.count, 44, "Should have 44 URLs")
 
         for (category, partNumber, totalParts, url) in allURLs {
             // Verify URL starts with base URL
@@ -157,13 +157,10 @@ final class INCLUDEManifestTests: XCTestCase {
                 "URL should start with base URL"
             )
 
-            // Verify filename matches expected pattern
-            let filename = url.lastPathComponent
-            if totalParts == 1 {
-                XCTAssertEqual(filename, "\(category).zip")
-            } else {
-                XCTAssertEqual(filename, "\(category)_\(partNumber)of\(totalParts).zip")
-            }
+            // Zenodo download URLs end in <filename>/content
+            XCTAssertEqual(url.lastPathComponent, "content")
+            let filename = url.deletingLastPathComponent().lastPathComponent
+            XCTAssertEqual(filename, "\(category)_\(partNumber)of\(totalParts).zip")
         }
     }
 
@@ -176,7 +173,7 @@ final class INCLUDEManifestTests: XCTestCase {
 
         XCTAssertEqual(
             url.absoluteString,
-            "https://zenodo.org/api/records/4010759/files/Seasons.zip"
+            "https://zenodo.org/api/records/4010759/files/Seasons_1of1.zip/content"
         )
     }
 
@@ -194,12 +191,12 @@ final class INCLUDEManifestTests: XCTestCase {
 
         XCTAssertEqual(
             url1.absoluteString,
-            "https://zenodo.org/api/records/4010759/files/Animals_1of2.zip"
+            "https://zenodo.org/api/records/4010759/files/Animals_1of2.zip/content"
         )
 
         XCTAssertEqual(
             url2.absoluteString,
-            "https://zenodo.org/api/records/4010759/files/Animals_2of2.zip"
+            "https://zenodo.org/api/records/4010759/files/Animals_2of2.zip/content"
         )
     }
 
@@ -233,7 +230,7 @@ final class INCLUDEManifestTests: XCTestCase {
         XCTAssertEqual(seasonsEntries.first?.category, "Seasons")
         XCTAssertEqual(seasonsEntries.first?.partNumber, 1)
         XCTAssertEqual(seasonsEntries.first?.totalParts, 1)
-        XCTAssertEqual(seasonsEntries.first?.filename, "Seasons.zip")
+        XCTAssertEqual(seasonsEntries.first?.filename, "Seasons_1of1.zip")
 
         // Test multi-part category
         let animalsEntries = INCLUDEManifest.generateEntries(forCategory: "Animals")
@@ -252,14 +249,14 @@ final class INCLUDEManifestTests: XCTestCase {
     // MARK: - Manifest Entry Generation Tests
 
     /// Test generating all manifest entries
-    func test_generateAllEntries_returns46Entries() {
+    func test_generateAllEntries_returns44Entries() {
         let allEntries = INCLUDEManifest.generateAllEntries()
 
-        XCTAssertEqual(allEntries.count, 46, "Should generate exactly 46 manifest entries")
+        XCTAssertEqual(allEntries.count, 44, "Should generate exactly 44 manifest entries")
 
         // Verify all entries are unique by ID
         let uniqueIDs = Set(allEntries.map(\.id))
-        XCTAssertEqual(uniqueIDs.count, 46, "All entries should have unique IDs")
+        XCTAssertEqual(uniqueIDs.count, 44, "All entries should have unique IDs")
 
         // Verify all entries have valid URLs
         for entry in allEntries {
@@ -276,7 +273,7 @@ final class INCLUDEManifestTests: XCTestCase {
         let sum = INCLUDEManifest.categories.reduce(0) { $0 + $1.partCount }
         XCTAssertEqual(
             sum,
-            46,
+            44,
             "Sum of all category part counts should equal total file count"
         )
     }
@@ -324,7 +321,7 @@ final class INCLUDEManifestTests: XCTestCase {
         let stats = INCLUDEManifest.statistics()
 
         XCTAssertEqual(stats["totalCategories"] as? Int, 15)
-        XCTAssertEqual(stats["totalFiles"] as? Int, 46)
+        XCTAssertEqual(stats["totalFiles"] as? Int, 44)
         XCTAssertEqual(stats["singleFileCategories"] as? Int, 1)
         XCTAssertEqual(stats["multiPartCategories"] as? Int, 14)
         XCTAssertEqual(stats["isValid"] as? Bool, true)
@@ -339,12 +336,12 @@ final class INCLUDEManifestTests: XCTestCase {
     /// Test that validation catches incorrect total file count
     func test_validation_detectsIncorrectFileCount() {
         // This test verifies our current manifest is correct
-        // If totalFileCount != 46, validation should fail
+        // If totalFileCount != 44, validation should fail
         let errors = INCLUDEManifest.validate()
 
-        if INCLUDEManifest.totalFileCount != 46 {
+        if INCLUDEManifest.totalFileCount != 44 {
             XCTAssertTrue(
-                errors.contains { $0.contains("Total file count should be 46") },
+                errors.contains { $0.contains("Total file count should be 44") },
                 "Validation should detect incorrect file count"
             )
         }

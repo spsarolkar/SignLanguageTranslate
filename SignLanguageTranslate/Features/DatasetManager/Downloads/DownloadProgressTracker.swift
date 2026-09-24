@@ -159,6 +159,13 @@ final class DownloadProgressTracker {
         activeTaskCount > 0
     }
 
+    // MARK: - Lifecycle
+
+    /// Nothing to clean up, so the deinit does not need the main actor. An
+    /// isolated deinit crashed in the Swift runtime (SIGABRT in
+    /// swift_task_deinitOnExecutor) when the tracker was released in tests.
+    nonisolated deinit {}
+
     // MARK: - Public Methods
 
     /// Update progress for a specific task

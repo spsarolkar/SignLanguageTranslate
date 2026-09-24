@@ -14,10 +14,11 @@ final class FileManagerExtensionsTests: XCTestCase {
     }
 
     func testFormattedSize() {
+        // Decimal units (.file count style), as in the Files app
         XCTAssertEqual(FileManager.formattedSize(0), "Zero KB")
-        XCTAssertEqual(FileManager.formattedSize(1024), "1 KB")
-        XCTAssertEqual(FileManager.formattedSize(1024 * 1024), "1 MB")
-        XCTAssertEqual(FileManager.formattedSize(1024 * 1024 * 1024), "1 GB")
+        XCTAssertEqual(FileManager.formattedSize(1_000), "1 KB")
+        XCTAssertEqual(FileManager.formattedSize(1_000_000), "1 MB")
+        XCTAssertEqual(FileManager.formattedSize(1_000_000_000), "1 GB")
     }
 
     func testDirectorySize() {

@@ -71,8 +71,8 @@ extension FileManager {
         formatter.countStyle = .file
         formatter.zeroPadsFractionDigits = false
 
-        // Handle zero case specially
-        if bytes == 0 {
+        // Zero, and negative values from bad bookkeeping, show as "Zero KB"
+        if bytes <= 0 {
             return "Zero KB"
         }
 

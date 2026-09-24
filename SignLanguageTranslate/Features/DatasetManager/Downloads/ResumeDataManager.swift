@@ -285,11 +285,12 @@ extension ResumeDataManager {
             return true
         }
 
-        // Check for XML plist header
-        if let prefix = String(data: data.prefix(50), encoding: .utf8) {
-            if prefix.contains("<?xml") && prefix.contains("plist") {
-                return true
-            }
+        // Check for XML plist header. "plist" first appears in the DOCTYPE,
+        // which starts after the ~38-byte XML declaration, so read enough bytes.
+        // Lossy decode: the cut may split a multi-byte character.
+        let prefix = String(decoding: data.prefix(256), as: UTF8.self)
+        if prefix.contains("<?xml") && prefix.contains("plist") {
+            return true
         }
 
         return false

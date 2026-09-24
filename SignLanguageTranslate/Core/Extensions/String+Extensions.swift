@@ -11,9 +11,9 @@ extension String {
     ///   "123" → "123" (numbers only, keep as-is)
     ///   "" → ""
     func sanitizedLabel() -> String {
-        // Pattern: optional whitespace, one or more digits, optional dot, optional whitespace
-        // This matches things like "  12. " or "5." or "  123  "
-        let pattern = "^\\s*\\d+\\.?\\s*"
+        // Pattern: optional whitespace, one or more digits, a dot, optional whitespace
+        // Matches "  12. " or "5." but not "123" or "123 No dot" (no dot, so not a prefix)
+        let pattern = "^\\s*\\d+\\.\\s*"
 
         guard let regex = try? NSRegularExpression(pattern: pattern, options: []) else {
             return self.trimmingCharacters(in: .whitespaces)

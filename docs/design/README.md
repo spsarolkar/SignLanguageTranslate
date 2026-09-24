@@ -114,9 +114,16 @@ Maps to: the **pipeline** section. Largely new UI over existing services
 Maps to: `DatasetListEmptyView` + empty detail.
 - Sidebar datasets section shows a dashed empty card.
 - Centered: icon, "No training data yet", one paragraph, buttons
-  **Download INCLUDE · <size>** (primary) and **Import from Files**.
-- **Preflight** card: free storage, network, background transfers, Low Power
-  Mode (amber when on). Values from the system, not hardcoded.
+  **Download INCLUDE · 56.8 GB** (primary) and **Import from Files**.
+  INCLUDE is 44 zips, 56,751,819,975 bytes (Zenodo API, 2026-09-24). The
+  "428.6 GB" in the artboards (Empty, Main, Portrait) is a placeholder.
+- **Preflight** card: free storage (amber below ~115 GB, zips plus extracted
+  videos), network, Low Data Mode, Low Power Mode (amber when on), and a static
+  note: "Keep the app in the app switcher — force-quitting cancels background
+  downloads." Values from the system, not hardcoded. No "background transfers"
+  row: iOS has no flag for it.
+- "First run" means no dataset has left `notStarted`
+  (`ModelQueries.isFirstRun`); the seeded datasets alone do not end it.
 
 ## Not designed yet
 

@@ -102,3 +102,24 @@ Skipped on Simulator (MLX needs Metal features the Simulator lacks):
 
 `DownloadProgressTrackerTests` is still compiled out (`#if false`) because of
 the deinit crash; that crash is now fixed, so the tests can be re-enabled.
+
+## realign-02 screen 1 (first run) — 2026-09-24
+
+Follow-ups, not done in this screen:
+
+- **Manifest sizes and checksums.** The Zenodo API (records/4010759/files)
+  reports per-file size and MD5 for all 44 zips. Store both in
+  `INCLUDEManifest` and verify downloads against the MD5. For now only the
+  total is hardcoded: `INCLUDEManifest.measuredTotalSize` = 56,751,819,975 bytes.
+- **Stale estimates.** `INCLUDEManifest.estimatedTotalSize` (50 GB, has a test)
+  and the launch seed in `PersistenceController.seedInitialDatasetsIfNeeded`
+  (`totalBytes` 50 GB, `totalParts` 46; INCLUDE has 44) are still estimates.
+  Left unchanged: this plan does not allow business-logic changes.
+- **`requiredFreeSpace` (~115 GB)** is an estimate (zips plus extracted
+  videos), not a measurement.
+- **Import progress from first run.** Importing from the first-run screen ends
+  first run as soon as the dataset starts, so the detail switches to INCLUDE.
+  The import overlay (`downloadManager.isImporting`) still shows there, but the
+  later extraction/ingestion progress line was reported to the first-run view
+  and is not shown.
+

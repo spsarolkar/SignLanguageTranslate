@@ -19,7 +19,9 @@ for overall layout and the markup for exact values.
 2. **The existing information architecture wins on navigation.** Keep
    `NavigationSection` (datasets, downloads, pipeline, training, settings) and
    the three-column split. The artboards show a simplified sidebar; apply its
-   *styling* to the existing sections.
+   *styling* to the existing sections. Screen titles follow `NavigationSection`
+   names, not the artboards: the dataset detail is titled "Datasets", not
+   "Data Pipeline".
 3. **The artboards win on visual treatment**: colors, type, spacing, radii,
    card structure, states, overlay panels.
 4. Sample numbers in artboards (clip counts, GB, MB/s, accuracies) are
@@ -52,17 +54,20 @@ for overall layout and the markup for exact values.
 
 ### 1. Data Pipeline — dataset detail, downloading · `Main.dc.html` (1366×1024)
 Maps to: detail column for a selected dataset — `DatasetBrowserView` /
-`DetailColumnView` + components (`DatasetHeaderSection`, `DatasetStatsSection`,
-`DatasetCategoriesSection`, `DatasetProgressIndicator`, `DownloadTaskRowView`).
+`DetailColumnView` + components (`DatasetHeaderSection`, `DatasetActionsSection`
+(the dataset card), `DatasetActiveTransfersSection`, `DatasetCategoriesSection`,
+`DownloadTaskRowView` on `TransferRow`).
 
-- Header: large title (`Typo.largeTitle`) + status badge.
+- Header: large title (`Typo.largeTitle`) + status badge. Title is
+  "Datasets" (see precedence rule 2).
 - Dataset card (panel radius): name, meta line ("Word-level · Zenodo record
   4010759 · 15 categories · 44 parts"), buttons **Pause All** (secondary) and
   **Download All** (primary, accent fill, dark text). Overall progress bar and a
   mono line: "N complete · N active · N queued" / "X GB of Y GB".
 - **Active transfers** section inline in the detail (eyebrow + "n of 3 slots"):
   one row per active part — filename, category, 6 pt bar, "a / b GB · r MB/s",
-  44 pt pause button. A resumed part shows amber text "resumed at n%".
+  44 pt pause button. A resumed part shows amber text "resumed at n%" (not
+  shown yet: no resume point is recorded, see `docs/status.md`).
 - **Categories** grid, 5 columns: name, 4 pt bar, "done / total" parts. Bar is
   accent when complete, amber when partial, track color when none.
 - The Downloads sheet (`DownloadListView`) stays for the full queue; restyle it

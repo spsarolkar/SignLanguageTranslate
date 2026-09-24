@@ -22,6 +22,12 @@ enum INCLUDEManifest {
 
     // MARK: - Constants
 
+    /// Zenodo record that hosts the dataset (shown in the dataset detail).
+    static let zenodoRecordID = "4010759"
+
+    /// Total zip parts across all categories.
+    static var totalPartCount: Int { categories.reduce(0) { $0 + $1.partCount } }
+
     /// Base URL for the Zenodo dataset files
     static let baseURL = URL(string: "https://zenodo.org/api/records/4010759/files/")!
 

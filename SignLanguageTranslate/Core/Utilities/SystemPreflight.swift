@@ -15,6 +15,8 @@ final class SystemPreflight {
 
     /// Free space for important data on the app's volume, or nil if unknown.
     private(set) var freeBytes: Int64?
+    /// Total capacity of the app's volume, or nil if unknown.
+    private(set) var totalCapacityBytes: Int64?
     private(set) var connection: Connection = .checking
     /// The current path is constrained (Low Data Mode).
     private(set) var isLowDataMode = false
@@ -22,9 +24,10 @@ final class SystemPreflight {
 
     func refreshStorage() {
         let values = try? URL.documentsDirectory.resourceValues(
-            forKeys: [.volumeAvailableCapacityForImportantUsageKey]
+            forKeys: [.volumeAvailableCapacityForImportantUsageKey, .volumeTotalCapacityKey]
         )
         freeBytes = values?.volumeAvailableCapacityForImportantUsage
+        totalCapacityBytes = values?.volumeTotalCapacity.map(Int64.init)
     }
 
     /// Streams network and power-state changes into the properties.

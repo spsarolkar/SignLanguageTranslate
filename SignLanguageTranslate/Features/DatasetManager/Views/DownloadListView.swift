@@ -130,6 +130,12 @@ struct DownloadListView: View {
                                 onShowInFinder: task.status == .completed ? { showInFinder(task) } : nil
                             )
                             .tag(task.id)
+                            .listRowBackground(Color.clear)
+                            .listRowSeparator(.hidden)
+                            .listRowInsets(EdgeInsets(
+                                top: Spacing.xxs, leading: Spacing.lg,
+                                bottom: Spacing.xxs, trailing: Spacing.lg
+                            ))
                         }
                     }
                 } header: {
@@ -145,6 +151,8 @@ struct DownloadListView: View {
             }
         }
         .listStyle(.insetGrouped)
+        .scrollContentBackground(.hidden)
+        .background(Palette.ground)
         .refreshable {
             await refreshDownloads()
         }

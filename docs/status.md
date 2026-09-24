@@ -144,3 +144,9 @@ Follow-ups, not done in this screen:
   clears `resumeDataPath` as the part restarts and nothing records the resume
   point. Needs new state in the downloads internals; `TransferRow` supports
   the amber note but nothing sets it yet.
+- **Test run after screen 2:** 581 tests, 577 passed, 2 failed, 2 skipped.
+  The failures and skips are the known ones above
+  (`DownloadIntegrationTests.test_pauseSingleTask`,
+  `...test_queueProcessesNextTaskAfterCompletion`; T5 init skipped on Simulator).
+- **Dead code left:** `DownloadActionButton` has no callers now that
+  `DownloadTaskRowView` uses `IconButton`; not removed in this screen.

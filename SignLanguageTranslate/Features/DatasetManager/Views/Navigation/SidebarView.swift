@@ -5,6 +5,8 @@ struct SidebarView: View {
     @Binding var selectedSection: NavigationSection?
     let activeDownloadCount: Int
 
+    @State private var preflight = SystemPreflight()
+
     var body: some View {
         List(selection: $selectedSection) {
             Section {
@@ -19,6 +21,11 @@ struct SidebarView: View {
             }
         }
         .listStyle(.sidebar)
+        .safeAreaInset(edge: .bottom) {
+            storageFooter
+        }
+        .task { preflight.refreshStorage() }
+        .onChange(of: activeDownloadCount) { preflight.refreshStorage() }
         .navigationTitle("Sign Language")
         #if os(iOS)
         .navigationBarTitleDisplayMode(.large)
@@ -44,6 +51,23 @@ struct SidebarView: View {
                 .foregroundStyle(iconColor(for: section))
         }
         .accessibilityLabel(accessibilityLabelText(for: section))
+    }
+
+    // MARK: - Storage Footer
+
+    /// Free space on the app's volume, read from the system. Amber below the
+    /// space an INCLUDE download needs (zips plus extracted videos).
+    @ViewBuilder
+    private var storageFooter: some View {
+        if let free = preflight.freeBytes, let total = preflight.totalCapacityBytes, total > 0 {
+            StorageMeter(
+                value: "\(FileManager.formattedSize(free)) free of \(FileManager.formattedSize(total))",
+                usedFraction: 1 - Double(free) / Double(total),
+                tint: free < INCLUDEManifest.requiredFreeSpace ? Palette.warning : Palette.textQuaternary
+            )
+            .padding(.horizontal, Spacing.xl)
+            .padding(.bottom, Spacing.xl)
+        }
     }
 
     // MARK: - Download Badge

@@ -83,6 +83,8 @@ enum Opacity {
     static let pressed: Double = 0.8
     /// Disabled control.
     static let disabled: Double = 0.4
+    /// Scrim behind a blocking progress overlay.
+    static let scrim: Double = 0.6
 }
 
 // MARK: - Typography
@@ -154,6 +156,8 @@ enum Spacing {
 enum Radius {
     static let chip: CGFloat = 8
     static let control: CGFloat = 11
+    /// Square icon-only buttons (row pause/resume).
+    static let iconButton: CGFloat = 10
     static let card: CGFloat = 12
     static let cardLarge: CGFloat = 14
     static let panel: CGFloat = 18
@@ -191,6 +195,16 @@ enum Metrics {
     static let checkIndicator: CGFloat = 18
     /// Dot inside a preflight check indicator.
     static let checkDot: CGFloat = 6
+    /// Max width of the name column in a wide transfer row.
+    static let transferNameWidth: CGFloat = 300
+    /// Narrowest progress bar a wide transfer row accepts before it stacks.
+    static let transferBarMinWidth: CGFloat = 80
+    /// Narrowest category tile before the grid drops a column.
+    static let categoryTileMinWidth: CGFloat = 112
+    /// Most columns in the categories grid (5 in the artboards).
+    static let categoryColumnsMax = 5
+    /// Narrowest card content that keeps title and buttons side by side.
+    static let cardSideBySideMinWidth: CGFloat = 560
 }
 
 // MARK: - Semantic state mapping

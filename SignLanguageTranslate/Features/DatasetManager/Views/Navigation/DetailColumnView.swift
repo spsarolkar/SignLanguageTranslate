@@ -59,6 +59,7 @@ struct DatasetDetailView: View {
     @Bindable var dataset: Dataset
     @Environment(\.modelContext) private var modelContext
     @Environment(DownloadManager.self) private var downloadManager
+    @Environment(\.horizontalSizeClass) private var horizontalSizeClass
 
     @State private var showDeleteConfirmation = false
     @State private var showFilesApp = false
@@ -80,48 +81,30 @@ struct DatasetDetailView: View {
     var body: some View {
         NavigationStack {
             ScrollView {
-                VStack(alignment: .leading, spacing: 24) {
-                    // Header with icon, name, status
+                VStack(alignment: .leading, spacing: Spacing.section) {
                     DatasetHeaderSection(dataset: dataset)
 
-                    // Statistics cards
-                    DatasetStatsSection(
-                        dataset: dataset,
-                        speed: currentSpeed,
-                        timeRemaining: timeRemaining
-                    )
-
-                    // Actions (Download, Browse, Delete)
                     DatasetActionsSection(
                         dataset: dataset,
-                        currentSpeed: currentSpeed,
+                        summary: transferSummary,
                         timeRemaining: timeRemaining,
                         isIngesting: isIngesting,
                         ingestionProgress: ingestionProgress,
                         onStartDownload: startDownload,
                         onPauseDownload: pauseDownload,
                         onResumeDownload: resumeDownload,
-                        onCancelDownload: cancelDownload,
                         onBrowseSamples: browseSamples,
-                        onIngestVideos: ingestVideos,
-                        onViewInFiles: viewInFiles,
-                        onDeleteDataset: { showDeleteConfirmation = true }
+                        onIngestVideos: ingestVideos
                     )
 
-                    // Categories list (if downloaded)
-                    if dataset.isReady {
-                        DatasetCategoriesSection(
-                            dataset: dataset,
-                            onCategorySelected: browseCategory
-                        )
-                    }
+                    activeTransfers
+                    categories
                 }
-                .padding()
+                .padding(horizontalSizeClass == .compact ? Spacing.xl : Spacing.pane)
             }
-            .background(Color(.systemGroupedBackground))
-            .navigationTitle(dataset.name)
+            .background(Palette.ground)
             #if os(iOS)
-            .navigationBarTitleDisplayMode(.large)
+            .navigationBarTitleDisplayMode(.inline)
             #endif
             .toolbar {
                 toolbarContent
@@ -175,27 +158,71 @@ struct DatasetDetailView: View {
         }
         .overlay {
             if downloadManager.isImporting {
-                Color.black.opacity(0.4)
+                Palette.ground.opacity(Opacity.scrim)
                     .ignoresSafeArea()
                     .overlay {
-                        VStack(spacing: 16) {
+                        VStack(spacing: Spacing.lg) {
                             ProgressView()
                                 .controlSize(.large)
-                                .tint(.white)
+                                .tint(Palette.accent)
 
                             Text(downloadManager.importStatus)
-                                .font(.headline)
-                                .foregroundStyle(.white)
+                                .font(Typo.headline)
+                                .foregroundStyle(Palette.textPrimary)
                                 .multilineTextAlignment(.center)
                         }
-                        .padding(32)
-                        .background(.ultraThinMaterial)
-                        .cornerRadius(16)
+                        .padding(Spacing.section)
+                        .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: Radius.panel, style: .continuous))
                     }
             }
         }
     }
     
+    // MARK: - Sections
+
+    @ViewBuilder
+    private var activeTransfers: some View {
+        let status = dataset.downloadStatus
+        if status == .downloading || status == .paused {
+            let summary = transferSummary
+            let paused = datasetTasks.filter { $0.status == .paused && $0.progress > 0 }
+            DatasetActiveTransfersSection(
+                tasks: summary.activeTasks + (status == .paused ? paused : []),
+                usedSlots: summary.activeCount,
+                slotCount: downloadManager.downloadEngine.maxConcurrentDownloads,
+                isPaused: status == .paused
+            )
+        }
+    }
+
+    @ViewBuilder
+    private var categories: some View {
+        if dataset.datasetType == .include {
+            let progress = DatasetTransferSummary.categories(
+                INCLUDEManifest.categories,
+                tasks: datasetTasks,
+                datasetCompleted: dataset.downloadStatus == .completed
+            )
+            DatasetCategoriesSection(categories: progress, onBrowse: browseAction)
+        }
+    }
+
+    // MARK: - Derived
+
+    /// "Browse ingested →" only once samples are in the database.
+    private var browseAction: (() -> Void)? {
+        guard dataset.totalSamples > 0 else { return nil }
+        return { showSamples = true }
+    }
+
+    private var datasetTasks: [DownloadTask] {
+        downloadManager.tasks.filter { $0.datasetName == dataset.name }
+    }
+
+    private var transferSummary: DatasetTransferSummary {
+        DatasetTransferSummary(tasks: datasetTasks)
+    }
+
     // MARK: - Synchronization
     
     private func syncProgress() {
@@ -250,7 +277,17 @@ struct DatasetDetailView: View {
                     }
                 }
 
-                if dataset.downloadStatus == .completed {
+                if dataset.downloadStatus == .downloading {
+                    Divider()
+
+                    Button(role: .destructive) {
+                        cancelDownload()
+                    } label: {
+                        SwiftUI.Label("Cancel Download", systemImage: "xmark.circle")
+                    }
+                }
+
+                if dataset.downloadStatus == .completed || dataset.hasLocalStorage {
                     Divider()
 
                     Button(role: .destructive) {
@@ -261,7 +298,9 @@ struct DatasetDetailView: View {
                 }
             } label: {
                 Image(systemName: "ellipsis.circle")
+                    .foregroundStyle(Palette.textSecondary)
             }
+            .accessibilityLabel("Dataset actions")
         }
     }
     
@@ -395,10 +434,6 @@ struct DatasetDetailView: View {
                 print("[DetailColumnView] Ingestion failed: \(error)")
             }
         }
-    }
-
-    private func browseCategory(_ label: Label) {
-        // Navigate to category browser (to be implemented)
     }
 
     private func viewInFiles() {

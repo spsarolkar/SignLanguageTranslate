@@ -1,20 +1,15 @@
 import SwiftUI
 
-/// Row view for displaying a download task in a list.
+/// One download task as a `TransferRow`: filename, category and status,
+/// progress bar, mono size and rate, and a pause / resume / retry button.
 ///
-/// Shows:
-/// - Category icon with consistent color
-/// - Task display name (e.g., "Animals Part 1 of 2")
-/// - Status badge with animation for active states
-/// - Progress indicator for downloading tasks
-/// - Action button that adapts to current status
+/// Shared by the inline Active Transfers section of the dataset detail and
+/// the full Downloads list.
 ///
 /// Supports:
-/// - Context menus (right-click)
-/// - Swipe actions (leading: prioritize, trailing: cancel)
-/// - Keyboard accessibility
-/// - VoiceOver labels
-/// - Reduced motion support
+/// - Context menus
+/// - Swipe actions (leading: prioritize, trailing: cancel) inside a List
+/// - VoiceOver labels and actions
 struct DownloadTaskRowView: View {
 
     // MARK: - Properties
@@ -27,14 +22,6 @@ struct DownloadTaskRowView: View {
     let onPrioritize: () -> Void
     var onCopyURL: (() -> Void)?
     var onShowInFinder: (() -> Void)?
-
-    // MARK: - Environment
-
-    @Environment(\.accessibilityReduceMotion) private var reduceMotion
-
-    // MARK: - State
-
-    @State private var isHovering = false
 
     // MARK: - Initialization
 
@@ -61,97 +48,23 @@ struct DownloadTaskRowView: View {
     // MARK: - Body
 
     var body: some View {
-        HStack(spacing: 12) {
-            // Category icon
-            CategoryIconView(category: task.category, size: .medium)
-
-            // Info stack
-            VStack(alignment: .leading, spacing: 4) {
-                // Title
-                Text(task.displayName)
-                    .font(.headline)
-                    .lineLimit(2)
-                    .truncationMode(.tail)
-
-                // Status and progress info
-                HStack(alignment: .firstTextBaseline, spacing: 8) {
-                    DownloadTaskStatusBadge(status: task.status, mode: .full)
-                        .layoutPriority(1) // Keep badge intact
-
-                    Spacer()
-
-                    if task.isActive {
-                        VStack(alignment: .trailing, spacing: 2) {
-                            Text(task.progressText)
-                                .font(.caption)
-                                .foregroundStyle(.secondary)
-                                .monospacedDigit()
-                                .lineLimit(1)
-                                .layoutPriority(0) // Allow compression if needed
-
-                            HStack(spacing: 4) {
-                                if task.downloadSpeed > 0 {
-                                    Text(formatSpeed(task.downloadSpeed))
-                                }
-                                if let timeRemaining = task.estimatedTimeRemainingText {
-                                    Text("• \(timeRemaining)")
-                                }
-                            }
-                            .font(.caption2)
-                            .foregroundStyle(.tertiary)
-                            .monospacedDigit()
-                            .lineLimit(1)
-                        }
-                    } else if task.status == .failed, let error = task.errorMessage {
-                        HStack(spacing: 4) {
-                            Image(systemName: "exclamationmark.circle.fill")
-                                .font(.caption)
-                            Text(error)
-                                .lineLimit(1)
-                        }
-                        .font(.caption)
-                        .foregroundStyle(.red)
-                    } else if task.status == .completed {
-                        HStack(spacing: 4) {
-                            Image(systemName: "checkmark.circle.fill")
-                                .font(.caption)
-                            Text(task.progressText)
-                                .lineLimit(1)
-                        }
-                        .font(.caption)
-                        .foregroundStyle(.green)
-                    } else if task.status == .paused {
-                        Text(task.progressText)
-                            .font(.caption)
-                            .foregroundStyle(.secondary)
-                            .monospacedDigit()
-                    }
-                }
-
-                // Progress bar for downloading and paused states
-                if task.status == .downloading || task.status == .paused {
-                    progressBar
-                }
-            }
-
-            Spacer()
-
-            // Action button
-            DownloadActionButton(
-                task: task,
-                onPause: onPause,
-                onResume: onResume,
-                onRetry: onRetry
+        TransferRow(
+            title: task.filename,
+            subtitle: subtitle,
+            subtitleTint: subtitleTint,
+            progress: task.progress,
+            tint: state.color,
+            value: valueText
+        ) {
+            IconButton(
+                systemImage: actionIcon,
+                accessibilityLabel: actionLabel,
+                tint: task.status == .failed ? Palette.danger : Palette.textSecondary,
+                action: handleAction
             )
+            .disabled(task.status == .completed || task.status == .extracting)
         }
-        .padding(.vertical, 8)
         .contentShape(Rectangle())
-        .background(rowBackground)
-        .onHover { hovering in
-            withAnimation(.easeInOut(duration: 0.15)) {
-                isHovering = hovering
-            }
-        }
         .contextMenu { contextMenuContent }
         .swipeActions(edge: .leading, allowsFullSwipe: true) {
             leadingSwipeActions
@@ -167,37 +80,71 @@ struct DownloadTaskRowView: View {
         }
     }
 
-    // MARK: - Row Background
+    // MARK: - Presentation
 
-    private var rowBackground: some View {
-        Group {
-            if task.status == .failed {
-                Color.red.opacity(0.05)
-            } else if isHovering {
-                Color.primary.opacity(0.05)
-            } else {
-                Color.clear
-            }
+    private var state: StateTint {
+        switch task.status {
+        case .downloading, .extracting: return .active
+        case .completed: return .complete
+        case .pending, .queued, .paused: return .queued
+        case .failed: return .failed
         }
     }
 
-    // MARK: - Progress Bar
-
-    private var progressBar: some View {
-        GeometryReader { geometry in
-            ZStack(alignment: .leading) {
-                // Background track
-                RoundedRectangle(cornerRadius: 3)
-                    .fill(Color.secondary.opacity(0.2))
-
-                // Progress fill
-                RoundedRectangle(cornerRadius: 3)
-                    .fill(task.status.color)
-                    .frame(width: geometry.size.width * CGFloat(min(max(task.progress, 0), 1)))
-                    .animation(reduceMotion ? nil : .easeInOut(duration: 0.3), value: task.progress)
-            }
+    private var subtitle: String {
+        switch task.status {
+        case .downloading:
+            return task.category
+        case .failed:
+            return "\(task.category) · \(task.errorMessage ?? task.status.displayName)"
+        default:
+            return "\(task.category) · \(task.status.displayName)"
         }
-        .frame(height: 6)
+    }
+
+    private var subtitleTint: Color {
+        switch task.status {
+        case .failed: return Palette.danger
+        case .paused: return Palette.warning
+        default: return Palette.textTertiary
+        }
+    }
+
+    private var valueText: String {
+        if task.status == .downloading && task.downloadSpeed > 0 {
+            return "\(task.progressText) · \(formatSpeed(task.downloadSpeed))"
+        }
+        return task.progressText
+    }
+
+    private var actionIcon: String {
+        switch task.status {
+        case .pending, .queued, .paused: return "play.fill"
+        case .downloading: return "pause.fill"
+        case .failed: return "arrow.clockwise"
+        case .completed: return "checkmark"
+        case .extracting: return "gearshape"
+        }
+    }
+
+    private var actionLabel: String {
+        switch task.status {
+        case .pending, .queued: return "Start \(task.displayName)"
+        case .downloading: return "Pause \(task.displayName)"
+        case .paused: return "Resume \(task.displayName)"
+        case .failed: return "Retry \(task.displayName)"
+        case .completed: return "\(task.displayName) downloaded"
+        case .extracting: return "Extracting \(task.displayName)"
+        }
+    }
+
+    private func handleAction() {
+        switch task.status {
+        case .pending, .queued, .paused: onResume()
+        case .downloading: onPause()
+        case .failed: onRetry()
+        case .completed, .extracting: break
+        }
     }
 
     // MARK: - Context Menu
@@ -464,6 +411,7 @@ struct DownloadTaskRowView: View {
         )
     }
     .listStyle(.inset)
+    .preferredColorScheme(.dark)
 }
 
 #Preview("Visual States") {

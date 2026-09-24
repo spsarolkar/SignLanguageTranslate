@@ -1,10 +1,12 @@
 import SwiftUI
 
-/// Action buttons section for dataset management.
-/// Shows context-appropriate actions based on dataset status.
+/// The dataset card in the detail: name, meta line, state-dependent actions,
+/// overall progress (complete solid, in-flight faded) and a mono summary line.
+///
+/// Delete, View in Files and Cancel live in the detail's toolbar menu.
 struct DatasetActionsSection: View {
     let dataset: Dataset
-    var currentSpeed: Double = 0
+    let summary: DatasetTransferSummary
     var timeRemaining: TimeInterval? = nil
     var isIngesting: Bool = false
     var ingestionProgress: String = ""
@@ -12,435 +14,246 @@ struct DatasetActionsSection: View {
     var onStartDownload: () -> Void
     var onPauseDownload: () -> Void
     var onResumeDownload: () -> Void
-    var onCancelDownload: () -> Void
     var onBrowseSamples: () -> Void
     var onIngestVideos: () -> Void
-    var onViewInFiles: () -> Void
-    var onDeleteDataset: () -> Void
+
+    @State private var contentWidth: CGFloat = 0
 
     var body: some View {
-        VStack(spacing: 12) {
-            // Primary action
-            primaryActionButton
-
-            // Download progress (if active)
-            if dataset.downloadStatus.isActive || dataset.downloadStatus == .paused {
-                downloadProgressView
-            }
-
-            // Error message (if failed)
-            if dataset.downloadStatus == .failed, let error = dataset.lastError {
-                errorMessageView(error)
-            }
-
-            // Secondary actions
-            secondaryActionsRow
-        }
-    }
-
-    // MARK: - Primary Action Button
-
-    @ViewBuilder
-    private var primaryActionButton: some View {
-        switch dataset.downloadStatus {
-        case .notStarted:
-            ActionButton(
-                title: "Download Dataset",
-                icon: "arrow.down.circle.fill",
-                style: .primary,
-                action: onStartDownload
-            )
-
-        case .downloading:
-            ActionButton(
-                title: "Pause Download",
-                icon: "pause.circle.fill",
-                style: .secondary,
-                action: onPauseDownload
-            )
-
-        case .paused:
-            ActionButton(
-                title: "Resume Download",
-                icon: "play.circle.fill",
-                style: .primary,
-                action: onResumeDownload
-            )
-
-        case .failed:
-            ActionButton(
-                title: "Retry Download",
-                icon: "arrow.clockwise.circle.fill",
-                style: .primary,
-                action: onStartDownload
-            )
-
-        case .completed:
-            VStack(spacing: 8) {
-                ActionButton(
-                    title: "Browse Samples",
-                    icon: "play.rectangle.fill",
-                    style: .primary,
-                    action: onBrowseSamples
-                )
-                
-                // Always show Ingest button for now (testing)
-                ActionButton(
-                    title: "Ingest Videos to Database",
-                    icon: "cylinder.fill",
-                    style: .secondary,
-                    action: onIngestVideos
-                )
-                
-                Text(dataset.totalSamples == 0 ? "Videos downloaded but not in database. Click to scan and import." : "\(dataset.totalSamples) samples in database. Click to re-ingest if needed.")
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-                    .multilineTextAlignment(.center)
-                    .padding(.horizontal)
-                
-                // Show ingestion progress
-                if isIngesting {
-                    HStack(spacing: 8) {
-                        ProgressView()
-                            .progressViewStyle(.circular)
-                            .scaleEffect(0.8)
-                        Text(ingestionProgress)
-                            .font(.caption)
-                            .foregroundStyle(.blue)
+        Card(padding: Spacing.xxl, radius: Radius.panel) {
+            VStack(alignment: .leading, spacing: Spacing.lg) {
+                if contentWidth < Metrics.cardSideBySideMinWidth {
+                    VStack(alignment: .leading, spacing: Spacing.lg) {
+                        titleBlock
+                        buttons
                     }
-                    .padding(.vertical, 8)
-                } else if !ingestionProgress.isEmpty {
-                    Text(ingestionProgress)
-                        .font(.caption)
-                        .foregroundStyle(ingestionProgress.contains("Failed") ? .red : .green)
-                        .padding(.vertical, 4)
-                }
-            }
-
-        case .processing:
-            HStack(spacing: 12) {
-                ProgressView()
-                    .progressViewStyle(.circular)
-
-                Text("Processing downloaded files...")
-                    .font(.subheadline)
-                    .foregroundStyle(.secondary)
-
-                Spacer()
-            }
-            .padding()
-            .background(
-                RoundedRectangle(cornerRadius: 12)
-                    .fill(Color(.secondarySystemGroupedBackground))
-            )
-        }
-    }
-
-    // MARK: - Download Progress View
-
-    private var downloadProgressView: some View {
-        VStack(alignment: .leading, spacing: 8) {
-            ProgressView(value: dataset.downloadProgress)
-                .progressViewStyle(.linear)
-                .tint(dataset.downloadStatus == .paused ? .orange : .blue)
-
-            HStack {
-                Text("\(Int(dataset.downloadProgress * 100))%")
-                    .font(.caption.monospacedDigit().weight(.medium))
-                    .foregroundStyle(dataset.downloadStatus == .paused ? .orange : .blue)
-
-                Spacer()
-
-                if dataset.downloadStatus.isActive && currentSpeed > 0 {
-                    HStack(spacing: 4) {
-                        Text(formatSpeed(currentSpeed))
-                        if let time = timeRemaining {
-                            Text("•")
-                            Text(formatTime(time))
-                        }
-                    }
-                    .font(.caption.monospacedDigit())
-                    .foregroundStyle(.secondary)
                 } else {
-                    Text(dataset.progressText)
-                        .font(.caption.monospacedDigit())
-                        .foregroundStyle(.secondary)
+                    HStack(alignment: .top, spacing: Spacing.xl) {
+                        titleBlock
+                        Spacer(minLength: 0)
+                        buttons
+                            .fixedSize()
+                    }
+                }
+
+                if dataset.downloadStatus == .processing {
+                    processingRow
+                } else {
+                    progressBlock
+                }
+
+                if dataset.downloadStatus == .failed, let error = dataset.lastError {
+                    errorRow(error)
+                }
+
+                if dataset.downloadStatus == .completed {
+                    ingestionStatus
                 }
             }
+            .onGeometryChange(for: CGFloat.self) { $0.size.width } action: { contentWidth = $0 }
+        }
+    }
 
-            HStack {
-                Text("\(dataset.downloadedParts) of \(dataset.totalParts) files")
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
+    // MARK: - Title
 
-                Spacer()
+    private var titleBlock: some View {
+        VStack(alignment: .leading, spacing: Spacing.xs) {
+            Text(dataset.name)
+                .font(Typo.title)
+                .foregroundStyle(Palette.textPrimary)
+            Text(metaLine)
+                .font(Typo.caption)
+                .foregroundStyle(Palette.textTertiary)
+                .fixedSize(horizontal: false, vertical: true)
+        }
+    }
 
-                if dataset.downloadStatus == .downloading {
-                    Button("Cancel", role: .destructive) {
-                        onCancelDownload()
-                    }
-                    .font(.caption)
-                }
+    /// "Word-level · Zenodo record 4010759 · 15 categories · 44 parts".
+    private var metaLine: String {
+        var parts: [String] = []
+        switch dataset.datasetType {
+        case .include:
+            parts = [
+                "Word-level",
+                "Zenodo record \(INCLUDEManifest.zenodoRecordID)",
+                "\(INCLUDEManifest.categories.count) categories",
+                "\(INCLUDEManifest.totalPartCount) parts",
+            ]
+        case .islcsltr:
+            parts = ["Sentence-level", "\(dataset.totalParts) parts"]
+        }
+        if dataset.totalSamples > 0 {
+            parts.append("\(dataset.totalSamples.formatted()) samples")
+        }
+        return parts.joined(separator: " · ")
+    }
+
+    // MARK: - Buttons
+
+    private var buttons: some View {
+        HStack(spacing: Spacing.md) {
+            switch dataset.downloadStatus {
+            case .notStarted:
+                PrimaryButton(title: "Download All", action: onStartDownload)
+            case .downloading:
+                SecondaryButton(title: "Pause All", action: onPauseDownload)
+                PrimaryButton(title: "Download All") {}
+                    .disabled(true)
+            case .paused:
+                PrimaryButton(title: "Resume All", action: onResumeDownload)
+            case .failed:
+                PrimaryButton(title: "Retry Download", action: onStartDownload)
+            case .completed:
+                SecondaryButton(title: "Ingest Videos", action: onIngestVideos)
+                    .disabled(isIngesting)
+                PrimaryButton(title: "Browse Samples", action: onBrowseSamples)
+            case .processing:
+                EmptyView()
             }
         }
-        .padding()
-        .background(
-            RoundedRectangle(cornerRadius: 12)
-                .fill(Color(.secondarySystemGroupedBackground))
-        )
     }
 
-    private func formatSpeed(_ bytesPerSec: Double) -> String {
-        let formatter = ByteCountFormatter()
-        formatter.allowedUnits = [.useMB, .useKB]
-        formatter.countStyle = .file
-        return "\(formatter.string(fromByteCount: Int64(bytesPerSec)))/s"
+    // MARK: - Progress
+
+    private var progressBlock: some View {
+        VStack(alignment: .leading, spacing: Spacing.sm) {
+            if summary.totalCount > 0 {
+                ProgressBar(value: summary.completeFraction, inFlight: summary.inFlightFraction)
+            } else {
+                ProgressBar(value: dataset.downloadProgress)
+            }
+            ViewThatFits(in: .horizontal) {
+                HStack {
+                    countsText
+                    Spacer(minLength: Spacing.md)
+                    bytesText
+                }
+                VStack(alignment: .leading, spacing: Spacing.xxs) {
+                    countsText
+                    bytesText
+                }
+            }
+            .font(Typo.monoCaption)
+            .foregroundStyle(Palette.textTertiary)
+        }
     }
 
-    private func formatTime(_ seconds: TimeInterval) -> String {
+    /// "19 complete · 3 active · 22 queued", or parts when no tasks exist.
+    private var countsText: some View {
+        let text: String
+        if summary.totalCount > 0 {
+            var parts = [
+                "\(summary.completeCount) complete",
+                "\(summary.activeCount) active",
+                "\(summary.queuedCount) queued",
+            ]
+            if summary.failedCount > 0 {
+                parts.append("\(summary.failedCount) failed")
+            }
+            text = parts.joined(separator: " · ")
+        } else {
+            text = "\(dataset.downloadedParts) of \(dataset.totalParts) parts"
+        }
+        return Text(text).lineLimit(1).fixedSize()
+    }
+
+    /// "184.2 GB of 428.6 GB", plus time left while downloading.
+    private var bytesText: some View {
+        var text = "\(FileManager.formattedSize(dataset.downloadedBytes)) of \(FileManager.formattedSize(dataset.totalBytes))"
+        if dataset.downloadStatus == .downloading, let timeRemaining, let left = formatTime(timeRemaining) {
+            text += " · \(left) left"
+        }
+        return Text(text).lineLimit(1).fixedSize()
+    }
+
+    private func formatTime(_ seconds: TimeInterval) -> String? {
         let formatter = DateComponentsFormatter()
         formatter.allowedUnits = [.hour, .minute, .second]
         formatter.unitsStyle = .abbreviated
         formatter.maximumUnitCount = 2
-        return formatter.string(from: seconds) ?? ""
+        return formatter.string(from: seconds)
     }
 
-    // MARK: - Error Message View
+    // MARK: - States
 
-    private func errorMessageView(_ error: String) -> some View {
-        HStack(spacing: 8) {
-            Image(systemName: "exclamationmark.triangle.fill")
-                .foregroundStyle(.red)
-
-            Text(error)
-                .font(.caption)
-                .foregroundStyle(.secondary)
-
-            Spacer()
+    private var processingRow: some View {
+        HStack(spacing: Spacing.md) {
+            ProgressView()
+                .tint(Palette.accent)
+            Text("Processing downloaded files…")
+                .font(Typo.caption)
+                .foregroundStyle(Palette.textSecondary)
         }
-        .padding()
-        .background(
-            RoundedRectangle(cornerRadius: 12)
-                .fill(Color.red.opacity(0.1))
-        )
     }
 
-    // MARK: - Secondary Actions Row
+    private func errorRow(_ error: String) -> some View {
+        let shape = RoundedRectangle(cornerRadius: Radius.control, style: .continuous)
+        return HStack(alignment: .firstTextBaseline, spacing: Spacing.sm) {
+            Image(systemName: "exclamationmark.triangle.fill")
+                .foregroundStyle(Palette.danger)
+                .accessibilityHidden(true)
+            Text(error)
+                .font(Typo.caption)
+                .foregroundStyle(Palette.textSecondary)
+                .fixedSize(horizontal: false, vertical: true)
+        }
+        .padding(Spacing.md)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(Palette.dangerFill, in: shape)
+        .overlay(shape.strokeBorder(StateTint.failed.border, lineWidth: Metrics.borderWidth))
+    }
 
     @ViewBuilder
-    private var secondaryActionsRow: some View {
-        HStack(spacing: 12) {
-            if dataset.hasLocalStorage {
-                SecondaryActionButton(
-                    title: "View in Files",
-                    icon: "folder",
-                    action: onViewInFiles
-                )
+    private var ingestionStatus: some View {
+        if isIngesting {
+            HStack(spacing: Spacing.sm) {
+                ProgressView()
+                    .tint(Palette.accent)
+                Text(ingestionProgress)
+                    .font(Typo.caption)
+                    .foregroundStyle(Palette.textSecondary)
             }
-
-            if dataset.downloadStatus == .completed || dataset.hasLocalStorage {
-                SecondaryActionButton(
-                    title: "Delete",
-                    icon: "trash",
-                    isDestructive: true,
-                    action: onDeleteDataset
-                )
-            }
+        } else if !ingestionProgress.isEmpty {
+            Text(ingestionProgress)
+                .font(Typo.caption)
+                .foregroundStyle(ingestionProgress.contains("Failed") ? Palette.danger : Palette.accent)
+        } else {
+            Text(dataset.totalSamples == 0
+                 ? "Videos are downloaded but not in the database yet. Ingest them to browse and train."
+                 : "\(dataset.totalSamples.formatted()) samples in the database. Ingest again to rescan.")
+                .font(Typo.caption)
+                .foregroundStyle(Palette.textTertiary)
+                .fixedSize(horizontal: false, vertical: true)
         }
-    }
-}
-
-// MARK: - Action Button
-
-/// Primary action button with full width.
-struct ActionButton: View {
-    let title: String
-    let icon: String
-    let style: ActionButtonStyle
-    let action: () -> Void
-
-    enum ActionButtonStyle {
-        case primary
-        case secondary
-        case destructive
-
-        var foregroundColor: Color {
-            switch self {
-            case .primary: return .white
-            case .secondary: return .accentColor
-            case .destructive: return .white
-            }
-        }
-
-        var backgroundColor: Color {
-            switch self {
-            case .primary: return .accentColor
-            case .secondary: return .accentColor.opacity(0.15)
-            case .destructive: return .red
-            }
-        }
-    }
-
-    var body: some View {
-        Button(action: action) {
-            SwiftUI.Label(title, systemImage: icon)
-                .font(.body.weight(.semibold))
-                .foregroundStyle(style.foregroundColor)
-                .frame(maxWidth: .infinity)
-                .padding(.vertical, 14)
-                .background(
-                    RoundedRectangle(cornerRadius: 12)
-                        .fill(style.backgroundColor)
-                )
-        }
-        .buttonStyle(.plain)
-    }
-}
-
-// MARK: - Secondary Action Button
-
-/// Smaller secondary action button.
-struct SecondaryActionButton: View {
-    let title: String
-    let icon: String
-    var isDestructive: Bool = false
-    let action: () -> Void
-
-    var body: some View {
-        Button(action: action) {
-            SwiftUI.Label(title, systemImage: icon)
-                .font(.subheadline.weight(.medium))
-                .foregroundStyle(isDestructive ? .red : .accentColor)
-                .frame(maxWidth: .infinity)
-                .padding(.vertical, 10)
-                .background(
-                    RoundedRectangle(cornerRadius: 10)
-                        .fill(
-                            isDestructive
-                                ? Color.red.opacity(0.1)
-                                : Color.accentColor.opacity(0.1)
-                        )
-                )
-        }
-        .buttonStyle(.plain)
     }
 }
 
 // MARK: - Previews
 
-#Preview("Actions - Not Started") {
-    ScrollView {
-        DatasetActionsSection(
-            dataset: .previewIncludeNotStarted,
-            onStartDownload: {},
-            onPauseDownload: {},
-            onResumeDownload: {},
-            onCancelDownload: {},
-            onBrowseSamples: {},
-            onIngestVideos: {},
-            onViewInFiles: {},
-            onDeleteDataset: {}
-        )
-        .padding()
-    }
-    .background(Color(.systemGroupedBackground))
+private func actionsPreview(_ dataset: Dataset, tasks: [DownloadTask] = []) -> some View {
+    DatasetActionsSection(
+        dataset: dataset,
+        summary: DatasetTransferSummary(tasks: tasks),
+        onStartDownload: {},
+        onPauseDownload: {},
+        onResumeDownload: {},
+        onBrowseSamples: {},
+        onIngestVideos: {}
+    )
 }
 
-#Preview("Actions - Downloading") {
+#Preview("Dataset card states") {
     ScrollView {
-        DatasetActionsSection(
-            dataset: .previewIncludeDownloading,
-            onStartDownload: {},
-            onPauseDownload: {},
-            onResumeDownload: {},
-            onCancelDownload: {},
-            onBrowseSamples: {},
-            onIngestVideos: {},
-            onViewInFiles: {},
-            onDeleteDataset: {}
-        )
-        .padding()
+        VStack(spacing: Spacing.xl) {
+            actionsPreview(.previewIncludeNotStarted)
+            actionsPreview(.previewIncludeDownloading, tasks: [.previewCompleted, .previewDownloading, .previewPending])
+            actionsPreview(.previewPaused)
+            actionsPreview(.previewIncludeCompleted)
+            actionsPreview(.previewFailed)
+        }
+        .padding(Spacing.pane)
     }
-    .background(Color(.systemGroupedBackground))
-}
-
-#Preview("Actions - Paused") {
-    ScrollView {
-        DatasetActionsSection(
-            dataset: .previewPaused,
-            onStartDownload: {},
-            onPauseDownload: {},
-            onResumeDownload: {},
-            onCancelDownload: {},
-            onBrowseSamples: {},
-            onIngestVideos: {},
-            onViewInFiles: {},
-            onDeleteDataset: {}
-        )
-        .padding()
-    }
-    .background(Color(.systemGroupedBackground))
-}
-
-#Preview("Actions - Completed") {
-    ScrollView {
-        DatasetActionsSection(
-            dataset: .previewIncludeCompleted,
-            onStartDownload: {},
-            onPauseDownload: {},
-            onResumeDownload: {},
-            onCancelDownload: {},
-            onBrowseSamples: {},
-            onIngestVideos: {},
-            onViewInFiles: {},
-            onDeleteDataset: {}
-        )
-        .padding()
-    }
-    .background(Color(.systemGroupedBackground))
-}
-
-#Preview("Actions - Failed") {
-    ScrollView {
-        DatasetActionsSection(
-            dataset: .previewFailed,
-            onStartDownload: {},
-            onPauseDownload: {},
-            onResumeDownload: {},
-            onCancelDownload: {},
-            onBrowseSamples: {},
-            onIngestVideos: {},
-            onViewInFiles: {},
-            onDeleteDataset: {}
-        )
-        .padding()
-    }
-    .background(Color(.systemGroupedBackground))
-}
-
-#Preview("Action Button Styles") {
-    VStack(spacing: 12) {
-        ActionButton(
-            title: "Primary Action",
-            icon: "arrow.down.circle.fill",
-            style: .primary,
-            action: {}
-        )
-
-        ActionButton(
-            title: "Secondary Action",
-            icon: "pause.circle.fill",
-            style: .secondary,
-            action: {}
-        )
-
-        ActionButton(
-            title: "Destructive Action",
-            icon: "trash.fill",
-            style: .destructive,
-            action: {}
-        )
-    }
-    .padding()
-    .background(Color(.systemGroupedBackground))
+    .frame(width: 760)
+    .background(Palette.ground)
+    .preferredColorScheme(.dark)
 }

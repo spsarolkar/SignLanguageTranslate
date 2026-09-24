@@ -39,6 +39,12 @@ enum ModelQueries {
         )
     }
 
+    /// First run: no dataset has started downloading or importing. Also true
+    /// for an empty store. The one definition used by every first-run view.
+    static func isFirstRun(_ datasets: [Dataset]) -> Bool {
+        datasets.allSatisfy { $0.downloadStatus == .notStarted }
+    }
+
     // MARK: - Label Queries
 
     /// Fetch all labels sorted by name

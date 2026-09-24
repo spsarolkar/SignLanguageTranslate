@@ -57,6 +57,36 @@ final class ModelQueriesTests: XCTestCase {
         XCTAssertEqual(dataset?.name, "INCLUDE")
     }
 
+    // MARK: - First Run Tests
+
+    func testIsFirstRun_trueForEmptyStore() throws {
+        let datasets = try context.fetch(ModelQueries.allDatasets)
+
+        XCTAssertTrue(ModelQueries.isFirstRun(datasets))
+    }
+
+    func testIsFirstRun_trueWhenSeededButNothingStarted() throws {
+        context.insert(Dataset(name: "INCLUDE", type: .include))
+        context.insert(Dataset(name: "ISL-CSLTR", type: .islcsltr))
+        try context.save()
+
+        let datasets = try context.fetch(ModelQueries.allDatasets)
+
+        XCTAssertTrue(ModelQueries.isFirstRun(datasets))
+    }
+
+    func testIsFirstRun_falseOnceAnyDatasetLeavesNotStarted() throws {
+        for status in DownloadStatus.allCases where status != .notStarted {
+            let started = Dataset(name: "INCLUDE", type: .include, status: status)
+            let untouched = Dataset(name: "ISL-CSLTR", type: .islcsltr)
+
+            XCTAssertFalse(
+                ModelQueries.isFirstRun([started, untouched]),
+                "\(status) should end first run"
+            )
+        }
+    }
+
     // MARK: - Label Query Tests
 
     func testFetchLabelsByType_filtersCorrectly() throws {

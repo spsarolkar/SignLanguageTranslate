@@ -4,6 +4,14 @@ import MLX
 import MLXNN
 
 final class SignLanguageModelTests: XCTestCase {
+
+    /// MLX needs Metal features the iOS Simulator does not provide (see mlx-swift
+    /// "Running on iOS"). Tests that create MLX arrays run on device only.
+    private func skipOnSimulator() throws {
+        #if targetEnvironment(simulator)
+        throw XCTSkip("MLX does not run on the iOS Simulator; run on device")
+        #endif
+    }
     
     func testT5SmallConfig() {
         let config = SignLanguageModelConfig.t5_small
@@ -31,7 +39,8 @@ final class SignLanguageModelTests: XCTestCase {
         XCTAssertEqual(config.modelDim % config.numHeads, 0)
     }
     
-    func testModelInitializationT5Small() {
+    func testModelInitializationT5Small() throws {
+        try skipOnSimulator()
         let config = SignLanguageModelConfig.t5_small
         let model = SignLanguageModel(config: config)
         
@@ -39,10 +48,13 @@ final class SignLanguageModelTests: XCTestCase {
         XCTAssertEqual(model.encoderLayers.count, 6)
         
         // Verify input projection
-        XCTAssertEqual(model.inputProjection.weight.dim(1), 512) // Output dim of projection is modelDim
+        // MLX Linear weight is [outputDimensions, inputDimensions]
+        XCTAssertEqual(model.inputProjection.weight.dim(0), 512)
+        XCTAssertEqual(model.inputProjection.weight.dim(1), 180)
     }
     
-    func testModelInitializationT5Base() {
+    func testModelInitializationT5Base() throws {
+        try skipOnSimulator()
         let config = SignLanguageModelConfig.t5_base
         let model = SignLanguageModel(config: config)
         
@@ -50,6 +62,7 @@ final class SignLanguageModelTests: XCTestCase {
         XCTAssertEqual(model.encoderLayers.count, 12)
         
         // Verify input projection
-        XCTAssertEqual(model.inputProjection.weight.dim(1), 768)
+        XCTAssertEqual(model.inputProjection.weight.dim(0), 768)
+        XCTAssertEqual(model.inputProjection.weight.dim(1), 180)
     }
 }

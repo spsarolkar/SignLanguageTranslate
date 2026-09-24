@@ -8,7 +8,9 @@ import UIKit
 /// Detail column that displays content based on the current selection.
 struct DetailColumnView: View {
     let selectedSection: NavigationSection?
-    let selectedDataset: Dataset?
+    @Binding var selectedDataset: Dataset?
+
+    @Query(sort: \Dataset.name) private var allDatasets: [Dataset]
 
     var body: some View {
         Group {
@@ -32,7 +34,12 @@ struct DetailColumnView: View {
 
     @ViewBuilder
     private var datasetDetail: some View {
-        if let dataset = selectedDataset {
+        if ModelQueries.isFirstRun(allDatasets) {
+            FirstRunView(
+                dataset: allDatasets.first { $0.datasetType == .include },
+                onStarted: { selectedDataset = $0 }
+            )
+        } else if let dataset = selectedDataset {
             DatasetDetailView(dataset: dataset)
         } else {
             EmptyDetailView(
@@ -755,7 +762,7 @@ struct SettingsDetailPlaceholder: View {
     NavigationStack {
         DetailColumnView(
             selectedSection: .datasets,
-            selectedDataset: nil
+            selectedDataset: .constant(nil)
         )
     }
     .modelContainer(PersistenceController.preview.container)
@@ -766,7 +773,7 @@ struct SettingsDetailPlaceholder: View {
     NavigationStack {
         DetailColumnView(
             selectedSection: .downloads,
-            selectedDataset: nil
+            selectedDataset: .constant(nil)
         )
     }
     .modelContainer(PersistenceController.preview.container)
@@ -777,7 +784,7 @@ struct SettingsDetailPlaceholder: View {
     NavigationStack {
         DetailColumnView(
             selectedSection: .training,
-            selectedDataset: nil
+            selectedDataset: .constant(nil)
         )
     }
     .modelContainer(PersistenceController.preview.container)

@@ -93,6 +93,8 @@ enum Typo {
     /// Panel headings. "INCLUDE".
     static let title = Font.system(size: 24, weight: .semibold)
     static let title2 = Font.system(size: 20, weight: .semibold)
+    /// Empty-state heading. "No training data yet".
+    static let heroTitle = Font.system(size: 26, weight: .semibold)
     static let headline = Font.system(size: 16, weight: .semibold)
     static let body = Font.system(size: 15, weight: .regular)
     static let callout = Font.system(size: 14, weight: .medium)
@@ -119,6 +121,8 @@ enum Typo {
 
     /// Small counts beside an eyebrow: "3 of 3 slots".
     static let monoSmall = mono(11)
+    /// Values in a check list: "1.94 TB free".
+    static let monoCaption = mono(12)
     static let monoMetric = mono(19, .medium)
     static let monoLarge = mono(30, .medium)
 }
@@ -173,6 +177,20 @@ enum Metrics {
     static let statusDot: CGFloat = 7
     /// Visible height of a filter pill. The hit area is still `touchTarget`.
     static let pillHeight: CGFloat = 36
+    /// Line spacing for multi-line body copy (15 pt at 1.6 line height).
+    static let paragraphLineSpacing: CGFloat = 9
+    /// Dash and gap length of a dashed empty-state outline.
+    static let dash: CGFloat = 4
+    /// Illustration on a full-pane empty state.
+    static let heroIcon: CGFloat = 132
+    /// Max width of the text block on a full-pane empty state.
+    static let heroTextWidth: CGFloat = 520
+    /// Max width of the first-run preflight card.
+    static let preflightWidth: CGFloat = 620
+    /// Tinted circle behind a preflight check's dot.
+    static let checkIndicator: CGFloat = 18
+    /// Dot inside a preflight check indicator.
+    static let checkDot: CGFloat = 6
 }
 
 // MARK: - Semantic state mapping

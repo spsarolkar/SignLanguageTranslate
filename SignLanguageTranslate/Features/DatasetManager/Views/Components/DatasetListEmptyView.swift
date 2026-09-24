@@ -1,20 +1,21 @@
 import SwiftUI
+import SwiftData
+import UniformTypeIdentifiers
 
-/// Empty state view for the dataset list when no datasets exist
+/// Content-column state on first run (`ModelQueries.isFirstRun`): no dataset
+/// has started, so the list shows a dashed placeholder instead of rows.
 struct DatasetListEmptyView: View {
-    let onGetStarted: () -> Void
-
     var body: some View {
-        ContentUnavailableView {
-            SwiftUI.Label("No Datasets", systemImage: "square.stack.3d.up.slash")
-        } description: {
-            Text("Get started by adding datasets for sign language recognition training.")
-        } actions: {
-            Button(action: onGetStarted) {
-                SwiftUI.Label("Get Started", systemImage: "plus.circle.fill")
-            }
-            .buttonStyle(.borderedProminent)
+        VStack(alignment: .leading, spacing: Spacing.md) {
+            DashedEmptyCard(
+                title: "Nothing downloaded",
+                message: "Datasets appear here once a download starts."
+            )
+            Spacer(minLength: 0)
         }
+        .padding(Spacing.xl)
+        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
+        .background(Palette.chrome)
     }
 }
 
@@ -63,205 +64,275 @@ struct DatasetSectionEmptyView: View {
 
     var body: some View {
         if compact {
-            HStack(spacing: 8) {
+            HStack(spacing: Spacing.sm) {
                 Image(systemName: section.icon)
-                    .foregroundStyle(.tertiary)
+                    .foregroundStyle(Palette.textTertiary)
+                    .accessibilityHidden(true)
                 Text(section.message)
-                    .font(.subheadline)
-                    .foregroundStyle(.secondary)
+                    .font(Typo.caption)
+                    .foregroundStyle(Palette.textMuted)
             }
             .frame(maxWidth: .infinity, alignment: .leading)
-            .padding(.vertical, 12)
+            .padding(.vertical, Spacing.md)
         } else {
-            VStack(spacing: 12) {
+            VStack(spacing: Spacing.md) {
                 Image(systemName: section.icon)
-                    .font(.largeTitle)
-                    .foregroundStyle(.tertiary)
+                    .font(Typo.title)
+                    .foregroundStyle(Palette.textTertiary)
+                    .accessibilityHidden(true)
                 Text(section.message)
-                    .font(.subheadline)
-                    .foregroundStyle(.secondary)
+                    .font(Typo.caption)
+                    .foregroundStyle(Palette.textMuted)
                     .multilineTextAlignment(.center)
             }
             .frame(maxWidth: .infinity)
-            .padding(.vertical, 24)
+            .padding(.vertical, Spacing.xxl)
         }
     }
 }
 
-/// Illustration view for empty states
-struct DatasetEmptyIllustration: View {
+// MARK: - First Run
+
+/// Detail pane on first run: header, call to action and a preflight card.
+/// Download and import reuse `DatasetDownloadActions`, so behavior matches
+/// the dataset detail view.
+struct FirstRunView: View {
+    /// The INCLUDE dataset seeded at launch; nil disables both actions.
+    let dataset: Dataset?
+    /// Called with the dataset once a download or import starts.
+    var onStarted: (Dataset) -> Void = { _ in }
+
+    @Environment(\.modelContext) private var modelContext
+    @Environment(DownloadManager.self) private var downloadManager
+
+    @State private var preflight = SystemPreflight()
+    @State private var isImporting = false
+    @State private var importError: String?
+    @State private var showImportError = false
+
     var body: some View {
-        VStack(spacing: 16) {
-            ZStack {
-                // Background circles
-                Circle()
-                    .fill(Color.blue.opacity(0.1))
-                    .frame(width: 120, height: 120)
-
-                Circle()
-                    .fill(Color.purple.opacity(0.1))
-                    .frame(width: 80, height: 80)
-                    .offset(x: 30, y: -20)
-
-                // Main icon
-                Image(systemName: "hand.raised.fingers.spread.fill")
-                    .font(.system(size: 48))
-                    .foregroundStyle(
-                        LinearGradient(
-                            colors: [.blue, .purple],
-                            startPoint: .topLeading,
-                            endPoint: .bottomTrailing
-                        )
-                    )
-
-                // Decorative elements
-                Image(systemName: "arrow.down.circle.fill")
-                    .font(.title2)
-                    .foregroundStyle(.blue)
-                    .offset(x: -40, y: 30)
-
-                Image(systemName: "folder.fill")
-                    .font(.title3)
-                    .foregroundStyle(.orange)
-                    .offset(x: 45, y: 35)
+        // Fits without scrolling on iPad in both orientations; scrolls when
+        // Dynamic Type or a narrow split pushes it past the height.
+        ViewThatFits(in: .vertical) {
+            content
+            ScrollView { content }
+        }
+        .background(Palette.ground)
+        .task { await preflight.monitor() }
+        .fileImporter(
+            isPresented: $isImporting,
+            allowedContentTypes: [UTType.zip],
+            allowsMultipleSelection: false
+        ) { result in
+            guard let dataset else { return }
+            actions(for: dataset).handleImport(result)
+            if case .success = result {
+                onStarted(dataset)
             }
-            .frame(width: 150, height: 150)
+        }
+        .alert("Import Failed", isPresented: $showImportError) {
+            Button("OK", role: .cancel) { }
+        } message: {
+            Text(importError ?? "Unknown error")
         }
     }
-}
 
-/// Full empty state view with illustration
-struct DatasetListFullEmptyView: View {
-    let onGetStarted: () -> Void
-    let onLearnMore: (() -> Void)?
-
-    init(onGetStarted: @escaping () -> Void, onLearnMore: (() -> Void)? = nil) {
-        self.onGetStarted = onGetStarted
-        self.onLearnMore = onLearnMore
+    private var content: some View {
+        VStack(alignment: .leading, spacing: Spacing.section) {
+            header
+            Spacer(minLength: 0)
+            hero
+                .frame(maxWidth: .infinity)
+            Spacer(minLength: 0)
+        }
+        .padding(Spacing.pane)
     }
 
-    var body: some View {
-        VStack(spacing: 24) {
-            Spacer()
+    private var header: some View {
+        HStack(alignment: .center, spacing: Spacing.md) {
+            Text("Data Pipeline")
+                .font(Typo.largeTitle)
+                .tracking(Tracking.largeTitle)
+                .foregroundStyle(Palette.textPrimary)
+                .accessibilityAddTraits(.isHeader)
+            Spacer(minLength: Spacing.md)
+            StatusBadge(state: .idle, text: "Idle")
+        }
+    }
 
-            DatasetEmptyIllustration()
+    private var hero: some View {
+        VStack(spacing: Spacing.xxl) {
+            FirstRunGlyph()
+                .frame(width: Metrics.heroIcon, height: Metrics.heroIcon)
+                .accessibilityHidden(true)
 
-            VStack(spacing: 8) {
-                Text("Welcome to Dataset Manager")
-                    .font(.title2.weight(.semibold))
-
-                Text("Download sign language datasets to train and improve recognition models. Start with our curated collections.")
-                    .font(.subheadline)
-                    .foregroundStyle(.secondary)
+            VStack(spacing: Spacing.sm) {
+                Text("No training data yet")
+                    .font(Typo.heroTitle)
+                    .foregroundStyle(Palette.textPrimary)
+                    .accessibilityAddTraits(.isHeader)
+                Text("Fetch the INCLUDE word-level corpus from Zenodo, or import an archive you already have on an external SSD. Downloads run in the background and resume after interruptions.")
+                    .font(Typo.body)
+                    .lineSpacing(Metrics.paragraphLineSpacing)
+                    .foregroundStyle(Palette.textMuted)
                     .multilineTextAlignment(.center)
-                    .padding(.horizontal, 32)
+                    .fixedSize(horizontal: false, vertical: true)
             }
+            .frame(maxWidth: Metrics.heroTextWidth)
 
-            VStack(spacing: 12) {
-                Button(action: onGetStarted) {
-                    SwiftUI.Label("Initialize Default Datasets", systemImage: "arrow.down.circle.fill")
-                        .frame(maxWidth: 280)
-                }
-                .buttonStyle(.borderedProminent)
-                .controlSize(.large)
-
-                if let onLearnMore {
-                    Button(action: onLearnMore) {
-                        Text("Learn More")
-                    }
-                    .buttonStyle(.borderless)
-                }
+            ViewThatFits(in: .horizontal) {
+                HStack(spacing: Spacing.md) { buttons }
+                VStack(spacing: Spacing.md) { buttons }
             }
+            .disabled(dataset == nil)
 
-            Spacer()
-
-            // Dataset previews
-            VStack(alignment: .leading, spacing: 12) {
-                Text("Available Datasets")
-                    .font(.caption.weight(.semibold))
-                    .foregroundStyle(.secondary)
-
-                HStack(spacing: 16) {
-                    DatasetPreviewCard(
-                        type: .include,
-                        sampleCount: "15,000+",
-                        size: "~50 GB"
-                    )
-
-                    DatasetPreviewCard(
-                        type: .islcsltr,
-                        sampleCount: "5,000+",
-                        size: "~10 GB"
-                    )
-                }
-            }
-            .padding(.horizontal, 24)
-            .padding(.bottom, 32)
+            preflightCard
+                .frame(maxWidth: Metrics.preflightWidth)
         }
-        .frame(maxWidth: .infinity, maxHeight: .infinity)
-        .background(Color(.systemGroupedBackground))
+    }
+
+    @ViewBuilder
+    private var buttons: some View {
+        PrimaryButton(title: "Download INCLUDE · \(Self.gigabytes(INCLUDEManifest.measuredTotalSize))") {
+            guard let dataset else { return }
+            actions(for: dataset).startDownload()
+            onStarted(dataset)
+        }
+        SecondaryButton(title: "Import from Files") {
+            isImporting = true
+        }
+    }
+
+    // MARK: Preflight
+
+    private var preflightCard: some View {
+        Card(padding: Spacing.xl, radius: Radius.cardLarge) {
+            VStack(alignment: .leading, spacing: Spacing.md) {
+                SectionHeader(eyebrow: "Preflight")
+                PreflightRow(label: "Free storage", value: storageValue, state: storageState)
+                PreflightRow(label: "Network", value: networkValue, state: networkState)
+                PreflightRow(
+                    label: "Low Data Mode",
+                    value: preflight.isLowDataMode ? "On" : "Off",
+                    state: preflight.isLowDataMode ? .queued : .complete
+                )
+                PreflightRow(
+                    label: "Low Power Mode",
+                    value: preflight.isLowPowerMode ? "On — will throttle" : "Off",
+                    state: preflight.isLowPowerMode ? .queued : .complete
+                )
+                Text("Keep the app in the app switcher — force-quitting cancels background downloads.")
+                    .font(Typo.caption2)
+                    .foregroundStyle(Palette.textTertiary)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+        }
+    }
+
+    private var storageValue: String {
+        guard let free = preflight.freeBytes else { return "Unknown" }
+        return "\(free.formatted(.byteCount(style: .file))) free"
+    }
+
+    /// Amber when free space is below what download plus extraction needs.
+    private var storageState: StateTint {
+        guard let free = preflight.freeBytes else { return .idle }
+        return free >= INCLUDEManifest.requiredFreeSpace ? .complete : .queued
+    }
+
+    private var networkValue: String {
+        switch preflight.connection {
+        case .checking: return "Checking…"
+        case .offline: return "Offline"
+        case .wifi: return "Wi-Fi"
+        case .wiredEthernet: return "Ethernet"
+        case .cellular: return "Cellular"
+        case .other: return "Connected"
+        }
+    }
+
+    private var networkState: StateTint {
+        switch preflight.connection {
+        case .checking: return .idle
+        case .offline: return .failed
+        case .cellular: return .queued
+        case .wifi, .wiredEthernet, .other: return .complete
+        }
+    }
+
+    // MARK: Helpers
+
+    private func actions(for dataset: Dataset) -> DatasetDownloadActions {
+        DatasetDownloadActions(
+            dataset: dataset,
+            modelContext: modelContext,
+            downloadManager: downloadManager,
+            onImportError: { message in
+                importError = message
+                showImportError = true
+            }
+        )
+    }
+
+    /// Decimal gigabytes to one place: 56,751,819,975 bytes → "56.8 GB".
+    static func gigabytes(_ bytes: Int64) -> String {
+        Measurement(value: Double(bytes), unit: UnitInformationStorage.bytes)
+            .converted(to: .gigabytes)
+            .formatted(.measurement(
+                width: .abbreviated,
+                usage: .asProvided,
+                numberFormatStyle: .number.precision(.fractionLength(1))
+            ))
     }
 }
 
-/// Preview card for a dataset type
-private struct DatasetPreviewCard: View {
-    let type: DatasetType
-    let sampleCount: String
-    let size: String
-
+/// Dashed tray with a down arrow. Geometry from `Empty.dc.html`, drawn in a
+/// 132-unit box and scaled to the frame.
+private struct FirstRunGlyph: View {
     var body: some View {
-        VStack(alignment: .leading, spacing: 8) {
-            HStack(spacing: 8) {
-                Image(systemName: type.iconName)
-                    .font(.title3)
-                    .foregroundStyle(type.color)
-
-                Text(type.displayName)
-                    .font(.headline)
-            }
-
-            Text(type.description)
-                .font(.caption)
-                .foregroundStyle(.secondary)
-                .lineLimit(2)
-
-            Divider()
-
-            HStack {
-                SwiftUI.Label(sampleCount, systemImage: "video.fill")
-                    .font(.caption2)
-                    .foregroundStyle(.secondary)
-
-                Spacer()
-
-                Text(size)
-                    .font(.caption2.weight(.medium))
-                    .foregroundStyle(.tertiary)
+        GeometryReader { proxy in
+            let unit = min(proxy.size.width, proxy.size.height) / 132
+            ZStack(alignment: .topLeading) {
+                RoundedRectangle(cornerRadius: 12 * unit, style: .continuous)
+                    .stroke(
+                        Palette.borderMuted,
+                        style: StrokeStyle(lineWidth: 2 * unit, dash: [7 * unit, 7 * unit])
+                    )
+                    .frame(width: 104 * unit, height: 76 * unit)
+                    .offset(x: 14 * unit, y: 30 * unit)
+                Path { path in
+                    path.move(to: CGPoint(x: 66 * unit, y: 52 * unit))
+                    path.addLine(to: CGPoint(x: 66 * unit, y: 86 * unit))
+                    path.move(to: CGPoint(x: 54 * unit, y: 74 * unit))
+                    path.addLine(to: CGPoint(x: 66 * unit, y: 86 * unit))
+                    path.addLine(to: CGPoint(x: 78 * unit, y: 74 * unit))
+                }
+                .stroke(
+                    Palette.accent,
+                    style: StrokeStyle(lineWidth: 2.6 * unit, lineCap: .round, lineJoin: .round)
+                )
             }
         }
-        .padding(12)
-        .background(
-            RoundedRectangle(cornerRadius: 12)
-                .fill(Color(.secondarySystemGroupedBackground))
-        )
-        .overlay(
-            RoundedRectangle(cornerRadius: 12)
-                .strokeBorder(type.color.opacity(0.2), lineWidth: 1)
-        )
     }
 }
 
 // MARK: - Previews
 
-#Preview("Empty List") {
-    DatasetListEmptyView(onGetStarted: {})
+#Preview("First run · landscape", traits: .landscapeLeft) {
+    FirstRunView(dataset: .previewIncludeNotStarted)
+        .modelContainer(PersistenceController.preview.container)
+        .environment(DownloadManager())
 }
 
-#Preview("Full Empty State") {
-    DatasetListFullEmptyView(
-        onGetStarted: {},
-        onLearnMore: {}
-    )
+#Preview("First run · portrait", traits: .portrait) {
+    FirstRunView(dataset: .previewIncludeNotStarted)
+        .modelContainer(PersistenceController.preview.container)
+        .environment(DownloadManager())
+}
+
+#Preview("Dataset list · first run") {
+    DatasetListEmptyView()
+        .frame(width: Metrics.sidebarWidth)
 }
 
 #Preview("Section Empty States") {
@@ -277,9 +348,4 @@ private struct DatasetPreviewCard: View {
         }
     }
     .listStyle(.insetGrouped)
-}
-
-#Preview("Illustration") {
-    DatasetEmptyIllustration()
-        .padding()
 }

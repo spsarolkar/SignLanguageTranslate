@@ -59,11 +59,8 @@ struct DatasetListView: View {
 
     var body: some View {
         Group {
-            if allDatasets.isEmpty {
-                DatasetListFullEmptyView(
-                    onGetStarted: initializeDefaultDatasets,
-                    onLearnMore: nil
-                )
+            if ModelQueries.isFirstRun(allDatasets) {
+                DatasetListEmptyView()
             } else if filteredDatasets.isEmpty && !searchText.isEmpty {
                 ContentUnavailableView.search(text: searchText)
             } else {

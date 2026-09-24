@@ -26,7 +26,7 @@ struct MainNavigationView: View {
         } detail: {
             DetailColumnView(
                 selectedSection: selectedSection,
-                selectedDataset: selectedDataset
+                selectedDataset: $selectedDataset
             )
         }
         .navigationSplitViewStyle(.balanced)

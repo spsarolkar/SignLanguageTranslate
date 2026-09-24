@@ -28,6 +28,16 @@ enum INCLUDEManifest {
     /// Estimated total size of the entire dataset (approximately 50 GB)
     static let estimatedTotalSize: Int64 = 50_000_000_000
 
+    /// Measured total size of the 44 zips: 56,751,819,975 bytes (56.75 GB).
+    /// From the Zenodo API (records/4010759/files), checked 2026-09-24.
+    /// Per-file sizes and MD5s from the same API belong in the manifest
+    /// (follow-up in docs/status.md).
+    static let measuredTotalSize: Int64 = 56_751_819_975
+
+    /// Free space to download and extract INCLUDE: the zips plus the
+    /// extracted videos, about twice the download. An estimate (~115 GB).
+    static let requiredFreeSpace: Int64 = 115_000_000_000
+
     // MARK: - Category Definitions
 
     /// All categories in the INCLUDE dataset with their part counts

@@ -21,42 +21,45 @@ struct EmptyDetailView: View {
     }
 
     var body: some View {
-        VStack(spacing: 24) {
+        VStack(spacing: Spacing.xxl) {
             Spacer()
 
             // Icon
             Image(systemName: systemImage)
-                .font(.system(size: 64))
-                .foregroundStyle(.secondary)
+                .font(Typo.largeTitle)
+                .foregroundStyle(Palette.textTertiary)
                 .symbolRenderingMode(.hierarchical)
+                .accessibilityHidden(true)
 
             // Text Content
-            VStack(spacing: 8) {
+            VStack(spacing: Spacing.sm) {
                 Text(title)
-                    .font(.title2.weight(.semibold))
-                    .foregroundStyle(.primary)
+                    .font(Typo.title2)
+                    .foregroundStyle(Palette.textPrimary)
 
                 Text(description)
-                    .font(.body)
-                    .foregroundStyle(.secondary)
+                    .font(Typo.body)
+                    .lineSpacing(Metrics.paragraphLineSpacing)
+                    .foregroundStyle(Palette.textMuted)
                     .multilineTextAlignment(.center)
-                    .frame(maxWidth: 300)
+                    .frame(maxWidth: Metrics.heroTextWidth)
             }
 
             // Quick Actions
             if !quickActions.isEmpty {
-                VStack(spacing: 12) {
+                VStack(spacing: Spacing.md) {
                     ForEach(quickActions) { action in
                         QuickActionButton(action: action)
                     }
                 }
-                .padding(.top, 8)
+                .padding(.top, Spacing.sm)
             }
 
             Spacer()
         }
+        .padding(Spacing.pane)
         .frame(maxWidth: .infinity, maxHeight: .infinity)
-        .background(Color(.systemGroupedBackground))
+        .background(Palette.ground)
     }
 }
 
@@ -73,20 +76,6 @@ struct QuickAction: Identifiable {
     enum ActionStyle {
         case primary
         case secondary
-
-        var foregroundColor: Color {
-            switch self {
-            case .primary: return .white
-            case .secondary: return .accentColor
-            }
-        }
-
-        var backgroundColor: Color {
-            switch self {
-            case .primary: return .accentColor
-            case .secondary: return .accentColor.opacity(0.15)
-            }
-        }
     }
 }
 
@@ -97,19 +86,12 @@ struct QuickActionButton: View {
     let action: QuickAction
 
     var body: some View {
-        Button(action: action.action) {
-            SwiftUI.Label(action.title, systemImage: action.systemImage)
-                .font(.body.weight(.medium))
-                .foregroundStyle(action.style.foregroundColor)
-                .frame(minWidth: 200)
-                .padding(.vertical, 12)
-                .padding(.horizontal, 20)
-                .background(
-                    RoundedRectangle(cornerRadius: 10)
-                        .fill(action.style.backgroundColor)
-                )
+        switch action.style {
+        case .primary:
+            PrimaryButton(title: action.title, systemImage: action.systemImage, action: action.action)
+        case .secondary:
+            SecondaryButton(title: action.title, systemImage: action.systemImage, action: action.action)
         }
-        .buttonStyle(.plain)
     }
 }
 

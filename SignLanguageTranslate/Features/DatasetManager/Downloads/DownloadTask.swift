@@ -246,9 +246,9 @@ struct DownloadTask: Identifiable, Codable, Hashable, Equatable, Sendable {
     mutating func updateProgress(bytesDownloaded: Int64, totalBytes: Int64) {
         self.bytesDownloaded = bytesDownloaded
 
-        // Update total bytes if provided and greater than current
+        // A reported size replaces the manifest estimate, larger or smaller
         if totalBytes > 0 {
-            self.totalBytes = max(self.totalBytes, totalBytes)
+            self.totalBytes = totalBytes
         }
 
         // Calculate progress

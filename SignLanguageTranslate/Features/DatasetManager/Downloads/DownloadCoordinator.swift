@@ -182,15 +182,9 @@ actor DownloadCoordinator {
     ///   - error: The error that occurred
     ///   - resumeData: Resume data if available
     func handleDownloadFailed(taskId: UUID, error: Error, resumeData: Data?) async {
-        // Save resume data if available
-        if let resumeData = resumeData {
-            do {
-                let url = try fileManager.saveResumeData(resumeData, for: taskId)
-                await queue.setResumeDataPath(taskId, path: url.path)
-            } catch {
-                // Failed to save resume data, continue with failure
-            }
-        }
+        // A failed task restarts from zero on retry (retryTask resets it), so
+        // resume data is not kept. Remove any earlier file so none is orphaned.
+        fileManager.deleteResumeData(for: taskId)
 
         // Mark task as failed
         let errorMessage = humanReadableError(error)

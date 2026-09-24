@@ -295,7 +295,8 @@ final class DownloadCoordinatorTests: XCTestCase {
         XCTAssertNotNil(updatedTask?.errorMessage)
     }
 
-    func test_handleDownloadFailed_savesResumeData() async {
+    // A failure restarts from zero on retry, so resume data is discarded.
+    func test_handleDownloadFailed_discardsResumeData() async {
         let task = createTestDownloadTask(status: .downloading)
         await queue.enqueue(task)
 
@@ -304,7 +305,8 @@ final class DownloadCoordinatorTests: XCTestCase {
         await coordinator.handleDownloadFailed(taskId: task.id, error: error, resumeData: resumeData)
 
         let updatedTask = await queue.getTask(task.id)
-        XCTAssertNotNil(updatedTask?.resumeDataPath)
+        XCTAssertNil(updatedTask?.resumeDataPath)
+        XCTAssertFalse(fileManager.hasResumeData(for: task.id))
     }
 
     // MARK: - Download Paused Tests

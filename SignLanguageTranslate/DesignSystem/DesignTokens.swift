@@ -112,6 +112,10 @@ enum Typo {
     static let control = Font.system(size: 14, weight: .semibold)
     /// Primary button label.
     static let controlStrong = Font.system(size: 14, weight: .bold)
+    /// Large secondary button label (hero actions on an empty state).
+    static let controlLarge = Font.system(size: 15, weight: .semibold)
+    /// Large primary button label.
+    static let controlStrongLarge = Font.system(size: 15, weight: .bold)
     /// Pill and status badge labels.
     static let pill = Font.system(size: 13, weight: .semibold)
 
@@ -146,9 +150,13 @@ enum Spacing {
     static let lg: CGFloat = 16
     static let xl: CGFloat = 20
     static let xxl: CGFloat = 24
-    static let section: CGFloat = 28
+    /// Gap between stacked sections of a pane (header, cards, section groups).
+    static let section: CGFloat = 22
     /// Outer padding of the detail pane.
     static let pane: CGFloat = 40
+    /// Top padding of the detail pane; the title sits closer to the top edge
+    /// than the side inset.
+    static let paneTop: CGFloat = 34
 }
 
 // MARK: - Radius
@@ -169,6 +177,8 @@ enum Radius {
 enum Metrics {
     /// Minimum touch target. Never go below this.
     static let touchTarget: CGFloat = 44
+    /// Height of a large button (hero actions on an empty state).
+    static let controlHeightLarge: CGFloat = 52
     static let sidebarWidth: CGFloat = 320
     /// Middle column in the three-column browser.
     static let listColumnWidth: CGFloat = 260
@@ -181,8 +191,9 @@ enum Metrics {
     static let statusDot: CGFloat = 7
     /// Visible height of a filter pill. The hit area is still `touchTarget`.
     static let pillHeight: CGFloat = 36
-    /// Line spacing for multi-line body copy (15 pt at 1.6 line height).
-    static let paragraphLineSpacing: CGFloat = 9
+    /// Extra line spacing for multi-line body copy: 15 pt text at a 24 pt
+    /// line height (1.6), on top of the font's natural ~18 pt line.
+    static let paragraphLineSpacing: CGFloat = 6
     /// Dash and gap length of a dashed empty-state outline.
     static let dash: CGFloat = 4
     /// Illustration on a full-pane empty state.
@@ -197,6 +208,8 @@ enum Metrics {
     static let checkDot: CGFloat = 6
     /// Max width of the name column in a wide transfer row.
     static let transferNameWidth: CGFloat = 300
+    /// Right-aligned size/rate column in a transfer row, so bars line up.
+    static let transferValueWidth: CGFloat = 190
     /// Narrowest progress bar a wide transfer row accepts before it stacks.
     static let transferBarMinWidth: CGFloat = 80
     /// Narrowest category tile before the grid drops a column.

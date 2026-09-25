@@ -34,7 +34,9 @@ struct TransferRow<Trailing: View>: View {
                 .frame(maxWidth: Metrics.transferNameWidth, alignment: .leading)
             bar
                 .frame(minWidth: Metrics.transferBarMinWidth)
+            // A shared minimum width keeps every row's bar the same length.
             valueText
+                .frame(minWidth: Metrics.transferValueWidth, alignment: .trailing)
             trailing()
         }
     }

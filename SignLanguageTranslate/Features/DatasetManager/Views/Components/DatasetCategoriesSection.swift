@@ -26,6 +26,9 @@ struct DatasetCategoriesSection: View {
                         .foregroundStyle(Palette.accent)
                         .frame(minHeight: Metrics.touchTarget)
                         .contentShape(Rectangle())
+                        // Keep the 44 pt tap area without making the header
+                        // row taller than the eyebrow text.
+                        .padding(.vertical, -Spacing.md)
                 }
             }
 

@@ -120,7 +120,7 @@ struct DownloadTaskRowView: View {
     private var actionIcon: String {
         switch task.status {
         case .pending, .queued, .paused: return "play.fill"
-        case .downloading: return "pause.fill"
+        case .downloading: return "pause"
         case .failed: return "arrow.clockwise"
         case .completed: return "checkmark"
         case .extracting: return "gearshape"

@@ -100,7 +100,7 @@ struct DatasetDetailView: View {
                     activeTransfers
                     categories
                 }
-                .padding(horizontalSizeClass == .compact ? Spacing.xl : Spacing.pane)
+                .padding(contentInsets)
             }
             .background(Palette.ground)
             #if os(iOS)
@@ -176,6 +176,14 @@ struct DatasetDetailView: View {
         }
     }
     
+    /// Pane insets; the top is tighter than the sides in regular width.
+    private var contentInsets: EdgeInsets {
+        if horizontalSizeClass == .compact {
+            return EdgeInsets(top: Spacing.xl, leading: Spacing.xl, bottom: Spacing.xl, trailing: Spacing.xl)
+        }
+        return EdgeInsets(top: Spacing.paneTop, leading: Spacing.pane, bottom: Spacing.pane, trailing: Spacing.pane)
+    }
+
     // MARK: - Sections
 
     @ViewBuilder

@@ -20,7 +20,7 @@ struct PreflightRow: View {
                 )
                 .accessibilityHidden(true)
             Text(label)
-                .font(Typo.callout)
+                .font(Typo.callout.weight(.regular))
                 .foregroundStyle(Palette.textSecondary)
             Spacer(minLength: Spacing.md)
             Text(value)

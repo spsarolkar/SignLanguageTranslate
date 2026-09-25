@@ -145,12 +145,13 @@ struct FirstRunView: View {
                 .frame(maxWidth: .infinity)
             Spacer(minLength: 0)
         }
-        .padding(Spacing.pane)
+        .padding(.top, Spacing.paneTop)
+        .padding([.horizontal, .bottom], Spacing.pane)
     }
 
     private var header: some View {
         HStack(alignment: .center, spacing: Spacing.md) {
-            Text("Data Pipeline")
+            Text(NavigationSection.datasets.rawValue)
                 .font(Typo.largeTitle)
                 .tracking(Tracking.largeTitle)
                 .foregroundStyle(Palette.textPrimary)
@@ -193,12 +194,12 @@ struct FirstRunView: View {
 
     @ViewBuilder
     private var buttons: some View {
-        PrimaryButton(title: "Download INCLUDE · \(Self.gigabytes(INCLUDEManifest.measuredTotalSize))") {
+        PrimaryButton(title: "Download INCLUDE · \(Self.gigabytes(INCLUDEManifest.measuredTotalSize))", size: .large) {
             guard let dataset else { return }
             actions(for: dataset).startDownload()
             onStarted(dataset)
         }
-        SecondaryButton(title: "Import from Files") {
+        SecondaryButton(title: "Import from Files", size: .large) {
             isImporting = true
         }
     }
@@ -206,7 +207,7 @@ struct FirstRunView: View {
     // MARK: Preflight
 
     private var preflightCard: some View {
-        Card(padding: Spacing.xl, radius: Radius.cardLarge) {
+        Card(padding: 0, radius: Radius.cardLarge) {
             VStack(alignment: .leading, spacing: Spacing.md) {
                 SectionHeader(eyebrow: "Preflight")
                 PreflightRow(label: "Free storage", value: storageValue, state: storageState)
@@ -226,12 +227,14 @@ struct FirstRunView: View {
                     .foregroundStyle(Palette.textTertiary)
                     .fixedSize(horizontal: false, vertical: true)
             }
+            .padding(.vertical, Spacing.xl)
+            .padding(.horizontal, Spacing.xxl)
         }
     }
 
     private var storageValue: String {
         guard let free = preflight.freeBytes else { return "Unknown" }
-        return "\(free.formatted(.byteCount(style: .file))) free"
+        return free.formatted(.byteCount(style: .file))
     }
 
     /// Amber when free space is below what download plus extraction needs.

@@ -36,13 +36,19 @@ Verify landscape and portrait in previews or the simulator.
     downloading and paused. Grid caps at 5 columns; card stacks its buttons
     below 560 pt. The temporary render test was not committed.
 - [ ] 3. Sample browser (`Browser.dc.html`) — pills, word list, player overlays, confidence chart, samples grid
-- [ ] 4. Sidebar (artboard sidebars in `Main.dc.html` / `Empty.dc.html`) — `SidebarView` only:
+- [ ] 4. Sidebar (artboard sidebars in `Main.dc.html` / `Empty.dc.html`) — `SidebarView` and the dataset list rows:
   `Palette.chrome` background, wordmark in place of the large "Sign Language" title,
   eyebrow-style section header, selected row in `surfaceRaised` + accent instead of the
   system blue pill, one icon tint from tokens instead of per-section colors, downloads
   badge from `StateTint`. Keep every `NavigationSection` and the storage footer.
   Also token-style the column toolbars (sort / refresh / more) if tokens allow it
   without replacing system toolbar behavior.
+  - Dataset list rows (`DatasetListView` / `DatasetRowView`, content column): restyle
+    as the artboards' sidebar dataset cards (`Main.png`) — name, mono % and 4 pt bar,
+    "n of 44 parts · n downloading", state tag (QUEUED / LOCAL), selected card in
+    `surfaceRaised` + `borderSelected` instead of the blue fill.
+  - Row size text: "Zero KB" is wrong for a dataset with nothing downloaded. Show the
+    dataset's total size, or "Not downloaded" when the total is unknown.
 - [ ] 5. Portrait pass (`Portrait.dc.html`) — adapt screens 1–4; no duplicate views
 - [ ] 6. Keypoint export & sync (`Export.dc.html`) — pipeline section
 - [ ] 7. Token pass only (no relayout): training dashboard, inference, settings, database inspector

@@ -191,3 +191,30 @@ the code and the log, not a stack.
 - **Test run after these fixes:** 594 tests, 592 passed, 0 failed, 2 skipped
   (T5 init on Simulator). The two network-dependent
   `DownloadIntegrationTests` passed this run; they are still flaky, not fixed.
+
+## Zip import on device — 2026-09-25
+
+Imported Zenodo's "Download all" zip on the iPad. Checked from the saved
+queue (`Documents/download_state.json`) and the app container:
+
+- **The import itself worked.** All 44 parts were marked completed, and every
+  part's size matches the Zenodo API exactly (56,751,819,975 bytes in total).
+  Sizes only; there is still no MD5 check.
+- **Duplicate parts (fixed).** Import checked
+  `getTasksForCategory(dataset.name)` — "INCLUDE" is never a category — so it
+  always re-enqueued the manifest, and enqueue only de-duplicates by task ID.
+  Result: 88 tasks, 44 of them pending copies, and the dataset could never
+  reach completed (it offered Resume, which would re-download 56 GB).
+  `loadINCLUDEManifest` now skips URLs already queued for the dataset; a
+  one-time clean-up on queue restore (`DownloadTaskDeduplication`) keeps the
+  most advanced task per (dataset, URL) and drops the rest.
+- **Extraction after import did nothing (fixed).** It only extracted zips
+  whose name contained the dataset name; no INCLUDE part does. It now matches
+  the dataset's part filenames. On the iPad: 44 zips, 0 videos, no `Datasets`
+  folder at the time of checking.
+- **Cancel did nothing (fixed, and made safe).** Same wrong lookup. Cancel
+  now cancels the dataset's unfinished parts only: `DownloadCoordinator.cancelTask`
+  deletes a completed part's zip, so completed parts are left alone.
+- **Import still pauses all downloads** and does not resume them afterwards,
+  and it unzips the whole bundle to a temporary folder before importing
+  anything. Not changed.

@@ -673,6 +673,18 @@ actor DownloadQueueActor {
         maxConcurrentDownloads = state.maxConcurrentDownloads
 
         isDirty = false
+
+        // Older builds enqueued the manifest again on every zip import,
+        // leaving a pending duplicate beside each completed part.
+        let duplicates = DownloadTaskDeduplication.duplicateIDs(in: Array(tasks.values))
+        if !duplicates.isEmpty {
+            for id in duplicates {
+                tasks.removeValue(forKey: id)
+            }
+            queue.removeAll { duplicates.contains($0) }
+            print("[DownloadQueueActor] Removed \(duplicates.count) duplicate tasks on restore")
+            markDirty()
+        }
     }
 
     /// Reconcile resume data files with task state

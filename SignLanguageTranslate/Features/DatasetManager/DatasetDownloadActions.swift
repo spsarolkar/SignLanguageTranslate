@@ -3,9 +3,8 @@ import SwiftData
 
 /// Start-download and zip-import actions for one dataset.
 ///
-/// Shared by `DatasetDetailView` and the first-run screen. The bodies were
-/// moved here unchanged from `DatasetDetailView`; view state is updated
-/// through the callbacks.
+/// Shared by `DatasetDetailView` and the first-run screen. Moved from
+/// `DatasetDetailView`; view state is updated through the callbacks.
 @MainActor
 struct DatasetDownloadActions {
     let dataset: Dataset
@@ -49,7 +48,7 @@ struct DatasetDownloadActions {
                 defer { url.stopAccessingSecurityScopedResource() }
                 do {
                     // Start download tracking if not present so tasks exist for the zip importer
-                    if downloadManager.getTasksForCategory(dataset.name).isEmpty {
+                    if downloadManager.getTasksForDataset(dataset.name).isEmpty {
                         await downloadManager.loadINCLUDEManifest(datasetName: dataset.name)
                         dataset.startDownload()
                         try? modelContext.save()
@@ -79,6 +78,31 @@ struct DatasetDownloadActions {
         }
     }
 
+    /// Maps part filenames ("Adjectives_1of8.zip") to downloaded files, which
+    /// are stored as "<task UUID>_<filename>". Only this dataset's parts are
+    /// included. (Previously this required the dataset name in the filename,
+    /// which no INCLUDE part has, so nothing was extracted after an import.)
+    nonisolated static func partFileMapping(files: [URL], partNames: Set<String>) -> [String: URL] {
+        var mapping: [String: URL] = [:]
+        for file in files {
+            let name = originalFilename(file.lastPathComponent)
+            if partNames.contains(name) {
+                mapping[name] = file
+            }
+        }
+        return mapping
+    }
+
+    /// Strips the "<36-char UUID>_" prefix a completed download is stored with.
+    nonisolated static func originalFilename(_ filename: String) -> String {
+        guard filename.count > 37,
+              let underscoreIndex = filename.index(filename.startIndex, offsetBy: 36, limitedBy: filename.endIndex),
+              filename[underscoreIndex] == "_" else {
+            return filename
+        }
+        return String(filename[filename.index(after: underscoreIndex)...])
+    }
+
     private func performExtractionAndIngestion() {
         Task {
             await MainActor.run {
@@ -94,22 +118,8 @@ struct DatasetDownloadActions {
                 let downloadedFiles = (contents ?? []).filter { $0.pathExtension.lowercased() == "zip" }
 
                 if !downloadedFiles.isEmpty {
-                    var fileMapping: [String: URL] = [:]
-                    for file in downloadedFiles {
-                        let filename = file.lastPathComponent
-                        let originalFilename: String
-                        if filename.count > 37,
-                           let underscoreIndex = filename.index(filename.startIndex, offsetBy: 36, limitedBy: filename.endIndex),
-                           filename[underscoreIndex] == "_" {
-                            originalFilename = String(filename[filename.index(after: underscoreIndex)...])
-                        } else {
-                            originalFilename = filename
-                        }
-                        // Ensure we only extract zipped parts that belong to this dataset (simplified check)
-                        if originalFilename.contains(dataset.name) {
-                            fileMapping[originalFilename] = file
-                        }
-                    }
+                    let partNames = Set(downloadManager.getTasksForDataset(dataset.name).map(\.filename))
+                    let fileMapping = Self.partFileMapping(files: downloadedFiles, partNames: partNames)
 
                     if !fileMapping.isEmpty {
                         // 2. Extract

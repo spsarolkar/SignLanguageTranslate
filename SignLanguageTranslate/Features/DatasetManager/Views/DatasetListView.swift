@@ -465,8 +465,10 @@ struct DatasetListView: View {
         dataset.downloadedParts = 0
         dataset.statusRawValue = DownloadStatus.notStarted.rawValue
         
-        // Let the manager cancel any active tasks and clean up part files
-        let managerTasks = downloadManager.getTasksForCategory(dataset.name)
+        // Cancel this dataset's unfinished parts. Completed parts are kept:
+        // cancelTask deletes a completed part's zip from disk.
+        let managerTasks = downloadManager.getTasksForDataset(dataset.name)
+            .filter { $0.status != .completed }
         for task in managerTasks {
             downloadManager.cancelTask(task.id)
         }

@@ -314,8 +314,15 @@ final class DownloadManager {
 
     /// Load the INCLUDE dataset manifest and enqueue all download tasks
     /// - Parameter datasetName: Name of the dataset (default "INCLUDE")
+    /// Enqueues INCLUDE parts that are not already queued for `datasetName`,
+    /// so calling it again (Download pressed twice, a zip import) adds nothing.
     func loadINCLUDEManifest(datasetName: String = "INCLUDE") async {
-        let entries = INCLUDEManifest.generateAllEntries()
+        let entries = Self.entriesToEnqueue(
+            INCLUDEManifest.generateAllEntries(),
+            existing: await queue.getAllTasks(),
+            datasetName: datasetName
+        )
+        guard !entries.isEmpty else { return }
         let downloadTasks = entries.map { entry in
             DownloadTask(
                 url: entry.url,
@@ -435,6 +442,21 @@ final class DownloadManager {
 
     func getTasksForCategory(_ category: String) -> [DownloadTask] {
         tasks.filter { $0.category == category }
+    }
+
+    /// All tasks belonging to a dataset ("INCLUDE"), across categories.
+    func getTasksForDataset(_ datasetName: String) -> [DownloadTask] {
+        tasks.filter { $0.datasetName == datasetName }
+    }
+
+    /// Manifest entries whose URL is not yet queued for `datasetName`.
+    nonisolated static func entriesToEnqueue(
+        _ entries: [ManifestEntry],
+        existing: [DownloadTask],
+        datasetName: String
+    ) -> [ManifestEntry] {
+        let queued = Set(existing.filter { $0.datasetName == datasetName }.map(\.url))
+        return entries.filter { !queued.contains($0.url) }
     }
 
     func getTaskGroup(for category: String) -> DownloadTaskGroup? {

@@ -36,9 +36,16 @@ Verify landscape and portrait in previews or the simulator.
     downloading and paused. Grid caps at 5 columns; card stacks its buttons
     below 560 pt. The temporary render test was not committed.
 - [ ] 3. Sample browser (`Browser.dc.html`) — pills, word list, player overlays, confidence chart, samples grid
-- [ ] 4. Portrait pass (`Portrait.dc.html`) — adapt screens 1–3; no duplicate views
-- [ ] 5. Keypoint export & sync (`Export.dc.html`) — pipeline section
-- [ ] 6. Token pass only (no relayout): training dashboard, inference, settings, database inspector
+- [ ] 4. Sidebar (artboard sidebars in `Main.dc.html` / `Empty.dc.html`) — `SidebarView` only:
+  `Palette.chrome` background, wordmark in place of the large "Sign Language" title,
+  eyebrow-style section header, selected row in `surfaceRaised` + accent instead of the
+  system blue pill, one icon tint from tokens instead of per-section colors, downloads
+  badge from `StateTint`. Keep every `NavigationSection` and the storage footer.
+  Also token-style the column toolbars (sort / refresh / more) if tokens allow it
+  without replacing system toolbar behavior.
+- [ ] 5. Portrait pass (`Portrait.dc.html`) — adapt screens 1–4; no duplicate views
+- [ ] 6. Keypoint export & sync (`Export.dc.html`) — pipeline section
+- [ ] 7. Token pass only (no relayout): training dashboard, inference, settings, database inspector
 
 Rules:
 - Bugs found while restyling: if the fix is small and uses existing APIs, make

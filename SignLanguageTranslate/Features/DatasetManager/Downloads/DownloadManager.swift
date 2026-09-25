@@ -60,11 +60,26 @@ final class DownloadManager {
     /// Formatted download rate (e.g., "2.5 MB/s")
     var formattedDownloadRate: String { progressTracker.formattedDownloadRate }
 
-    /// Estimated time remaining
-    var estimatedTimeRemaining: TimeInterval? { progressTracker.estimatedTimeRemaining }
+    /// Estimated time for the whole queue: every task's remaining bytes,
+    /// pending parts included, at the current overall rate. The tracker's own
+    /// estimate only covers parts that have reported progress, so with 3 of
+    /// 44 active it showed the time for those 3 parts.
+    var estimatedTimeRemaining: TimeInterval? {
+        Self.timeRemaining(remainingBytes: totalBytes - downloadedBytes, rate: currentDownloadRate)
+    }
 
-    /// Formatted time remaining (e.g., "2m 30s")
-    var formattedTimeRemaining: String? { progressTracker.formattedTimeRemaining }
+    /// Formatted time remaining (e.g., "2m 30s", "29h 5m")
+    var formattedTimeRemaining: String? {
+        DownloadProgressTracker.formatDuration(estimatedTimeRemaining)
+    }
+
+    /// Seconds to download `remainingBytes` at `rate` bytes/s; nil when
+    /// nothing remains or there is no rate yet. Not capped: a 29-hour
+    /// estimate is shown rather than hidden.
+    nonisolated static func timeRemaining(remainingBytes: Int64, rate: Double) -> TimeInterval? {
+        guard rate > 0, rate.isFinite, remainingBytes > 0 else { return nil }
+        return Double(remainingBytes) / rate
+    }
 
     /// Whether the engine is currently running
     var isEngineRunning: Bool { engine.isRunning }

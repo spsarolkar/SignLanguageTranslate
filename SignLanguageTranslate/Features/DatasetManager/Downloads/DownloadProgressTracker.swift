@@ -128,7 +128,12 @@ final class DownloadProgressTracker {
 
     /// Formatted time remaining (e.g., "2m 30s" or "1h 15m")
     var formattedTimeRemaining: String? {
-        guard let seconds = estimatedTimeRemaining, seconds > 0, seconds.isFinite else {
+        Self.formatDuration(estimatedTimeRemaining)
+    }
+
+    /// "45s", "2m 30s" or "1h 15m"; nil for a missing, zero or non-finite value.
+    nonisolated static func formatDuration(_ seconds: TimeInterval?) -> String? {
+        guard let seconds, seconds > 0, seconds.isFinite else {
             return nil
         }
 

@@ -76,6 +76,10 @@ final class BackgroundSessionManager: NSObject {
     /// Lock for thread-safe access to download mappings
     private let lock = NSLock()
 
+    /// Rate-limits byte progress. Only touched on the session's serial
+    /// delegate queue (`delegateQueue: nil`), so it needs no lock.
+    private var progressThrottle = ProgressThrottle()
+
     /// Coordinator for handling download events
     /// Set by DownloadCoordinator during initialization
     weak var coordinator: DownloadCoordinator?
@@ -438,22 +442,21 @@ extension BackgroundSessionManager: URLSessionDownloadDelegate {
             return
         }
 
-        print("[BackgroundSessionManager] Progress: taskId=\(taskId), bytes=\(totalBytesWritten)/\(totalBytesExpectedToWrite)")
+        // Called every ~16 KB; forward at most every 0.5 s per transfer.
+        guard progressThrottle.shouldForward(
+            transfer: downloadTask.taskIdentifier,
+            bytes: totalBytesWritten,
+            total: totalBytesExpectedToWrite
+        ) else {
+            return
+        }
 
-        // Invoke callback closure
+        // One path only: the engine's onProgress updates the queue through
+        // the coordinator and notifies DownloadManager.
         if let onProgress = onProgress {
             onProgress(taskId, totalBytesWritten, totalBytesExpectedToWrite)
         } else {
             print("[BackgroundSessionManager] WARNING: onProgress callback is nil!")
-        }
-
-        // Notify coordinator on main actor
-        Task { @MainActor in
-            await coordinator?.handleProgressUpdate(
-                taskId: taskId,
-                bytesWritten: totalBytesWritten,
-                totalBytes: totalBytesExpectedToWrite
-            )
         }
     }
 
@@ -491,6 +494,8 @@ extension BackgroundSessionManager: URLSessionTaskDelegate {
         task: URLSessionTask,
         didCompleteWithError error: Error?
     ) {
+        progressThrottle.reset(transfer: task.taskIdentifier)
+
         guard let taskId = getTaskId(for: task) else {
             return
         }

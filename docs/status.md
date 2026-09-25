@@ -150,3 +150,44 @@ Follow-ups, not done in this screen:
   `...test_queueProcessesNextTaskAfterCompletion`; T5 init skipped on Simulator).
 - **Dead code left:** `DownloadActionButton` has no callers now that
   `DownloadTaskRowView` uses `IconButton`; not removed in this screen.
+
+## Download UI freeze on device — 2026-09-25
+
+Seen on the iPad Pro M1 while INCLUDE downloaded: the UI and the Xcode
+console stopped updating for minutes, then recovered. The app sat at ~52% CPU
+while only showing progress. No crash, hang or jetsam report was written, and
+no backtrace was captured while it was frozen, so the cause below comes from
+the code and the log, not a stack.
+
+- **Cause: progress flood.** URLSession reports progress every ~16 KB. Each
+  callback printed a line, hopped to the main actor twice (the engine's
+  `onProgress` and a duplicate `coordinator.handleProgressUpdate` that updated
+  the queue a second time), re-sorted and regrouped all 44 tasks, and redrew
+  every view watching `tasks`. The detail view also wrote to SwiftData on
+  every change. **Fixed:** `ProgressThrottle` forwards at most one update per
+  transfer every 0.5 s (first and final always pass), through one path, with
+  no per-chunk print; the detail syncs on its 1 s timer only.
+  **Needs on-device check:** CPU during a download should now be a few percent.
+- **Time remaining was for the active parts only (fixed).**
+  `DownloadProgressTracker` totals only parts that have reported progress, so
+  with 3 of 44 active, "2h 3m remaining" was the time for those 3 parts. It
+  also hid any estimate over 24 h. `DownloadManager.estimatedTimeRemaining`
+  now uses every task's remaining bytes at the current rate, uncapped.
+- **Throughput is server-bound for now.** The iPad got ~416 KB/s total across
+  3 transfers; a single connection from a Mac to the same Zenodo file measured
+  ~650 KB/s on 2026-09-25. Not an app limit; more parallel transfers are not
+  proven to help.
+- **Xcode gauges show Network/Disk at zero** for the app during downloads:
+  background transfers run in `nsurlsessiond`, not the app process. Expected.
+- **Lock held across URLSession calls (not fixed).**
+  `BackgroundSessionManager.startDownload`, `resumeDownload` and
+  `cancelDownload` call `cancel()`, `downloadTask(...)` and `resume()` while
+  holding its `NSLock`, which the delegate callback also takes. Not shown to
+  cause the freeze, but it is a lock-order risk; move those calls outside the
+  lock when the downloads internals are next touched.
+- **More tests compiled out (`#if false`), since before realign:**
+  `DownloadManagerTests` (API changed, Jan 2026) and
+  `PersistenceControllerTests`, in addition to `DownloadProgressTrackerTests`.
+- **Test run after these fixes:** 594 tests, 592 passed, 0 failed, 2 skipped
+  (T5 init on Simulator). The two network-dependent
+  `DownloadIntegrationTests` passed this run; they are still flaky, not fixed.

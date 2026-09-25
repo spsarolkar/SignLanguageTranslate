@@ -148,13 +148,11 @@ struct DatasetDetailView: View {
         .onAppear {
             syncProgress()
         }
-        .onChange(of: downloadManager.tasks) {
-            syncProgress()
-        }
+        // One sync per second, whatever the status, so a retry from a failed
+        // or paused state is still picked up. Syncing on every task change
+        // wrote to SwiftData many times a second during downloads.
         .onReceive(Timer.publish(every: 1.0, on: .main, in: .common).autoconnect()) { _ in
-            if dataset.downloadStatus.isActive {
-                syncProgress()
-            }
+            syncProgress()
         }
         .overlay {
             if downloadManager.isImporting {

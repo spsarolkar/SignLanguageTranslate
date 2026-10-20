@@ -215,7 +215,8 @@ struct DataPipelineView: View {
     private func loadFeatures(for video: VideoSample) {
         isInspectorLoading = true
         Task {
-            if let featureSet = video.featureSets.first(where: { $0.modelName == "AppleVision" }) ?? video.featureSets.last {
+            let candidates = video.featureSets.sorted { ($0.frameCount > 0) && ($1.frameCount <= 0) }
+            if let featureSet = candidates.first(where: { $0.modelName == "AppleVision" }) ?? candidates.first {
                 do {
                     let features = try FeatureFileManager.shared.loadFeatures(at: featureSet.filePath)
                     await MainActor.run {
@@ -225,7 +226,12 @@ struct DataPipelineView: View {
                     }
                 } catch {
                     print("[DataPipelineView] Error loading features for \(video.fileName): \(error)")
-                    await MainActor.run { isInspectorLoading = false }
+                    await MainActor.run {
+                        guard navigation.pipelineVideo?.id == video.id else { return }
+                        isInspectorLoading = false
+                        errorMessage = "Could not load keypoints for \(video.fileName). \(error.localizedDescription)"
+                        showError = true
+                    }
                 }
             } else {
                 await MainActor.run {
@@ -267,7 +273,7 @@ struct DataPipelineView: View {
                     frameCount: features.count
                 )
                 
-                await MainActor.run {
+                try await MainActor.run {
                     // Purge any existing corrupted or outdated feature sets for this model
                     let existingSets = video.featureSets.filter { $0.modelName == model.rawValue }
                     for oldSet in existingSets {
@@ -278,7 +284,7 @@ struct DataPipelineView: View {
                     featureSet.videoSample = video
                     modelContext.insert(featureSet)
                     video.featureSets.append(featureSet)
-                    try? modelContext.save()
+                    try modelContext.save()
                     
                     extractingVideoIDs.remove(video.id)
                     if selectedVideo?.id == video.id {
@@ -377,7 +383,13 @@ struct VideoExtractionCard: View {
     @State private var showDetails = false
 
     private var visionFeatures: FeatureSet? {
-        video.featureSets.first { $0.modelName == "AppleVision" }
+        let candidates = video.featureSets.filter { $0.modelName == "AppleVision" }
+        return candidates.first(where: { $0.frameCount > 0 && $0.fileExists }) ?? candidates.first
+    }
+
+    private var needsReExtraction: Bool {
+        guard let visionFeatures else { return false }
+        return visionFeatures.frameCount <= 0 || !visionFeatures.fileExists
     }
 
     var body: some View {
@@ -421,8 +433,8 @@ struct VideoExtractionCard: View {
                 }
                 HStack(spacing: Spacing.sm) {
                     StatusBadge(
-                        state: isExtracting ? .active : (visionFeatures == nil ? .idle : .complete),
-                        text: isExtracting ? "Extracting" : (visionFeatures == nil ? "Not extracted" : "Vision ready")
+                        state: isExtracting ? .active : (visionFeatures == nil || needsReExtraction ? .idle : .complete),
+                        text: isExtracting ? "Extracting" : (needsReExtraction ? "Needs re-extraction" : (visionFeatures == nil ? "Not extracted" : "Vision ready"))
                     )
                     if isExtracting { ProgressView().tint(Palette.accent) }
                     Spacer(minLength: Spacing.xxs)
@@ -431,6 +443,11 @@ struct VideoExtractionCard: View {
                             .font(Typo.caption2)
                             .foregroundStyle(Palette.textTertiary)
                     }
+                }
+                if needsReExtraction {
+                    Text("No usable frames saved. Use Extract all or retry this clip.")
+                        .font(Typo.caption)
+                        .foregroundStyle(Palette.textSecondary)
                 }
                 if let featureSet = visionFeatures {
                     SecondaryButton(title: showDetails ? "Hide details" : "Feature details",

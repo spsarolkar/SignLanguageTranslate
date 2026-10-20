@@ -10,12 +10,24 @@ actor VideoFeatureExtractionService {
     private let handExtractor = VisionHandExtractor()
     
     /// Errors that can occur during extraction
-    enum ExtractionError: Error {
+    enum ExtractionError: LocalizedError {
         case assetNotFound
         case unreadableAsset
         case noVideoTrack
         case readerInitializationFailed
         case cancelled
+        case noDecodedFrames
+
+        var errorDescription: String? {
+            switch self {
+            case .assetNotFound: return "The source video could not be found."
+            case .unreadableAsset: return "The source video cannot be read."
+            case .noVideoTrack: return "The file has no video track."
+            case .readerInitializationFailed: return "The video decoder could not complete reading the clip."
+            case .cancelled: return "Feature extraction was cancelled."
+            case .noDecodedFrames: return "No video frames could be decoded. No features were saved; retry extraction or check the source video."
+            }
+        }
     }
     
     // MARK: - Public Methods
@@ -29,6 +41,21 @@ actor VideoFeatureExtractionService {
     func extractFeatures(
         from url: URL,
         onProgress: ((Double) -> Void)? = nil
+    ) async throws -> [FrameFeatures] {
+        try await readFrames(from: url, onProgress: onProgress) { sampleBuffer, timestamp in
+            let body = try self.poseExtractor.extractBodyFeatures(from: sampleBuffer, timestamp: timestamp)
+            let hands = try self.handExtractor.extractHandFeatures(from: sampleBuffer, timestamp: timestamp)
+            return FrameFeatures(timestamp: timestamp, body: body, leftHand: hands.left,
+                                 rightHand: hands.right, sourceModel: "AppleVision")
+        }
+    }
+
+    /// Keep decoding testable on Simulator, where Vision pose models may be
+    /// unavailable. Production always supplies the Vision processor above.
+    func readFrames(
+        from url: URL,
+        onProgress: ((Double) -> Void)? = nil,
+        processFrame: (CMSampleBuffer, TimeInterval) throws -> FrameFeatures
     ) async throws -> [FrameFeatures] {
         let asset = AVAsset(url: url)
         
@@ -44,9 +71,11 @@ actor VideoFeatureExtractionService {
         // Setup Asset Reader
         let reader = try AVAssetReader(asset: asset)
         
-        // Use native format (nil settings) for efficiency and stability with Vision
-        // Vision handles YUV (420v/420f) natively and prefers it over BGRA
-        let settings: [String: Any]? = nil 
+        // nil returns compressed samples for H.264/HEVC movies, which have no
+        // CVPixelBuffer. Request decoded YUV pixels for Vision explicitly.
+        let settings: [String: Any] = [
+            kCVPixelBufferPixelFormatTypeKey as String: kCVPixelFormatType_420YpCbCr8BiPlanarVideoRange
+        ]
         
         let output = AVAssetReaderTrackOutput(track: track, outputSettings: settings)
         output.alwaysCopiesSampleData = false
@@ -87,25 +116,7 @@ actor VideoFeatureExtractionService {
                     return
                 }
 
-                // 1. Extract Body
-                let bodyKeypoints = try poseExtractor.extractBodyFeatures(from: sampleBuffer, timestamp: timestamp)
-                
-                // 2. Extract Hands
-                let handKeypoints = try handExtractor.extractHandFeatures(from: sampleBuffer, timestamp: timestamp)
-                
-                // 3. Aggregate
-                let frameFeatures = FrameFeatures(
-                    timestamp: timestamp,
-                    body: bodyKeypoints,
-                    leftHand: handKeypoints.left,
-                    rightHand: handKeypoints.right,
-                    sourceModel: "AppleVision"
-                )
-                
-                // We shouldn't mutate processedFrames directly inside autoreleasepool 
-                // if it's value type, but in Swift it's fine. 
-                // Wait, actor isolation + autoreleasepool is synchronous.
-                processedFrames.append(frameFeatures)
+                processedFrames.append(try processFrame(sampleBuffer, timestamp))
                 
                 // Update progress
                 if duration > 0 {
@@ -117,6 +128,13 @@ actor VideoFeatureExtractionService {
         if reader.status == .failed {
             throw reader.error ?? ExtractionError.readerInitializationFailed
         }
+        guard !Task.isCancelled, reader.status != .cancelled else {
+            throw ExtractionError.cancelled
+        }
+        guard reader.status == .completed else {
+            throw ExtractionError.readerInitializationFailed
+        }
+        guard !processedFrames.isEmpty else { throw ExtractionError.noDecodedFrames }
         
         onProgress?(1.0)
         return processedFrames

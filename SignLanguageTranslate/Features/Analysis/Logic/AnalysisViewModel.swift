@@ -40,7 +40,7 @@ class AnalysisViewModel: ObservableObject {
             
             do {
                 // Fetch FeatureSets on MainActor
-                let featureSets = try await MainActor.run {
+                let featurePaths = try await MainActor.run {
                     // Fetch all videos for this dataset
                     let datasetName = dataset.name
                     let descriptor = FetchDescriptor<VideoSample>(
@@ -51,15 +51,16 @@ class AnalysisViewModel: ObservableObject {
                     // Collect flat list of feature sets
                     // Prefer AppleVision, fallback to others
                     return videos.compactMap { video in
-                        video.featureSets.first(where: { $0.modelName == "AppleVision" }) ?? video.featureSets.first
+                        let candidates = video.featureSets.filter { $0.frameCount > 0 && $0.fileExists }
+                        return (candidates.first(where: { $0.modelName == "AppleVision" }) ?? candidates.first)?.filePath
                     }
                 }
                 
-                guard !featureSets.isEmpty else {
-                    throw NSError(domain: "AnalysisViewModel", code: -1, userInfo: [NSLocalizedDescriptionKey: "No features extracted for this dataset."])
+                guard !featurePaths.isEmpty else {
+                    throw FeatureAnalyzer.AnalysisError.noUsableFrames
                 }
                 
-                let result = try await analyzer.analyze(featureSets: featureSets)
+                let result = try await analyzer.analyze(featurePaths: featurePaths)
                 self.result = result
                 
                 // Save to disk

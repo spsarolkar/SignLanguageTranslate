@@ -1,10 +1,28 @@
 import Foundation
 import MLX
-import SwiftData
 
 /// Analyzes extracted features to provide insights into data quality and distribution.
 /// Computes Importance (Variance) and Correlation between feature dimensions.
 actor FeatureAnalyzer {
+    private let fileManager: FeatureFileManager
+
+    init(fileManager: FeatureFileManager? = nil) {
+        self.fileManager = fileManager ?? FeatureFileManager()
+    }
+
+    enum AnalysisError: LocalizedError {
+        case noUsableFrames
+        case insufficientFrames
+
+        var errorDescription: String? {
+            switch self {
+            case .noUsableFrames:
+                return "No usable feature frames found. Choose Extract all in Pipeline to retry empty or unreadable results."
+            case .insufficientFrames:
+                return "Analysis needs at least two extracted frames. Extract more clips and try again."
+            }
+        }
+    }
     
     // MARK: - Types
     
@@ -32,17 +50,22 @@ actor FeatureAnalyzer {
     
     // MARK: - Public API
     
-    /// Analyzes the given list of FeatureSets
-    func analyze(featureSets: [FeatureSet]) async throws -> AnalysisResult {
-        print("[FeatureAnalyzer] Starting analysis of \(featureSets.count) samples...")
-        
-        // 1. Load all data into a single massive array [TotalFrames, 180]
+    /// Snapshot paths on the view context; never pass SwiftData models to this actor.
+    func analyze(featurePaths: [String]) async throws -> AnalysisResult {
+        let allFrames = try await loadFrameValues(featurePaths: featurePaths)
+        let frameCount = allFrames.count / Self.featureDim
+        guard frameCount >= 2 else { throw AnalysisError.insufficientFrames }
+
+        return computeStatistics(allFrames: allFrames, frameCount: frameCount)
+    }
+
+    /// Shared storage resolution also lets tests exercise loading without MLX.
+    func loadFrameValues(featurePaths: [String]) async throws -> [Float] {
         var allFrames: [Float] = []
-        // Reserve approx (60 frames per video)
-        allFrames.reserveCapacity(featureSets.count * 60 * Self.featureDim)
+        allFrames.reserveCapacity(featurePaths.count * 60 * Self.featureDim)
         
-        for (index, set) in featureSets.enumerated() {
-            if let frames = await loadFeatures(at: URL(fileURLWithPath: set.filePath)) {
+        for (index, path) in featurePaths.enumerated() {
+            if let frames = try? fileManager.loadFeatures(at: path) {
                 for frame in frames {
                     allFrames.append(contentsOf: serializeFrame(frame))
                 }
@@ -55,10 +78,12 @@ actor FeatureAnalyzer {
         }
         
         guard !allFrames.isEmpty else {
-            throw NSError(domain: "FeatureAnalyzer", code: -1, userInfo: [NSLocalizedDescriptionKey: "No valid feature data found"])
+            throw AnalysisError.noUsableFrames
         }
-        
-        let frameCount = allFrames.count / Self.featureDim
+        return allFrames
+    }
+
+    private func computeStatistics(allFrames: [Float], frameCount: Int) -> AnalysisResult {
         print("[FeatureAnalyzer] Loaded \(frameCount) frames. Computing stats...")
         
         // 2. Convert to MLX Array [N, 180]
@@ -130,7 +155,8 @@ actor FeatureAnalyzer {
         
         // SVD of Covariance (180x180) -> U, S, Vt
         // U contains eigenvectors (Principal Components)
-        let svdResult = MLX.svd(cov)
+        // The pinned MLX 0.30.6 Metal backend does not implement SVD.
+        let svdResult: (MLXArray, MLXArray, MLXArray) = MLX.svd(cov, stream: .cpu)
         let U = svdResult.0 // [180, 180]
         
         // Project all data (or a display subset) onto top 2 components
@@ -164,16 +190,6 @@ actor FeatureAnalyzer {
     }
     
     // MARK: - Helpers
-    
-    private func loadFeatures(at url: URL) async -> [FrameFeatures]? {
-        do {
-            let data = try Data(contentsOf: url)
-            return try JSONDecoder().decode([FrameFeatures].self, from: data)
-        } catch {
-            print("[FeatureAnalyzer] Failed to load \(url.lastPathComponent)")
-            return nil
-        }
-    }
     
     private func serializeFrame(_ frame: FrameFeatures) -> [Float] {
         var params = [Float]()

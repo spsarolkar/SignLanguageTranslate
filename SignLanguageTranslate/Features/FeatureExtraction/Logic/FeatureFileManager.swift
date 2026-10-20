@@ -6,6 +6,19 @@ struct FeatureFileManager {
     // MARK: - Properties
     
     static let shared = FeatureFileManager()
+    private let storageRoot: URL
+
+    init(storageRoot: URL? = nil) {
+        self.storageRoot = storageRoot ?? FileManager.default.datasetsDirectory
+    }
+
+    enum ArtifactError: LocalizedError {
+        case emptyFeatures
+
+        var errorDescription: String? {
+            "This feature file contains no frames. Choose Extract all in Pipeline to re-extract incomplete results."
+        }
+    }
     
     private let fileManager = FileManager.default
     private let encoder: JSONEncoder = {
@@ -25,18 +38,18 @@ struct FeatureFileManager {
     ///   - modelName: The model used (e.g. "Vision")
     /// - Returns: The relative path to the saved feature file
     func saveFeatures(_ features: [FrameFeatures], forVideoPath videoPath: String, modelName: String) throws -> String {
+        guard !features.isEmpty else { throw ArtifactError.emptyFeatures }
         // Construct feature path: Features/<Dataset>/.../<VideoName>_<Model>.json
         // Input videoPath: "INCLUDE/Animals/Dog/video.mp4"
         // Output path: "Features/INCLUDE/Animals/Dog/video_Vision_body.json" (relative)
         
         let videoURL = URL(fileURLWithPath: videoPath)
-        let datasetName = (videoPath as NSString).pathComponents.first ?? "Unknown"
         
         // Create parallel directory structure under "Features"
         let relativeDir = (videoPath as NSString).deletingLastPathComponent
         let featuresDirName = "Features" // Top level folder
         
-        let absoluteFeaturesDir = fileManager.datasetsDirectory
+        let absoluteFeaturesDir = storageRoot
             .appendingPathComponent(featuresDirName)
             .appendingPathComponent(relativeDir) // Replicate internal structure
         
@@ -48,7 +61,7 @@ struct FeatureFileManager {
         let absoluteFileURL = absoluteFeaturesDir.appendingPathComponent(featureFilename)
         
         let data = try encoder.encode(features)
-        try data.write(to: absoluteFileURL)
+        try data.write(to: absoluteFileURL, options: .atomic)
         
         // Return relative path from datasets directory
         // e.g. "Features/INCLUDE/Animals/Dog/video_Vision_features.json"
@@ -61,9 +74,18 @@ struct FeatureFileManager {
     /// - Parameter relativePath: Relative path to the feature file
     /// - Returns: Array of FrameFeatures
     func loadFeatures(at relativePath: String) throws -> [FrameFeatures] {
-        let absoluteURL = fileManager.datasetsDirectory.appendingPathComponent(relativePath)
+        let absoluteURL = storageRoot.appendingPathComponent(relativePath)
         let data = try Data(contentsOf: absoluteURL)
-        return try decoder.decode([FrameFeatures].self, from: data)
+        let frames = try decoder.decode([FrameFeatures].self, from: data)
+        guard !frames.isEmpty else { throw ArtifactError.emptyFeatures }
+        return frames
+    }
+
+    /// Existing metadata alone is insufficient: the saved JSON must be readable
+    /// and agree with its positive frame count before a batch may skip the clip.
+    func canReuseFeatures(at relativePath: String, frameCount: Int) -> Bool {
+        guard frameCount > 0, let frames = try? loadFeatures(at: relativePath) else { return false }
+        return frames.count == frameCount
     }
     
     /// Get the standard name context for a model

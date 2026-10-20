@@ -230,24 +230,20 @@ class BatchExtractionService: ObservableObject {
             // Debug check
             // print("checking \(currentVideo.fileName): \(currentVideo.featureSets.count) sets. Identifiers: \(currentVideo.featureSets.map(\.modelName))")
 
-            // Smart Skip with File Validation
-            if let existingSet = currentVideo.featureSets.first(where: { $0.modelName == model.rawValue }) {
-                if existingSet.fileExists {
-                    print("[BatchExtraction] Skipping \(currentVideo.fileName) - Already has \(model.rawValue) (File Verified)")
-                    await MainActor.run {
-                        self.progress = Progress(
-                            completed: index + 1,
-                            total: videos.count,
-                            currentVideoName: currentVideo.fileName
-                        )
-                    }
-                    continue
-                } else {
-                    print("[BatchExtraction] File missing for \(currentVideo.fileName) (\(existingSet.filePath)). Removing stale record and re-extracting.")
-                    // Remove stale record
-                    modelContext.delete(existingSet)
-                    try? modelContext.save()
+            // Empty JSON left by older versions must be retried, not skipped.
+            let existingSets = currentVideo.featureSets.filter { $0.modelName == model.rawValue }
+            if existingSets.contains(where: {
+                fileManager.canReuseFeatures(at: $0.filePath, frameCount: $0.frameCount)
+            }) {
+                print("[BatchExtraction] Skipping \(currentVideo.fileName) - Already has \(model.rawValue) (File Verified)")
+                await MainActor.run {
+                    self.progress = Progress(
+                        completed: index + 1,
+                        total: videos.count,
+                        currentVideoName: currentVideo.fileName
+                    )
                 }
+                continue
             }
             
             // Update current video
@@ -280,20 +276,21 @@ class BatchExtractionService: ObservableObject {
                 )
                 
                 // Save to database
-                await MainActor.run {
+                try await MainActor.run {
                     let featureSet = FeatureSet(
                         modelName: model.rawValue,
                         filePath: outputPath,
                         frameCount: features.count
                     )
-                    featureSet.videoSample = video
-                    modelContext.insert(featureSet)
-                    
-                    do {
-                        try modelContext.save()
-                    } catch {
-                        print("[BatchExtraction] Failed to save FeatureSet: \(error)")
+                    // Replace stale records only after nonempty features were
+                    // written successfully. Original videos are never changed.
+                    for oldSet in existingSets {
+                        currentVideo.featureSets.removeAll { $0.id == oldSet.id }
+                        modelContext.delete(oldSet)
                     }
+                    featureSet.videoSample = currentVideo
+                    modelContext.insert(featureSet)
+                    try modelContext.save()
                     
                     // Update Metrics
                     processedCount += 1

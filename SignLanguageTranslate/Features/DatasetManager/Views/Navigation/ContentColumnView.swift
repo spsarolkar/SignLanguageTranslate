@@ -3,20 +3,23 @@ import SwiftData
 
 /// Content column that displays different views based on the selected navigation section.
 struct ContentColumnView: View {
-    let selectedSection: NavigationSection?
-    @Binding var selectedDataset: Dataset?
+    @Bindable var navigation: NavigationState
+    var onShowWorkspace: () -> Void = {}
 
     var body: some View {
         Group {
-            switch selectedSection {
+            switch navigation.selectedSection {
             case .datasets:
-                DatasetListView(selectedDataset: $selectedDataset)
+                DatasetListView(selectedDataset: $navigation.selectedDataset)
             case .downloads:
                 DownloadListView()
             case .pipeline:
-                DataPipelineView()
+                PipelineSelectionView(navigation: navigation, onShowWorkspace: onShowWorkspace)
             case .training:
-                TrainingContentView()
+                TrainingContentView(selectedDataset: $navigation.trainingDataset)
+                    .onChange(of: navigation.trainingDataset?.id) { _, id in
+                        if id != nil { onShowWorkspace() }
+                    }
             case .settings:
                 SettingsPlaceholderView()
             case nil:
@@ -27,7 +30,10 @@ struct ContentColumnView: View {
                 )
             }
         }
-        .id(selectedSection)
+        .background(Palette.ground)
+        .onChange(of: navigation.selectedDataset?.id) { _, id in
+            if navigation.selectedSection == .datasets, id != nil { onShowWorkspace() }
+        }
     }
 }
 
@@ -91,10 +97,7 @@ struct SettingsPlaceholderView: View {
 
 #Preview("Content - Datasets") {
     NavigationStack {
-        ContentColumnView(
-            selectedSection: .datasets,
-            selectedDataset: .constant(nil)
-        )
+        ContentColumnView(navigation: NavigationState(section: .datasets))
     }
     .modelContainer(PersistenceController.preview.container)
     .environment(DownloadManager())
@@ -102,10 +105,7 @@ struct SettingsPlaceholderView: View {
 
 #Preview("Content - Downloads Empty") {
     NavigationStack {
-        ContentColumnView(
-            selectedSection: .downloads,
-            selectedDataset: .constant(nil)
-        )
+        ContentColumnView(navigation: NavigationState(section: .downloads))
     }
     .modelContainer(PersistenceController.preview.container)
     .environment(DownloadManager())
@@ -113,10 +113,7 @@ struct SettingsPlaceholderView: View {
 
 #Preview("Content - Training") {
     NavigationStack {
-        ContentColumnView(
-            selectedSection: .training,
-            selectedDataset: .constant(nil)
-        )
+        ContentColumnView(navigation: NavigationState(section: .training))
     }
     .modelContainer(PersistenceController.preview.container)
     .environment(DownloadManager())
@@ -124,10 +121,7 @@ struct SettingsPlaceholderView: View {
 
 #Preview("Content - Settings") {
     NavigationStack {
-        ContentColumnView(
-            selectedSection: .settings,
-            selectedDataset: .constant(nil)
-        )
+        ContentColumnView(navigation: NavigationState(section: .settings))
     }
     .modelContainer(PersistenceController.preview.container)
     .environment(DownloadManager())

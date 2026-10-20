@@ -7,29 +7,39 @@ struct MainNavigationView: View {
     @Environment(\.modelContext) private var modelContext
     @Environment(DownloadManager.self) private var downloadManager
 
-    @State private var selectedSection: NavigationSection? = .datasets
-    @State private var selectedDataset: Dataset?
+    @State private var navigation: NavigationState
     @State private var columnVisibility: NavigationSplitViewVisibility = .all
+    @State private var preferredCompactColumn: NavigationSplitViewColumn = .sidebar
     @State private var showingDownloadsSheet = false
 
+    @MainActor
+    init(navigation: NavigationState? = nil) {
+        _navigation = State(initialValue: navigation ?? NavigationState())
+    }
+
     var body: some View {
-        NavigationSplitView(columnVisibility: $columnVisibility) {
+        NavigationSplitView(columnVisibility: $columnVisibility, preferredCompactColumn: $preferredCompactColumn) {
             SidebarView(
-                selectedSection: $selectedSection,
+                selectedSection: Binding(
+                    get: { navigation.selectedSection },
+                    set: { navigation.selectSection($0) }
+                ),
                 activeDownloadCount: downloadManager.activeCount
             )
+            .navigationSplitViewColumnWidth(min: Metrics.navigationColumnMinWidth, ideal: Metrics.sidebarWidth)
         } content: {
-            ContentColumnView(
-                selectedSection: selectedSection,
-                selectedDataset: $selectedDataset
-            )
+            ContentColumnView(navigation: navigation, onShowWorkspace: { preferredCompactColumn = .detail })
+                .navigationSplitViewColumnWidth(min: Metrics.navigationColumnMinWidth, ideal: Metrics.listColumnWidth)
         } detail: {
-            DetailColumnView(
-                selectedSection: selectedSection,
-                selectedDataset: $selectedDataset
-            )
+            DetailColumnView(navigation: navigation)
+                .navigationSplitViewColumnWidth(min: Metrics.workspaceMinWidth, ideal: Metrics.workspaceIdealWidth)
         }
+        .id(navigation.stackGeneration)
         .navigationSplitViewStyle(.balanced)
+        .tint(Palette.accent)
+        .onChange(of: navigation.selectedSection) { _, section in
+            preferredCompactColumn = section == nil ? .sidebar : .content
+        }
         .overlay(alignment: .bottom) {
             DownloadNotificationBanner(isPresented: $showingDownloadsSheet)
                 .animation(.easeInOut, value: downloadManager.isDownloading)
@@ -100,6 +110,8 @@ enum NavigationSection: String, CaseIterable, Identifiable {
     MainNavigationView()
         .modelContainer(PersistenceController.preview.container)
         .environment(DownloadManager())
+        .environment(ExtractionProgressTracker())
+        .environmentObject(BatchExtractionService())
 }
 
 #Preview("Main Navigation - With Downloads") {
@@ -107,4 +119,6 @@ enum NavigationSection: String, CaseIterable, Identifiable {
     return MainNavigationView()
         .modelContainer(PersistenceController.preview.container)
         .environment(manager)
+        .environment(ExtractionProgressTracker())
+        .environmentObject(BatchExtractionService())
 }

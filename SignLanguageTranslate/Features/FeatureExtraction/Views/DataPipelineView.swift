@@ -4,14 +4,15 @@ import AVKit
 
 /// Professional Pipeline UI - Clean, Simple, Intuitive
 struct DataPipelineView: View {
+    @Bindable var navigation: NavigationState
     @Environment(\.modelContext) private var modelContext
     @Query(sort: \Dataset.name) private var datasets: [Dataset]
     
     // Core State
-    @State private var selectedDataset: Dataset?
-    @State private var selectedVideo: VideoSample?
-    @State private var selectedCategory: String?
-    @State private var searchText: String = ""
+    private var selectedDataset: Dataset? { navigation.pipelineDataset }
+    private var selectedVideo: VideoSample? { navigation.pipelineVideo }
+    private var selectedCategory: String? { navigation.pipelineCategory }
+    private var searchText: String { navigation.pipelineSearch }
     
     // UI State
     @State private var showFilters = false
@@ -22,7 +23,6 @@ struct DataPipelineView: View {
     @State private var showError = false
     @State private var errorMessage = ""
     @State private var showMediaPipeAlert = false
-    @State private var showAnalysis = false // EDA Navigation
     
     // Batch extraction
     @EnvironmentObject var batchService: BatchExtractionService
@@ -47,6 +47,7 @@ struct DataPipelineView: View {
             }
         }
         .background(Color(.systemGroupedBackground))
+        .navigationTitle("Pipeline")
         #if os(iOS)
         .navigationBarTitleDisplayMode(.inline)
         #endif
@@ -89,7 +90,7 @@ struct DataPipelineView: View {
         .onAppear {
             // Auto-select first downloaded dataset
             if selectedDataset == nil, let first = downloadedDatasets.first {
-                selectedDataset = first
+                navigation.selectPipelineDataset(first)
             }
         }
     }
@@ -152,7 +153,7 @@ struct DataPipelineView: View {
                         .disabled(true)
                         
                         // Analyze Button (EDA)
-                        Button(action: { showAnalysis = true }) {
+                        Button(action: { navigation.pipelineAnalysisPresented = true }) {
                             HStack(spacing: 4) {
                                 Image(systemName: "chart.xyaxis.line")
                                     .font(.system(size: 11))
@@ -191,9 +192,7 @@ struct DataPipelineView: View {
                     Menu {
                         ForEach(downloadedDatasets) { dataset in
                             Button(action: {
-                                selectedDataset = dataset
-                                selectedVideo = nil
-                                selectedCategory = nil
+                                navigation.selectPipelineDataset(dataset)
                             }) {
                                 HStack {
                                     Text(dataset.name)
@@ -231,9 +230,7 @@ struct DataPipelineView: View {
                     Menu {
                         ForEach(downloadedDatasets) { dataset in
                             Button(action: {
-                                selectedDataset = dataset
-                                selectedVideo = nil
-                                selectedCategory = nil
+                                navigation.selectPipelineDataset(dataset)
                             }) {
                                 Text(dataset.name)
                             }
@@ -265,11 +262,14 @@ struct DataPipelineView: View {
                     HStack {
                         Image(systemName: "magnifyingglass")
                             .foregroundStyle(.secondary)
-                        TextField("Search videos...", text: $searchText)
+                        TextField("Search videos...", text: Binding(
+                            get: { navigation.pipelineSearch },
+                            set: { navigation.searchPipeline($0) }
+                        ))
                             .textFieldStyle(.plain)
                         
                         if !searchText.isEmpty {
-                            Button(action: { searchText = "" }) {
+                            Button(action: { navigation.searchPipeline("") }) {
                                 Image(systemName: "xmark.circle.fill")
                                     .foregroundStyle(.secondary)
                             }
@@ -299,7 +299,10 @@ struct DataPipelineView: View {
                 // Expandable Filters
                 if showFilters, let dataset = selectedDataset {
                     CategoryFilterView(
-                        selectedCategory: $selectedCategory,
+                        selectedCategory: Binding(
+                            get: { navigation.pipelineCategory },
+                            set: { navigation.selectPipelineCategory($0) }
+                        ),
                         categories: getCategories(for: dataset)
                     )
                     .padding(.horizontal)
@@ -320,7 +323,7 @@ struct DataPipelineView: View {
                         datasetName: dataset.name,
                         categoryFilter: selectedCategory,
                         searchText: searchText,
-                        selectedVideo: $selectedVideo,
+                        selectedVideo: $navigation.pipelineVideo,
                         extractingVideoIDs: $extractingVideoIDs,
                         onExtract: extractSingleVideo
                     )
@@ -329,7 +332,7 @@ struct DataPipelineView: View {
             .padding()
         }
         .background(Color(.systemGroupedBackground))
-        .navigationDestination(item: $selectedVideo) { video in
+        .navigationDestination(item: $navigation.pipelineVideo) { video in
             VideoPlayerContent(
                 video: video,
                 features: loadedFeatures,
@@ -337,7 +340,7 @@ struct DataPipelineView: View {
                 onExtract: { extractSingleVideo(video) }
             )
         }
-        .navigationDestination(isPresented: $showAnalysis) {
+        .navigationDestination(isPresented: $navigation.pipelineAnalysisPresented) {
             if let dataset = selectedDataset {
                 AnalysisDashboardView(dataset: dataset)
             }
@@ -375,7 +378,7 @@ struct DataPipelineView: View {
         } actions: {
             if !downloadedDatasets.isEmpty {
                 Button("Select Dataset") {
-                    selectedDataset = downloadedDatasets.first
+                    navigation.selectPipelineDataset(downloadedDatasets.first)
                 }
                 .buttonStyle(.borderedProminent)
             }

@@ -7,29 +7,51 @@ import UIKit
 #endif
 /// Detail column that displays content based on the current selection.
 struct DetailColumnView: View {
-    let selectedSection: NavigationSection?
-    @Binding var selectedDataset: Dataset?
+    @Bindable var navigation: NavigationState
 
     @Query(sort: \Dataset.name) private var allDatasets: [Dataset]
 
     var body: some View {
         Group {
-            switch selectedSection {
+            switch navigation.selectedSection {
             case .datasets:
                 datasetDetail
             case .downloads:
-                DownloadDetailView()
+                NavigationStack {
+                    DownloadDetailView()
+                        .navigationTitle("Downloads")
+                        .navigationBarTitleDisplayMode(.inline)
+                }
             case .pipeline:
-                EmptyDetailView()
+                NavigationStack {
+                    DataPipelineView(navigation: navigation)
+                }
             case .training:
-                TrainingDetailPlaceholder()
+                NavigationStack {
+                    if let dataset = navigation.trainingDataset {
+                        TrainingDashboardView(targetDataset: dataset)
+                            .id(dataset.id)
+                    } else {
+                        EmptyDetailView(
+                            title: "Select a Training Dataset",
+                            systemImage: "brain.head.profile",
+                            description: "Choose a dataset from the list to configure training."
+                        )
+                        .navigationTitle("Training")
+                        .navigationBarTitleDisplayMode(.inline)
+                    }
+                }
             case .settings:
-                SettingsDetailPlaceholder()
+                NavigationStack {
+                    SettingsDetailPlaceholder()
+                        .navigationTitle("Settings")
+                        .navigationBarTitleDisplayMode(.inline)
+                }
             case nil:
                 EmptyDetailView()
             }
         }
-        .id(selectedSection)
+        .background(Palette.ground)
     }
 
     @ViewBuilder
@@ -37,10 +59,11 @@ struct DetailColumnView: View {
         if ModelQueries.isFirstRun(allDatasets) {
             FirstRunView(
                 dataset: allDatasets.first { $0.datasetType == .include },
-                onStarted: { selectedDataset = $0 }
+                onStarted: { navigation.selectedDataset = $0 }
             )
-        } else if let dataset = selectedDataset {
+        } else if let dataset = navigation.selectedDataset {
             DatasetDetailView(dataset: dataset)
+                .id(dataset.id)
         } else {
             EmptyDetailView(
                 title: "Select a Dataset",
@@ -578,12 +601,6 @@ struct DownloadDetailView: View {
 // MARK: - Placeholder Detail Views
 
 /// Detail view for Training section showing the full dashboard
-struct TrainingDetailPlaceholder: View {
-    var body: some View {
-        TrainingDashboardView()
-    }
-}
-
 /// Settings detail view with debugging and reset options.
 struct SettingsDetailPlaceholder: View {
     @Environment(DownloadManager.self) private var downloadManager
@@ -790,10 +807,7 @@ struct SettingsDetailPlaceholder: View {
 
 #Preview("Detail - No Dataset Selected") {
     NavigationStack {
-        DetailColumnView(
-            selectedSection: .datasets,
-            selectedDataset: .constant(nil)
-        )
+        DetailColumnView(navigation: NavigationState(section: .datasets))
     }
     .modelContainer(PersistenceController.preview.container)
     .environment(DownloadManager())
@@ -801,10 +815,7 @@ struct SettingsDetailPlaceholder: View {
 
 #Preview("Detail - Downloads") {
     NavigationStack {
-        DetailColumnView(
-            selectedSection: .downloads,
-            selectedDataset: .constant(nil)
-        )
+        DetailColumnView(navigation: NavigationState(section: .downloads))
     }
     .modelContainer(PersistenceController.preview.container)
     .environment(DownloadManager())
@@ -812,10 +823,7 @@ struct SettingsDetailPlaceholder: View {
 
 #Preview("Detail - Training") {
     NavigationStack {
-        DetailColumnView(
-            selectedSection: .training,
-            selectedDataset: .constant(nil)
-        )
+        DetailColumnView(navigation: NavigationState(section: .training))
     }
     .modelContainer(PersistenceController.preview.container)
     .environment(DownloadManager())

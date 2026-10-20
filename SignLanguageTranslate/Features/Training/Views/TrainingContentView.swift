@@ -1,5 +1,4 @@
 import SwiftUI
-import SwiftUI
 import SwiftData
 
 // Disambiguate SwiftUI.Label from our model's Label class
@@ -11,8 +10,7 @@ struct TrainingContentView: View {
     @Query(filter: #Predicate<Dataset> { $0.downloadedParts > 0 })
     private var availableDatasets: [Dataset]
 
-    @State private var selectedDataset: Dataset?
-    @State private var showDashboard = false
+    @Binding var selectedDataset: Dataset?
 
     var body: some View {
         List(selection: $selectedDataset) {
@@ -38,9 +36,6 @@ struct TrainingContentView: View {
         }
         .listStyle(.insetGrouped)
         .navigationTitle("Training")
-        .navigationDestination(item: $selectedDataset) { dataset in
-            TrainingDashboardView(targetDataset: dataset)
-        }
         #if os(iOS)
         .navigationBarTitleDisplayMode(.inline)
         #endif
@@ -84,14 +79,14 @@ struct TrainingDatasetRow: View {
 
 #Preview("Training Content - Empty") {
     NavigationStack {
-        TrainingContentView()
+        TrainingContentView(selectedDataset: .constant(nil))
     }
     .modelContainer(PersistenceController.preview.container)
 }
 
 #Preview("Training Content - With Datasets") {
     NavigationStack {
-        TrainingContentView()
+        TrainingContentView(selectedDataset: .constant(nil))
     }
     .modelContainer(PersistenceController.preview.container)
 }

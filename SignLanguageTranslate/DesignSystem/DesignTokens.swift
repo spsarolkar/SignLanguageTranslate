@@ -182,6 +182,9 @@ enum Metrics {
     static let sidebarWidth: CGFloat = 320
     /// Middle column in the three-column browser.
     static let listColumnWidth: CGFloat = 260
+    static let navigationColumnMinWidth: CGFloat = 220
+    static let workspaceMinWidth: CGFloat = 360
+    static let workspaceIdealWidth: CGFloat = 700
     static let progressBarHeight: CGFloat = 8
     static let progressBarHeightCompact: CGFloat = 6
     static let progressBarHeightFine: CGFloat = 4

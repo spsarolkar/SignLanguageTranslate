@@ -1,5 +1,76 @@
 # Status
 
+## Empty feature extraction and analysis recovery — 2026-10-20
+
+Assigned scope: [feature-extraction-recovery](plans/feature-extraction-recovery.md),
+following the report that `Vision ready` clips show zero frames and analysis
+cannot find features. Implementation: `ca25637`. Source videos and existing
+valid artifacts are preserved.
+
+Root causes and fixes:
+
+- The video reader requested original compressed samples (`outputSettings:
+  nil`), then skipped every sample without an image buffer. It now explicitly
+  requests decoded YUV pixels and rejects empty/incomplete reads.
+- Empty arrays could be saved and the batch runner skipped them merely because
+  a file existed. Empty writes/loads now fail, writes are atomic, and reuse
+  requires readable nonempty JSON with a matching positive frame count.
+  Extract all retries zero/missing/corrupt/mismatched results; successful
+  extraction replaces stale metadata. Persistence errors propagate.
+- Analysis incorrectly opened stored relative paths as absolute file URLs.
+  It now uses the feature file manager and receives path snapshots rather than
+  SwiftData models across its actor boundary. Empty and one-frame analyses
+  report actionable errors before numerical computation.
+- The pinned MLX 0.30.6 checkout matches `Package.resolved` revision
+  `6ba4827fb82c97d012eec9ab4b2de21f85c3b33d`. Its Metal backend throws
+  `Metal SVD NYI`; the existing PCA SVD now explicitly uses the CPU backend.
+- Pipeline cards mark zero-frame/missing-file metadata `Needs re-extraction`
+  instead of `Vision ready`, with recovery guidance. Inspector file-loading
+  failures now produce an error instead of silently showing no features.
+
+Verification:
+
+- Before the fix, a generated three-frame H.264 movie returned zero records
+  (`/tmp/slt-feature-red-20261020.xcresult`). The regression now verifies all
+  three decoded image buffers and their timestamps.
+- Initial default-Vision execution on Simulator returned Vision Code 9 during
+  body-pose request initialization. Decoding is therefore tested independently
+  using an injected frame processor. Three separately identified device-only
+  tests cover actual Vision, batch recovery, and MLX statistics; none of the
+  decoder/file-loading regressions is disabled.
+- **Physical M1 iPad, iPadOS 27.0.1: 14 focused tests passed, zero failures,
+  zero skips**, including actual Vision processing of the generated movie,
+  stale zero-frame replacement, valid-artifact reuse, source-byte preservation,
+  relative-path loading, finite correlation/statistics and CPU PCA output.
+  The fixture is a synthetic blank clip, so this verifies frame processing,
+  not landmark detection quality on the user's signs. Temporary test folders
+  are unique and removed after each test; the dataset is not cleared.
+- **Final Simulator suite: 630 tests, 623 passed, 2 failed, 5 skipped** (exit
+  65). Both failures are already recorded network-dependent download races:
+  `DownloadIntegrationTests.test_pauseSingleTask` (`Failed` vs `Paused`) and
+  `test_queueProcessesNextTaskAfterCompletion` (zero queued progress). The five
+  skips comprise the two existing MLX initialization skips and the three new
+  hardware-only checks, all three of which passed on the iPad. All eleven
+  simulator-compatible new regressions passed. No existing test was removed
+  or disabled.
+- The fixed Debug app was installed by the successful physical-device test
+  run, and normal app launch succeeded afterward. Launch report:
+  `/tmp/slt-feature-ipad-launch-20261020.json`.
+- Builds retain existing Swift 5 actor-isolation/deprecation warnings. The
+  device batch test also reports warnings from the existing silent-audio
+  session calls; this work does not extend that development-only mechanism.
+
+Reports: `/tmp/slt-feature-device-20261020.xcresult`,
+`/tmp/slt-feature-device-20261020.log`,
+`/tmp/slt-feature-targeted-20261020.xcresult`, and
+`/tmp/slt-feature-full-20261020.xcresult` / `.log`.
+
+Recovery on the installed update: choose Pipeline → dataset → Extract all.
+Valid results are skipped and unusable results are re-extracted. Open a ready
+clip for keypoint playback, or run Analyze after usable frames are available.
+Re-extracting the user's complete dataset and checking landmark alignment are
+manual acceptance steps, not claimed by the generated-fixture tests.
+
 ## Navigation consistency and pipeline layout — 2026-10-20
 
 Approved scope: `docs/plans/navigation-pipeline-consistency.md`, ahead of the

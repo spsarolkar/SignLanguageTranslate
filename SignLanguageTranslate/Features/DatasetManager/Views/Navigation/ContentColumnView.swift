@@ -57,8 +57,17 @@ struct TrainingPlaceholderView: View {
 /// Settings view with developer tools
 struct SettingsPlaceholderView: View {
     @State private var showDatabaseInspector = false
+    @State private var showLocalFiles = false
     var body: some View {
         List {
+            Section("On this iPad") {
+                Button { showLocalFiles = true } label: {
+                    SwiftUI.Label("Local files", systemImage: "folder")
+                        .font(Typo.body)
+                        .foregroundStyle(Palette.accent)
+                        .frame(minHeight: Metrics.touchTarget)
+                }
+            }
             Section("Developer Tools") {
                 Button(action: { showDatabaseInspector = true }) {
                     SwiftUI.Label("Database Inspector", systemImage: "cylinder.split.1x2")
@@ -75,6 +84,7 @@ struct SettingsPlaceholderView: View {
             }
         }
         .navigationTitle("Settings")
+        .fullScreenCover(isPresented: $showLocalFiles) { LocalFileBrowserView() }
         #if os(iOS)
         .navigationBarTitleDisplayMode(.inline)
         #endif

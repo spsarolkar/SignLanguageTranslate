@@ -18,6 +18,7 @@ struct DataPipelineView: View {
     @State private var isInspectorLoading = false
     @State private var extractingVideoIDs: Set<UUID> = []
     @State private var showSyncSheet = false
+    @State private var showLocalFiles = false
     @State private var showError = false
     @State private var errorMessage = ""
 
@@ -43,6 +44,16 @@ struct DataPipelineView: View {
             .frame(maxWidth: .infinity, alignment: .leading)
         }
         .background(Palette.ground)
+        .toolbar {
+            ToolbarItem(placement: .primaryAction) {
+                Button { showLocalFiles = true } label: {
+                    SwiftUI.Label("Local files", systemImage: "folder")
+                        .font(Typo.control)
+                        .frame(minHeight: Metrics.touchTarget)
+                }
+            }
+        }
+        .fullScreenCover(isPresented: $showLocalFiles) { LocalFileBrowserView() }
         .navigationTitle("Pipeline")
         .navigationBarTitleDisplayMode(.inline)
         .safeAreaInset(edge: .bottom) {

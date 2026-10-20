@@ -1,5 +1,57 @@
 # Status
 
+## Local datasets and pipeline file browser — 2026-10-21
+
+Assigned scope: [local-files-browser](plans/local-files-browser.md). Added a
+read-only full-screen browser from Pipeline and Settings, preserving the five
+sidebar sections, root split view and app-owned extraction service.
+
+- Quick access to all generated feature files, local dataset/feature folders,
+  downloads, models, checkpoints and training state. Home also lists visible
+  Documents contents. The feature index searches names/relative paths across
+  datasets; folder search filters the current folder snapshot. Refresh updates
+  listings without adding a recursive watcher during extraction.
+- Feature inspection shows saved frames/model names, selected-frame timestamp,
+  body/hand counts, normalized keypoint plot, and x/y/optional-z/confidence
+  tables. Empty files show a recovery message; corrupt/incomplete JSON falls
+  back to raw text. Videos use the system player; images are thumbnailed.
+- Actor-backed filesystem reads return immutable snapshots, without SwiftData
+  contexts. Paths are confined to Documents, listings skip symlinks and escape
+  attempts are rejected. Text previews are limited to 64 KiB; feature/image
+  reads to 8 MiB; image thumbnails to 1024 px. Large feature files show a text
+  excerpt. No delete/move/rename/upload/extraction action was introduced.
+
+Verification:
+
+- **13 focused Simulator tests passed, zero failures/skips.** Coverage includes
+  real listing metadata, recursive indexing, newly created files after refresh,
+  path traversal/symlink rejection, frame/coordinate loading, read-only byte and
+  timestamp preservation, zero-frame/corrupt files, preview caps and missing
+  files/folders. Report: `/tmp/slt-local-files-targeted2-20261021.xcresult`.
+- Native hosted captures were inspected at 390 pt narrow, 1194×834 landscape,
+  and 834×1194 portrait. Synthetic fixtures cover home, indexed features,
+  frame inspector and empty-feature inspection. Initial captures exposed a
+  missing Done control; it was fixed on every browser destination and verified
+  in a second run. Images: `/tmp/slt-local-*.png`; result:
+  `/tmp/slt-local-files-render2-20261021.xcresult`. The temporary render helper
+  was removed; source retained at `/tmp/slt-local-visual-fixture.swift`.
+- **Final full Simulator suite: 643 tests, 636 passed, 2 failed, 5 skipped**
+  (exit 65). The failures are the same previously recorded network-dependent
+  `DownloadIntegrationTests.test_pauseSingleTask` and
+  `test_queueProcessesNextTaskAfterCompletion`. All 13 new tests pass. The five
+  hardware-only skips are unchanged; no existing tests were removed/disabled.
+  Report: `/tmp/slt-local-files-full-20261021.xcresult` / `.log`.
+- **Generic iOS Debug build passed** (exit 0), with no deployment operation:
+  `/tmp/slt-local-files-device-build-20261021.log`. Simulator renders/tests
+  and the device build use Xcode 27.1; target iOS 26.2 and Swift 5 are unchanged.
+
+**Deployment held:** the user reported feature extraction is running. No
+physical-iPad installation, test, launch or termination was performed for this
+browser. It is not available on the iPad until deployed after extraction has
+finished. Physical video playback and browsing the user's completed artifacts
+remain device acceptance checks. See the feature's
+[README](../SignLanguageTranslate/Features/LocalFiles/README.md) for usage/limits.
+
 ## Empty feature extraction and analysis recovery — 2026-10-20
 
 Assigned scope: [feature-extraction-recovery](plans/feature-extraction-recovery.md),

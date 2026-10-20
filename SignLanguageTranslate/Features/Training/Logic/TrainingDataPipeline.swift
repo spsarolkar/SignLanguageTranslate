@@ -42,7 +42,6 @@ actor TrainingDataPipeline {
     // MARK: - Properties
     
     private let context: ModelContext
-    private let fileManager = FeatureFileManager() // Use local instance to avoid actor isolation issues
     
     // MARK: - Initialization
     
@@ -117,20 +116,8 @@ actor TrainingDataPipeline {
         }
     }
     
-    // Deprecated for cross-actor usage, kept for internal or single-actor context
-    func batchStream(videoSamples: [VideoSample], batchSize: Int, shuffle: Bool = true) -> AsyncStream<TrainingBatch> {
-        // Convert to SampleInfo if possible? 
-        // Cannot access properties of non-sendable class comfortably here if passed from another actor.
-        // We will ignore this method for the training loop and use the struct-based one.
-        AsyncStream { continuation in continuation.finish() }
-    }
-    
     // MARK: - Private Processing
     
-    private func loadFeatures(for featureSet: FeatureSet) async -> [FrameFeatures]? {
-        await loadFeatures(at: URL(fileURLWithPath: featureSet.filePath))
-    }
-
     private func loadFeatures(at url: URL) async -> [FrameFeatures]? {
         do {
             // FIX: Load directly from absolute URL. 
@@ -144,8 +131,6 @@ actor TrainingDataPipeline {
         }
     }
     
-    /// Converts raw [FrameFeatures] into a flat array of floats with Temporally Resampling and Augmentation
-    /// Format: [TotalFrames * FeatureDim] (Row-major compatible)
     /// Converts raw [FrameFeatures] into a flat array of floats with Temporally Resampling and Augmentation
     /// Format: [TotalFrames * FeatureDim] (Row-major compatible)
     nonisolated private func processFeatures(_ frames: [FrameFeatures], augment: Bool, temporalAugment: Bool) -> [Float] {

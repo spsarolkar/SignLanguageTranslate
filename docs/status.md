@@ -1,5 +1,75 @@
 # Status
 
+## Code review and cleanup — 2026-10-20
+
+Baseline source: `237e75e`. Cleanup source: `e5c86f2`, on
+`codex/review-cleanup`. Xcode 27.0 (27A266a), iPad Pro (11-inch)
+(3rd generation) Simulator, iOS 26.2. The committed MLX Swift 0.30.6
+revision matches the local checkout.
+
+- **Baseline build passed.** Full baseline: **607 tests, 605 passed,
+  0 failed, 2 skipped**, from the result-bundle summary.
+- **Cleanup build passed.** Removed four unused implementation files and
+  unused pipeline helpers (748 lines); no tests were deleted or disabled.
+  Existing compiler warnings remain; this is not a warning-free build.
+- The first post-cleanup full run reported the two known flaky failures below.
+  Xcode then failed while importing simulator diagnostics with `No space left
+  on device` (exit 133), so its bundle is not treated as a reliable final
+  summary. Simulator clone launch failures were also reported. Only the
+  review-created incomplete diagnostic dump was removed to restore space;
+  project files and existing user artifacts were not deleted.
+- **Final full serial run: 607 tests, 604 passed, 1 failed, 2 skipped**
+  (exit 65). The only failure is the pre-existing
+  `DownloadIntegrationTests.test_pauseSingleTask`: actual `Failed`, expected
+  `Paused`. Queue advancement passed in this run. The result bundle completed
+  normally; no new test failure was observed. This run uses the already-built
+  app and tests from the cleanup sources, with no intervening Swift changes.
+
+Final verification command:
+
+```bash
+xcodebuild test-without-building -scheme SignLanguageTranslate \
+  -destination 'platform=iOS Simulator,name=iPad Pro (11-inch) (3rd generation),OS=26.2' \
+  -parallel-testing-enabled NO -collect-test-diagnostics never \
+  -quiet -resultBundlePath /tmp/slt-review-final-20261020.xcresult \
+  > /tmp/slt-review-final-test.log 2>&1
+```
+
+The observed assertions were in:
+
+- `DownloadIntegrationTests.test_pauseSingleTask` — task was already `Failed`
+  when `Paused` was expected; also failed in the final serial run.
+- `DownloadIntegrationTests.test_queueProcessesNextTaskAfterCompletion` —
+  zero active tasks when more than zero was expected; passed in the final run.
+
+These are the existing real-session/network-timing failures described in the
+September entries and `docs/plans/fix-tests.md`. Both passed in the baseline
+run today. No transport injection or test expectation changes are part of this
+cleanup.
+
+Logs/results are in `/tmp/slt-review-build.log`,
+`/tmp/slt-review-baseline-20261020.xcresult`,
+`/tmp/slt-review-cleanup-build.log`, `/tmp/slt-review-cleanup-test.log`, and
+`/tmp/slt-review-final-test.log` / `/tmp/slt-review-final-20261020.xcresult`.
+These are local verification artifacts, not repository content.
+
+Two model initialization tests still skip on Simulator; no physical iPad
+training/inference validation was performed. `DownloadManagerTests`,
+`DownloadProgressTrackerTests`, and `PersistenceControllerTests` remain
+compiled out with `#if false` and are not included in the totals.
+
+See the [review](reviews/2026-10-20-code-review.md) for ten actionable findings
+and the [completion roadmap](plans/completion-roadmap.md) for proposed work.
+The highest-impact gaps concern preprocessing consistency, model/configuration
+and output-mode contracts, train/eval mode, checkpoint safety, bounded batch
+streaming, and held-out evaluation. No accuracy claim is supported yet.
+
+New guides live under `docs/` because putting multiple `README.md` files in
+the synchronized app tree produced duplicate resource outputs during the
+initial cleanup build. The guides were moved and the build passed without
+editing `project.pbxproj`. Pre-existing untracked instructions, experiments,
+archives, and logs remain untouched and uncommitted.
+
 ## Test baseline — 2026-09-23
 
 Commit `3ff5216` (WIP snapshot + green-build fix). Xcode 27.0 (27A266a),

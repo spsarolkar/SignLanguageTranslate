@@ -70,6 +70,15 @@ sidebar. Do not use the artboards' placeholder metrics.
   — add any genuinely missing layout tokens; retain existing token names.
 - `docs/status.md` — record verification and remaining limitations.
 
+Additional necessary fix found during hosted visual verification:
+`Core/Utilities/SystemPreflight.swift` needs an explicit nonisolated empty
+deinitializer, matching existing UI state owners. On iOS 26.2 with the updated
+compiler, releasing the sidebar's storage-status state crashed inside
+`swift_task_deinitOnExecutorImpl` / TaskLocal cleanup when the split hierarchy
+was destroyed. This is part of safely resetting navigation, not a storage or
+download behavior change. Add a release regression to `NavigationStateTests`
+and save this fix separately from styling.
+
 Expected new files (Xcode synchronized folders; no project-file registration):
 
 - `Features/DatasetManager/Views/Navigation/NavigationState.swift` under the

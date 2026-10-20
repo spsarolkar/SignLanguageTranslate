@@ -147,4 +147,17 @@ final class NavigationStateTests: XCTestCase {
     private func video(dataset: Dataset) -> VideoSample {
         VideoSample(localPath: "\(dataset.name)/clip.mp4", datasetName: dataset.name)
     }
+
+    /// A synchronous caller reproduces the no-task teardown path used when
+    /// SwiftUI destroys sidebar state. This previously aborted in libmalloc.
+    @MainActor
+    func test_sidebarStorageState_canBeReleasedOutsideAnAsyncTask() {
+        var preflight: SystemPreflight? = SystemPreflight()
+        weak var releasedState = preflight
+        preflight?.refreshStorage()
+
+        preflight = nil
+
+        XCTAssertNil(releasedState)
+    }
 }

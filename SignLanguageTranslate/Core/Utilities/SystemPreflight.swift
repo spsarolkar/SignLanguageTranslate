@@ -22,6 +22,10 @@ final class SystemPreflight {
     private(set) var isLowDataMode = false
     private(set) var isLowPowerMode = ProcessInfo.processInfo.isLowPowerModeEnabled
 
+    // No actor-bound teardown. Avoid the isolated-deinit runtime crash when
+    // the sidebar is rebuilt on the supported iOS 26.2 runtime.
+    nonisolated deinit {}
+
     func refreshStorage() {
         let values = try? URL.documentsDirectory.resourceValues(
             forKeys: [.volumeAvailableCapacityForImportantUsageKey, .volumeTotalCapacityKey]

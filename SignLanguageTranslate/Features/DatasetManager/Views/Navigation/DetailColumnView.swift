@@ -600,7 +600,6 @@ struct DownloadDetailView: View {
 
 // MARK: - Placeholder Detail Views
 
-/// Detail view for Training section showing the full dashboard
 /// Settings detail view with debugging and reset options.
 struct SettingsDetailPlaceholder: View {
     @Environment(DownloadManager.self) private var downloadManager

@@ -185,6 +185,8 @@ enum Metrics {
     static let navigationColumnMinWidth: CGFloat = 220
     static let workspaceMinWidth: CGFloat = 360
     static let workspaceIdealWidth: CGFloat = 700
+    /// Below this width, leave the sidebar behind the system reveal button.
+    static let threeColumnMinWidth: CGFloat = 1000
     static let progressBarHeight: CGFloat = 8
     static let progressBarHeightCompact: CGFloat = 6
     static let progressBarHeightFine: CGFloat = 4

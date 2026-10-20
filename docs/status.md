@@ -1,5 +1,74 @@
 # Status
 
+## Navigation consistency and pipeline layout — 2026-10-20
+
+Approved scope: `docs/plans/navigation-pipeline-consistency.md`, ahead of the
+remaining screen order. Xcode was restored after software updates: **27.1
+(27A9275)**, macOS 27.0.1. The connected M1 iPad now reports iPadOS 27.0.1.
+
+Changes:
+
+- `NavigationState` owns independent dataset, pipeline, and training
+  selections. Sidebar switches recreate the split's navigation identity and
+  clear pipeline clip/analysis destinations, preventing old detail routes
+  from appearing under another section. Dataset browsing and training keep
+  their own selected datasets.
+- Pipeline selectors occupy the middle column; extraction, clip inspection,
+  and analysis are hosted in an explicit detail navigation stack. Training
+  dataset selection drives its detail dashboard rather than pushing a second
+  dashboard from the middle column.
+- Pipeline header/actions/clip cards now use shared design components and
+  tokens. Actions stack at narrow widths rather than stretching vertically.
+  Progress uses a bottom safe-area inset. Below 1000 pt the sidebar is behind
+  the system reveal button; the three-column information architecture stays.
+- Releasing the sidebar's `SystemPreflight` state on iOS 26.2 exposed an
+  isolated-deinit crash in Swift TaskLocal cleanup after the compiler update.
+  An explicit `nonisolated deinit {}` matches the existing UI state pattern.
+  A synchronous release regression covers that failure path. Navigation state
+  uses the same teardown pattern.
+
+Verification:
+
+- The unchanged baseline built under Xcode 27.1 before implementation.
+- **Full final suite: 616 tests, 613 passed, 1 failed, 2 skipped** (exit 65).
+  The only failure is the known real-session race in
+  `DownloadIntegrationTests.test_pauseSingleTask` (`Failed` vs `Paused`).
+  The other previously flaky queue-advance test passed. The two skips are the
+  existing MLX initialization tests on Simulator. No existing test was removed
+  or disabled. The nine new navigation/lifecycle regressions all pass.
+- Workspace rendering was inspected at 390, 520, 700, and 834 pt widths.
+  Native hosted navigation captures were inspected at 1194×834 landscape and
+  834×1194 portrait. These use a clearly synthetic three-clip, in-memory
+  fixture, not the user's dataset. Portrait hides the sidebar and leaves the
+  workspace readable. Images are in `/tmp/slt-pipeline-*.png` and
+  `/tmp/slt-navigation-{1194,834}.png`, not the repository.
+- The temporary visual fixture was removed after its final successful run;
+  its source remains at `/tmp/slt-ui-visual-fixture.swift`. Initial image-only
+  rendering omitted scroll content; native scene-attached hosting was used
+  for the actual visual checks. Earlier temporary-host teardown failures are
+  not counted as passing verification.
+- The exact on-device dataset → category → word → sidebar tap sequence still
+  needs a manual acceptance check. Route invalidation and independent
+  selections are covered by automated tests; the fixture captures check layout.
+
+Logs/results: `/tmp/slt-xcode271-baseline-build.log`,
+`/tmp/slt-navigation-final-20261020.xcresult`,
+`/tmp/slt-pipeline-scenes-20261020.xcresult`,
+`/tmp/slt-ui-full-tests.log` / `/tmp/slt-ui-full-20261020.xcresult`, and
+`/tmp/slt-ui-ipad-build.log`.
+
+**Physical iPad:** the Debug build passed, its signature verified, and the
+update installed over the existing app on the connected M1 iPad. The launch
+check was denied because the iPad was locked (`FBSOpenApplicationErrorDomain`,
+code 7); the user has been asked to unlock it. No app data was erased.
+Install/launch reports: `/tmp/slt-ui-ipad-install.json` and
+`/tmp/slt-ui-ipad-launch.json`. The physical touch-sequence acceptance above
+remains manual.
+
+This does not complete the remaining browser/sidebar/export designs in
+`realign-02-screens.md`, change training/extraction/sync internals, or validate
+model accuracy. Existing user experiments and archives remain untouched.
+
 ## Code review and cleanup — 2026-10-20
 
 Baseline source: `237e75e`. Cleanup source: `e5c86f2`, on

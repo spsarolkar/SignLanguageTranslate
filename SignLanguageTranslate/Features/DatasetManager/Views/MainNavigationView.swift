@@ -10,6 +10,7 @@ struct MainNavigationView: View {
     @State private var navigation: NavigationState
     @State private var columnVisibility: NavigationSplitViewVisibility = .all
     @State private var preferredCompactColumn: NavigationSplitViewColumn = .sidebar
+    @State private var showsThreeColumns = true
     @State private var showingDownloadsSheet = false
 
     @MainActor
@@ -37,8 +38,15 @@ struct MainNavigationView: View {
         .id(navigation.stackGeneration)
         .navigationSplitViewStyle(.balanced)
         .tint(Palette.accent)
+        .onGeometryChange(for: Bool.self) { geometry in
+            geometry.size.width >= Metrics.threeColumnMinWidth
+        } action: { isWide in
+            showsThreeColumns = isWide
+            columnVisibility = isWide ? .all : .doubleColumn
+        }
         .onChange(of: navigation.selectedSection) { _, section in
             preferredCompactColumn = section == nil ? .sidebar : .content
+            if !showsThreeColumns { columnVisibility = .doubleColumn }
         }
         .overlay(alignment: .bottom) {
             DownloadNotificationBanner(isPresented: $showingDownloadsSheet)

@@ -96,19 +96,25 @@ the work. Do not refactor feature internals to accomplish this UI fix.
 
 - [ ] Navigate into dataset → category → word, then select Pipeline: no word
       detail or Back button from the dataset section remains.
-- [ ] Repeat section changes among all five sidebar options, including after
-      opening a pipeline clip and a training dashboard; title, selection, and
-      visible detail always agree.
-- [ ] Pipeline actions stay readable without clipping, tall pills, or forced
+- [x] Cover switching among all five sidebar sections with regression tests:
+      old detail identity is invalidated, pipeline clip/analysis destinations
+      clear, and dataset selections remain independent. Native hosted captures
+      verify pane/title placement; the exact physical touch sequence remains
+      a separate manual acceptance check above.
+- [x] Pipeline actions stay readable without clipping, tall pills, or forced
       horizontal overflow at narrow detail widths, landscape, and portrait.
-- [ ] Selected dataset/category/video information stays consistent between
+- [x] Selected dataset/category/video information stays consistent between
       selector and workspace. Extraction progress survives navigation through
-      the existing app-owned batch service.
-- [ ] Test section/route state transitions and run the full existing suite;
+      the existing app-owned batch service, whose lifetime is unchanged.
+- [x] Test section/route state transitions and run the full existing suite;
       record any already known flaky failures rather than disabling tests.
-- [ ] Build, visually verify on simulator/device, and install on the connected
-      iPad for the reported reproduction sequence.
-- [ ] Save navigation behavior and pipeline styling as separate small commits.
+      Full run: 613 passed, 1 existing pause-race failure, 2 MLX skips; all
+      nine new navigation/lifecycle regressions pass.
+- [x] Build, visually verify hosted simulator layouts, and install on the
+      connected iPad. Device build/signature/install succeeded; the launch
+      check requires the user to unlock the iPad. The exact physical
+      reproduction sequence remains the manual acceptance item above.
+- [x] Save navigation behavior and pipeline styling as separate small commits.
 
 Verification prerequisite resolved: the user restored Xcode after completing
 software updates. Xcode 27.1 (27A9275) is selected at

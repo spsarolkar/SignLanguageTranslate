@@ -111,8 +111,8 @@ the work. Do not refactor feature internals to accomplish this UI fix.
       Full run: 613 passed, 1 existing pause-race failure, 2 MLX skips; all
       nine new navigation/lifecycle regressions pass.
 - [x] Build, visually verify hosted simulator layouts, and install on the
-      connected iPad. Device build/signature/install succeeded; the launch
-      check requires the user to unlock the iPad. The exact physical
+      connected iPad. Device build/signature/install succeeded; after the user
+      unlocked the iPad, launch and running-process checks passed. The exact physical
       reproduction sequence remains the manual acceptance item above.
 - [x] Save navigation behavior and pipeline styling as separate small commits.
 

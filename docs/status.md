@@ -58,12 +58,14 @@ Logs/results: `/tmp/slt-xcode271-baseline-build.log`,
 `/tmp/slt-ui-ipad-build.log`.
 
 **Physical iPad:** the Debug build passed, its signature verified, and the
-update installed over the existing app on the connected M1 iPad. The launch
-check was denied because the iPad was locked (`FBSOpenApplicationErrorDomain`,
-code 7); the user has been asked to unlock it. No app data was erased.
+update installed over the existing app on the connected M1 iPad. After the user
+unlocked the iPad, launch succeeded and the app process was confirmed running
+(PID 1200). The initial locked-device launch was denied with
+`FBSOpenApplicationErrorDomain`, code 7. No app data was erased.
 Install/launch reports: `/tmp/slt-ui-ipad-install.json` and
-`/tmp/slt-ui-ipad-launch.json`. The physical touch-sequence acceptance above
-remains manual.
+`/tmp/slt-ui-ipad-launch-verified.json`; running-process confirmation:
+`/tmp/slt-ui-ipad-process-verified.json`. The physical touch-sequence acceptance
+above remains manual.
 
 This does not complete the remaining browser/sidebar/export designs in
 `realign-02-screens.md`, change training/extraction/sync internals, or validate

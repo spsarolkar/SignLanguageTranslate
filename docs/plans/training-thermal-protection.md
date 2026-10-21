@@ -22,9 +22,9 @@ This is a focused follow-up to the completed live-resume and evaluation plans.
 - Show cooling and automatic-resume guidance with existing design tokens;
   provide a Keep paused action during automatic cooling.
 - No changes to SilentAudioPlayer, dependencies, project file or extraction.
-- The user confirms training is currently running. Do not test, terminate,
-  replace or launch the iPad app until the session is stopped or replacement
-  is explicitly authorized. Build and test on Simulator first.
+- Do not test, terminate, replace or launch the iPad app during user training.
+  Build/test on Simulator first. The user subsequently confirmed
+  "Stopped—install the update"; read-only run metadata also reports Stopped.
 
 ## Files
 
@@ -50,9 +50,13 @@ This is a focused follow-up to the completed live-resume and evaluation plans.
       pre-existing download failures, 12 skipped (720 total); all 18 new thermal
       regressions passed, including controller release. Generic iOS build passed.
 - [x] Record results and save focused commits.
-      Implementation/tests: `afcb8c8`. Deployment is waiting for confirmation
-      that the active training session has stopped; no iPad process was touched.
-- [ ] Install/launch only after the current training session is safely stopped.
+      Implementation/tests: `afcb8c8`.
+- [x] Install/launch only after the current training session is safely stopped.
+      Backed up the epoch-31 run and all earlier checkpoints before device
+      checks. Physical iPad: all 60 thermal/lifecycle/evaluation tests passed,
+      including four GPU tests. Final normal device build, in-place install and
+      launch succeeded (PID 1731). SHA256 of all 11 original checkpoint files
+      matched after testing/install/launch. No user training was started.
 
 Thermal cooldown is an application policy, not a measured hardware temperature.
 It cannot interrupt a GPU kernel already in flight or guarantee background

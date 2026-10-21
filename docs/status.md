@@ -3,8 +3,10 @@
 ## Automatic thermal pause/resume — 2026-10-21
 
 Assigned scope: [training-thermal-protection](plans/training-thermal-protection.md).
-The user confirmed iPad training is running; device installation/testing remains
-held while Simulator checks and the normal device build are prepared.
+The user confirmed "Stopped—install the update" after Simulator verification.
+Read-only metadata also reports `Resume 11:48 AM CC0F47EB` as Stopped. Its
+latest saved checkpoint is epoch 31. All three checkpoint directories were
+backed up to `/tmp/slt-thermal-checkpoints-backup-20261021` before device checks.
 
 - A session-owned monitor observes ProcessInfo independently of dashboard
   visibility, reads the initial state before observing and prevents the first
@@ -48,13 +50,21 @@ Verification:
 - Generic iOS Debug build passed: `/tmp/slt-thermal-device-build-v2-20261021.log`.
   The first link attempt ran out of disk space. After removing only completed
   simulator products/object caches, the retry passed with source and results
-  intact. Device installation/testing remains held for the user's running
-  training session. Hardware thermal cycles have not been measured or tested
-  by deliberately heating the device.
-- Implementation/tests committed locally as `afcb8c8`. The signed update is
-  ready; the user was asked to finish an epoch/checkpoint save, Stop and confirm
-  the stopped log before installation. No device app termination, test launch,
-  normal launch or replacement was performed during this active session.
+  intact. Final normal build after on-device testing also passed:
+  `/tmp/slt-thermal-final-device-20261021.log`.
+- Physical M1 iPad: **60 passed, zero failed/skipped**: 18 thermal, 24 worker
+  lifecycle and 18 evaluation regressions (including all four GPU tests).
+  `/tmp/slt-thermal-device-20261021.xcresult` / `.log`. Thermal states were
+  injected into isolated control fixtures; actual sustained hardware thermal
+  cycles have not been measured or tested by deliberately heating the device.
+- Implementation/tests: `afcb8c8`. Installed the normal app in place and
+  launched successfully, then confirmed its process running (PID 1731).
+  `/tmp/slt-thermal-{install,launch,process}-20261021.json`. SHA256 fingerprints
+  of **all 11 original checkpoint files** match the pre-test backup after
+  testing/install/launch; `/tmp/slt-thermal-preservation-20261021.json`.
+  No user training was started. The preserved epoch-31 run can be selected
+  under Configuration and resumed into a new child run at epoch 32, with a
+  fresh optimizer as documented in the checkpoint continuation repair.
 
 ## Word targets, evaluation mode and validation cadence — 2026-10-21
 

@@ -21,6 +21,12 @@ public struct TrainingMetrics: Identifiable, Sendable, Codable {
     public let trainingLoss: Float
     public let validationLoss: Float?
     public let accuracy: Float?
+    public let cosineSimilarity: Float?
+    public let validationCosineSimilarity: Float?
+    public let validationAccuracy: Float?
+    public let validationTop5Accuracy: Float?
+    public let validationSampleCount: Int?
+    public let evaluationVersion: Int?
     public let timestamp: Date
     
     public init(
@@ -29,7 +35,13 @@ public struct TrainingMetrics: Identifiable, Sendable, Codable {
         trainingLoss: Float,
         validationLoss: Float? = nil,
         accuracy: Float? = nil,
-        timestamp: Date = Date()
+        timestamp: Date = Date(),
+        cosineSimilarity: Float? = nil,
+        validationCosineSimilarity: Float? = nil,
+        validationAccuracy: Float? = nil,
+        validationTop5Accuracy: Float? = nil,
+        validationSampleCount: Int? = nil,
+        evaluationVersion: Int? = nil
     ) {
         self.epoch = epoch
         self.batchIndex = batchIndex
@@ -37,6 +49,12 @@ public struct TrainingMetrics: Identifiable, Sendable, Codable {
         self.validationLoss = validationLoss
         self.accuracy = accuracy
         self.timestamp = timestamp
+        self.cosineSimilarity = cosineSimilarity
+        self.validationCosineSimilarity = validationCosineSimilarity
+        self.validationAccuracy = validationAccuracy
+        self.validationTop5Accuracy = validationTop5Accuracy
+        self.validationSampleCount = validationSampleCount
+        self.evaluationVersion = evaluationVersion
     }
 }
 
@@ -45,7 +63,7 @@ public struct TrainingConfig: Codable, Sendable {
     public var batchSize: Int
     public var learningRate: Float
     public var epochs: Int
-    public var validationInterval: Int // Batches between validation checks
+    public var validationInterval: Int // 0: epoch end only; positive: additional batch interval
     public var device: String // "gpu" or "cpu"
     public var useLegacyModel: Bool = false
     public var augmentData: Bool = false
@@ -137,7 +155,7 @@ public struct TrainingConfig: Codable, Sendable {
         batchSize = try container.decodeIfPresent(Int.self, forKey: .batchSize) ?? 8
         learningRate = try container.decodeIfPresent(Float.self, forKey: .learningRate) ?? 1e-4
         epochs = try container.decodeIfPresent(Int.self, forKey: .epochs) ?? 50
-        validationInterval = try container.decodeIfPresent(Int.self, forKey: .validationInterval) ?? 10
+        validationInterval = try container.decodeIfPresent(Int.self, forKey: .validationInterval) ?? 0
         device = try container.decodeIfPresent(String.self, forKey: .device) ?? "gpu"
         useLegacyModel = try container.decodeIfPresent(Bool.self, forKey: .useLegacyModel) ?? false
         augmentData = try container.decodeIfPresent(Bool.self, forKey: .augmentData) ?? false
@@ -166,7 +184,7 @@ public struct TrainingConfig: Codable, Sendable {
         batchSize: 8,
         learningRate: 3e-4,              // Increased from 1e-4 for faster convergence
         epochs: 50,                       // More epochs for better convergence
-        validationInterval: 10,
+        validationInterval: 0,
         device: "gpu",
         useLegacyModel: false,
         augmentData: true,                // Enable augmentation by default

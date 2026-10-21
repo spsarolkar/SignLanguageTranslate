@@ -48,7 +48,8 @@ struct TrainingDashboardView: View {
     
     enum MetricType: String, CaseIterable {
         case loss = "Loss"
-        case accuracy = "Accuracy"
+        case accuracy = "Word accuracy"
+        case similarity = "Cosine similarity"
     }
     
     enum DashboardTab: String, CaseIterable {
@@ -261,7 +262,7 @@ struct TrainingDashboardView: View {
             // Key Metrics Grid
             LazyVGrid(columns: [GridItem(.flexible()), GridItem(.flexible())], spacing: 12) {
                 MetricCard(
-                    title: "Training Loss",
+                    title: "Training loss (batch)",
                     value: String(format: "%.4f", trainingManager.lastLoss),
                     icon: "scalemass.fill",
                     color: .blue
@@ -276,25 +277,23 @@ struct TrainingDashboardView: View {
                     color: .orange
                 )
                 
-                // Accuracy Card
-                let acc = trainingManager.metrics.last(where: { $0.accuracy != nil })?.accuracy
-                MetricCard(
-                    title: "Accuracy",
-                    value: acc != nil ? String(format: "%.1f%%", acc! * 100) : "--",
-                    icon: "target",
-                    color: .green
-                )
-                
-                MetricCard(
-                    title: "Step",
-                    value: "\(trainingManager.metrics.count)",
-                    icon: "arrow.right.circle.fill",
-                    color: .purple
-                )
+                let validation = trainingManager.metrics.last { $0.validationLoss != nil }
+                MetricCard(title: "Validation word top-1", value: percentage(validation?.validationAccuracy), icon: "target", color: Palette.accent)
+                MetricCard(title: "Validation word top-5", value: percentage(validation?.validationTop5Accuracy), icon: "list.number", color: Palette.accentViolet)
+                MetricCard(title: "Validation cosine", value: validation?.validationCosineSimilarity.map { String(format: "%.3f", $0) } ?? "--", icon: "arrow.up.right", color: Palette.accentBlue)
+                MetricCard(title: "Epoch / batch", value: "\(trainingManager.currentEpoch) / \(trainingManager.currentBatch)", icon: "arrow.right.circle.fill", color: Palette.accentViolet)
             }
             .padding(.horizontal)
 
-            // Real-time Chart
+            Text(trainingManager.config.lossFunction == .contrastive ?
+                 "Full validation runs at epoch end. Training loss uses its configured smoothing; validation loss is unsmoothed. Cosine similarity is separate from word accuracy." :
+                 "Full validation runs at epoch end. Training loss is per batch; validation scores are weighted by sample count. Word accuracy is separate from cosine similarity.")
+                .font(Typo.caption)
+                .foregroundStyle(Palette.textSecondary)
+                .padding(.horizontal, Spacing.md)
+            Text("Updates: \(trainingManager.metrics.count.formatted())")
+                .font(Typo.monoCaption)
+                .foregroundStyle(Palette.textTertiary)
             chartView
         }
     }
@@ -309,18 +308,19 @@ struct TrainingDashboardView: View {
                         Text(type.rawValue).tag(type)
                     }
                 }
-                .pickerStyle(.segmented)
-                .frame(width: 200)
+                .pickerStyle(.menu)
                 
                 Spacer()
                 // Legend
                 HStack(spacing: 12) {
-                    SwiftUI.Label("Train", systemImage: "circle.fill")
-                        .foregroundStyle(selectedMetric == .loss ? .blue : .green)
-                        .font(.caption)
+                    if selectedMetric != .accuracy || trainingManager.config.lossFunction == .crossEntropy {
+                        SwiftUI.Label("Train", systemImage: "circle.fill")
+                            .foregroundStyle(Palette.accentBlue)
+                            .font(Typo.caption)
+                    }
                     SwiftUI.Label("Validation", systemImage: "circle.fill")
-                        .foregroundStyle(selectedMetric == .loss ? .orange : .purple)
-                        .font(.caption)
+                        .foregroundStyle(Palette.warning)
+                        .font(Typo.caption)
                 }
             }
             .padding(.horizontal)
@@ -328,78 +328,21 @@ struct TrainingDashboardView: View {
             if !trainingManager.metrics.isEmpty {
                 Chart {
                     ForEach(Array(trainingManager.metrics.enumerated()), id: \.offset) { index, metric in
-                        if selectedMetric == .loss {
-                            // Training Loss Line
-                            LineMark(
-                                x: .value("Step", index),
-                                y: .value("Loss", metric.trainingLoss),
-                                series: .value("Type", "Train")
-                            )
-                            .foregroundStyle(.blue)
-                            .interpolationMethod(.catmullRom)
-                            
-                            // Validation Loss Point (only if present)
-                            if let valLoss = metric.validationLoss {
-                                PointMark(
-                                    x: .value("Step", index),
-                                    y: .value("Loss", valLoss)
-                                )
-                                .foregroundStyle(.orange)
-                                .symbolSize(40)
-                                
-                                LineMark(
-                                    x: .value("Step", index),
-                                    y: .value("Loss", valLoss),
-                                    series: .value("Type", "Validation")
-                                )
-                                .foregroundStyle(.orange)
+                        if let value = chartValue(metric, validation: false) {
+                            LineMark(x: .value("Update", index), y: .value(selectedMetric.rawValue, value), series: .value("Type", "Train"))
+                                .foregroundStyle(Palette.accentBlue)
                                 .interpolationMethod(.linear)
-                            }
-                        } else {
-                            // Accuracy Line (if available)
-                            if let acc = metric.accuracy {
-                                LineMark(
-                                    x: .value("Step", index),
-                                    y: .value("Accuracy", acc),
-                                    series: .value("Type", "Train")
-                                )
-                                .foregroundStyle(.green)
-                                .interpolationMethod(.catmullRom)
-                            }
-                            
-                            // Validation Accuracy (We don't strictly track it separately in metrics struct yet, 
-                            // we reused validationLoss field? NO.
-                            // Wait, I updated TrainingMetrics to have `accuracy`. 
-                            // But `reportValidationMetric` writes to `accuracy` field.
-                            // So if validation metric has accuracy, it serves as Val Accuracy.
-                            // But TrainingMetrics is one stream.
-                            // Training steps have acc (Training Acc).
-                            // Validation steps (where valLoss != nil) ALSO have acc (Validation Acc).
-                            // So we just plot points where validationLoss != nil?
-                            
-                             if let valLoss = metric.validationLoss, let valAcc = metric.accuracy {
-                                // This metric represents a validation step
-                                PointMark(
-                                    x: .value("Step", index),
-                                    y: .value("Accuracy", valAcc)
-                                )
-                                .foregroundStyle(.purple)
-                                .symbolSize(40)
-                                
-                                LineMark(
-                                    x: .value("Step", index),
-                                    y: .value("Accuracy", valAcc),
-                                    series: .value("Type", "Validation")
-                                )
-                                .foregroundStyle(.purple)
+                        }
+                        if let value = chartValue(metric, validation: true) {
+                            PointMark(x: .value("Update", index), y: .value(selectedMetric.rawValue, value))
+                                .foregroundStyle(Palette.warning)
+                            LineMark(x: .value("Update", index), y: .value(selectedMetric.rawValue, value), series: .value("Type", "Validation"))
+                                .foregroundStyle(Palette.warning)
                                 .interpolationMethod(.linear)
-                            }
                         }
                     }
                 }
-                .chartYScale(domain: selectedMetric == .loss ? 
-                             0...max(0.5, (trainingManager.metrics.map { $0.trainingLoss }.max() ?? 1.0) * 1.1) :
-                             0...1.0) // Accuracy is 0-1
+                .chartYScale(domain: chartDomain)
                 .frame(height: 250)
                 .padding()
                 .background(Color(.secondarySystemGroupedBackground))
@@ -419,6 +362,31 @@ struct TrainingDashboardView: View {
         }
     }
     
+    private func percentage(_ value: Float?) -> String {
+        value.map { String(format: "%.1f%%", $0 * 100) } ?? "--"
+    }
+
+    private func chartValue(_ metric: TrainingMetrics, validation: Bool) -> Float? {
+        let embeddingMode = trainingManager.config.lossFunction != .crossEntropy
+        switch selectedMetric {
+        case .loss: return validation ? metric.validationLoss : metric.trainingLoss
+        case .similarity:
+            guard embeddingMode else { return nil }
+            if validation { return metric.validationCosineSimilarity ?? (metric.evaluationVersion == nil && metric.validationLoss != nil ? metric.accuracy : nil) }
+            return metric.cosineSimilarity ?? (metric.evaluationVersion == nil && metric.validationLoss == nil ? metric.accuracy : nil)
+        case .accuracy:
+            if validation { return metric.validationAccuracy ?? (!embeddingMode && metric.evaluationVersion == nil && metric.validationLoss != nil ? metric.accuracy : nil) }
+            return !embeddingMode && (metric.evaluationVersion != nil || metric.validationLoss == nil) ? metric.accuracy : nil
+        }
+    }
+
+    private var chartDomain: ClosedRange<Float> {
+        if selectedMetric == .similarity { return -1...1 }
+        if selectedMetric == .accuracy { return 0...1 }
+        let largest = trainingManager.metrics.flatMap { [$0.trainingLoss, $0.validationLoss ?? 0] }.max() ?? 1
+        return 0...max(0.5, largest * 1.1)
+    }
+
     // MARK: - Model View (Phase 8)
     
     private var modelView: some View {
@@ -443,7 +411,7 @@ struct TrainingDashboardView: View {
             batchSize: batchSize,
             learningRate: learningRate,
             epochs: epochs,
-            validationInterval: 10,
+            validationInterval: 0,
             device: "gpu",
             useLegacyModel: useLegacy,
             augmentData: augmentData,
@@ -1067,7 +1035,7 @@ struct TrainingDashboardView: View {
             batchSize: batchSize,
             learningRate: learningRate,
             epochs: epochs,
-            validationInterval: 10,
+            validationInterval: 0,
             device: "gpu",
             useLegacyModel: useLegacy,
             augmentData: augmentData,
@@ -1118,9 +1086,7 @@ struct MetricCard: View {
                 .foregroundStyle(.secondary)
 
             Text(value)
-                .font(.title3)
-                .fontWeight(.bold)
-                .fontDesign(.rounded)
+                .font(Typo.monoMetric)
                 .foregroundStyle(color)
         }
         .frame(maxWidth: .infinity, alignment: .leading)

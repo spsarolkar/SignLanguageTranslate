@@ -372,17 +372,29 @@ public class TrainingSessionManager: ObservableObject {
             
             // 2. Class Label Mapping (for Classification)
             var labelMap: [String: Int] = [:]
-            let classNames = Set(allSamples.compactMap { $0.wordName }.filter { !$0.isEmpty }).sorted()
-            if config.lossFunction == .crossEntropy {
-                labelMap = Dictionary(uniqueKeysWithValues: classNames.enumerated().map { ($0.element, $0.offset) })
-                log("Identified \(classNames.count) classes for classification.")
+            let requiresEmbedding = config.lossFunction != .crossEntropy
+            var wordTargets: [UUID: TrainingWordTarget] = [:]
+            for sample in allSamples {
+                if let target = try? TrainingWordTarget.resolve(sample, requiresEmbedding: requiresEmbedding) {
+                    wordTargets[sample.id] = target
+                }
             }
+            let vocabulary = try TrainingVocabulary(targets: Array(wordTargets.values))
+            let classNames = vocabulary.words
+            labelMap = vocabulary.indices
+            log("Word-target contract: \(classNames.count) candidate words; \(allSamples.count - wordTargets.count) clips lack an unambiguous usable word target.")
             if checkpointSpecification == nil {
                 try initializeModel(numClasses: classNames.count, classNames: classNames)
             } else if let specification = checkpointSpecification,
                       specification.config?.outputMode == .classification,
                       specification.classNames != classNames {
                 throw CheckpointCompatibility.Error.incompatible("This dataset's class order differs from the saved classifier. Resume with its original dataset.")
+            }
+            if let previous = checkpointSpecification {
+                var specification = CheckpointModelSpecification(config: previous.config, classNames: classNames, family: previous.family)
+                specification.targetContract = TrainingEvaluationPolicy.targetContract
+                specification.evaluationContract = TrainingEvaluationPolicy.evaluationContract
+                checkpointSpecification = specification
             }
             if let run = currentRun { try persistEffectiveSpecification(for: run) }
 
@@ -405,27 +417,12 @@ public class TrainingSessionManager: ObservableObject {
                     return nil
                 }
 
-                // Get embedding for Contrastive
-                guard let label = sample.labels.first,
-                      let embedding = label.embedding else {
-                    // For Classification, embedding might not be needed if not using contrastive loss, 
-                    // but we keep consistent struct.
-                    if config.lossFunction == .contrastive { return nil }
-                    // If classification, we can survive without embedding IF we have a label index
-                    // But SampleInfo requires embedding field. Pass empty or zero?
-                    // Let's enforce embedding existence for now to avoid breaking other logic.
-                     return nil
-                }
-                
-                var labelIndex: Int? = nil
-                if let name = sample.wordName, let idx = labelMap[name] {
-                    labelIndex = idx
-                }
-                
+                guard let target = wordTargets[sample.id], let labelIndex = labelMap[target.name] else { return nil }
+
                 return TrainingDataPipeline.SampleInfo(
                     id: sample.id,
                     featurePath: url,
-                    embedding: embedding,
+                    embedding: target.embedding,
                     labelIndex: labelIndex,
                     split: sample.split
                 )
@@ -502,7 +499,7 @@ public class TrainingSessionManager: ObservableObject {
                     await self.loadWeightsForContinuation(sourceRun: sourceRun)
                 }
 
-                await self.runTrainingLoop(samples: trainingSamples)
+                await self.runTrainingLoop(samples: trainingSamples, vocabulary: vocabulary)
             }
         } catch {
             log("Error fetching data: \(error)")
@@ -561,7 +558,7 @@ public class TrainingSessionManager: ObservableObject {
     
     // MARK: - Training Loop
     
-    private func runTrainingLoop(samples: [TrainingDataPipeline.SampleInfo]) async {
+    private func runTrainingLoop(samples: [TrainingDataPipeline.SampleInfo], vocabulary: TrainingVocabulary) async {
         guard let wrapper = self.modelWrapper,
               let optimizer = self.optimizer,
               let pipeline = self.pipeline else {
@@ -614,7 +611,7 @@ public class TrainingSessionManager: ObservableObject {
         let startEpoch = self.currentEpoch + 1 // Capture current epoch for resuming
         
         // Launch detached task for heavy MLX work
-        await Task.detached(priority: .userInitiated) { [weak self, wrapper, optimizer, pipeline, trainSamples, valSamples, config] in
+        await Task.detached(priority: .userInitiated) { [weak self, wrapper, optimizer, pipeline, trainSamples, valSamples, config, vocabulary] in
             guard let self = self else { return }
             
             // Define loss function with label smoothing support
@@ -694,6 +691,8 @@ public class TrainingSessionManager: ObservableObject {
 
                 var epochLoss: Float = 0
                 var batchCount = 0
+                var lastValidationStep: Int?
+                var epochValidation: ValidationResult?
 
                 // Stream Batches (Training)
                 // Pass augment + temporalAugment
@@ -773,30 +772,22 @@ public class TrainingSessionManager: ObservableObject {
                     await self.updateBatchProgress(batchIndex: batchCount, loss: batchMetric.loss,
                                                    accuracy: batchMetric.accuracy)
                     
-                    // Validation Check
-                    if globalStep % validationInterval == 0 && !valSamples.isEmpty {
-                        // Run Validation
-                        guard let (valLoss, valAcc) = await self.runValidation(pipeline: pipeline, samples: valSamples, wrapper: wrapper, config: config) else { break }
-                        
-                        // Update Metric with Validation Loss
-                        await self.reportValidationMetric(loss: valLoss, accuracy: valAcc, step: batchCount, epoch: epoch)
+                    if TrainingEvaluationPolicy.validatesAfterBatch(step: globalStep, interval: validationInterval), !valSamples.isEmpty {
+                        guard let result = await self.runValidation(pipeline: pipeline, samples: valSamples, wrapper: wrapper, config: config, vocabulary: vocabulary) else { break }
+                        epochValidation = result
+                        lastValidationStep = globalStep
+                        await self.reportValidationMetric(result, step: batchCount, epoch: epoch)
                     }
                 }
                 guard await self.waitForTrainingWork() else { break }
-                
-                // Epoch Validation (Force run at end of epoch)
                 let avgLoss = batchCount > 0 ? epochLoss / Float(batchCount) : 0
-                
-                var finalValLoss: Float = 0.0
-                var finalValAcc: Float = 0.0
-                if !valSamples.isEmpty {
-                     guard let (vLoss, vAcc) = await self.runValidation(pipeline: pipeline, samples: valSamples, wrapper: wrapper, config: config) else { break }
-                     finalValLoss = vLoss
-                     finalValAcc = vAcc
-                     // FIX: Report validation metric at end of epoch so graph updates every epoch
-                     await self.reportValidationMetric(loss: finalValLoss, accuracy: finalValAcc, step: globalStep, epoch: epoch)
+                if !valSamples.isEmpty, lastValidationStep != globalStep {
+                    guard let result = await self.runValidation(pipeline: pipeline, samples: valSamples, wrapper: wrapper, config: config, vocabulary: vocabulary) else { break }
+                    epochValidation = result
+                    await self.reportValidationMetric(result, step: globalStep, epoch: epoch)
                 }
-                
+                let finalValLoss = epochValidation?.loss ?? 0
+
                 await self.logEpochCompletion(epoch: epoch, trainLoss: avgLoss, valLoss: finalValLoss)
                 guard await self.waitForTrainingWork() else { break }
                 await self.setWorkPhase(.epochCallbacks)
@@ -806,9 +797,9 @@ public class TrainingSessionManager: ObservableObject {
                     let epochMetrics = EpochMetrics(
                         epoch: epoch,
                         trainLoss: avgLoss,
-                        valLoss: finalValLoss > 0 ? finalValLoss : nil,
+                        valLoss: epochValidation?.loss,
                         trainAccuracy: nil,
-                        valAccuracy: finalValAcc > 0 ? finalValAcc : nil,
+                        valAccuracy: epochValidation?.top1,
                         epochDuration: 0, // TODO: Track actual duration
                         timestamp: Date(),
                         savedCheckpoint: false,
@@ -835,52 +826,64 @@ public class TrainingSessionManager: ObservableObject {
     }
     
     // Internal validation runner (runs on background task)
-    nonisolated private func runValidation(pipeline: TrainingDataPipeline, samples: [TrainingDataPipeline.SampleInfo], wrapper: SignLanguageModuleWrapper, config: TrainingConfig) async -> (loss: Float, accuracy: Float)? {
-        var totalLoss: Float = 0
-        var totalAcc: Float = 0
-        var count = 0
+    nonisolated internal func runValidation(pipeline: TrainingDataPipeline, samples: [TrainingDataPipeline.SampleInfo], wrapper: SignLanguageModuleWrapper, config: TrainingConfig, vocabulary: TrainingVocabulary) async -> ValidationResult? {
         await self.beginValidation()
-        
-        // No Augmentation, No Shuffle
-        for await batch in await pipeline.batchStream(samples: samples, batchSize: config.batchSize, shuffle: false, augment: false, temporalAugment: false) {
-             guard await self.waitForTrainingWork() else { return nil }
-             await self.setWorkPhase(.validating)
-             let logits = wrapper(batch.inputs)
-             if config.lossFunction == .contrastive {
-                 let loss = LossFunctions.contrastiveLoss(predictions: logits, targets: batch.targets, temperature: config.contrastiveTemperature)
-                 totalLoss += loss.item(Float.self)
-                 
-                 let acc = LossFunctions.cosineSimilarity(predictions: logits, targets: batch.targets)
-                 totalAcc += acc.item(Float.self)
-             } else if config.lossFunction == .crossEntropy {
-                 if let labels = batch.labels {
-                     let loss = MLXNN.crossEntropy(logits: logits, targets: labels, reduction: .mean)
-                     totalLoss += loss.item(Float.self)
-                     
-                     let preds = logits.argMax(axis: -1)
-                     let match = preds .== labels
-                     let acc = match.mean()
-                     totalAcc += acc.item(Float.self)
-                 }
-             } else {
-                 let loss = LossFunctions.cosineSimilarityLoss(predictions: logits, targets: batch.targets)
-                 totalLoss += loss.item(Float.self)
-                 let acc = LossFunctions.cosineSimilarity(predictions: logits, targets: batch.targets)
-                 totalAcc += acc.item(Float.self)
-             }
-             count += 1
-             await self.reportValidationProgress(count)
+        do {
+            return try await ModelEvaluationMode.withEvaluation(wrapper) {
+                var totals = ValidationTotals()
+                var count = 0
+                let embeddingMode = config.lossFunction != .crossEntropy
+                let candidates: MLXArray?
+                if embeddingMode {
+                    guard !vocabulary.words.isEmpty else { throw TrainingEvaluationError.invalid("No word vocabulary available for validation.") }
+                    let vectors = MLXArray(vocabulary.embeddings.flatMap { $0 }, [vocabulary.words.count, 384])
+                    candidates = vectors / sqrt(sum(vectors * vectors, axis: -1, keepDims: true) + 1e-6)
+                } else { candidates = nil }
+                for await batch in await pipeline.batchStream(samples: samples, batchSize: config.batchSize, shuffle: false, augment: false, temporalAugment: false) {
+                    guard await self.waitForTrainingWork() else { return nil }
+                    await self.setWorkPhase(.validating)
+                    guard let labels = batch.labels else { throw TrainingEvaluationError.invalid("Validation batch is missing word indices.") }
+                    let logits = wrapper(batch.inputs)
+                    let loss: Float
+                    let similarity: Float?
+                    let scores: MLXArray
+                    if config.lossFunction == .crossEntropy {
+                        loss = MLXNN.crossEntropy(logits: logits, targets: labels, reduction: .mean).item(Float.self)
+                        similarity = nil
+                        scores = logits
+                    } else {
+                        loss = config.lossFunction == .contrastive ?
+                            LossFunctions.contrastiveLoss(predictions: logits, targets: batch.targets, temperature: config.contrastiveTemperature).item(Float.self) :
+                            LossFunctions.cosineSimilarityLoss(predictions: logits, targets: batch.targets).item(Float.self)
+                        similarity = LossFunctions.cosineSimilarity(predictions: logits, targets: batch.targets).item(Float.self)
+                        let normalized = logits / sqrt(sum(logits * logits, axis: -1, keepDims: true) + 1e-6)
+                        scores = matmul(normalized, candidates!.T)
+                    }
+                    let targets = labels.asArray(Int32.self).map(Int.init)
+                    let recognition = try vocabulary.recognition(scores: scores.asArray(Float.self), targets: targets)
+                    try totals.add(loss: loss, similarity: similarity, samples: targets.count, top1: recognition.top1, top5: recognition.top5)
+                    count += 1
+                    await self.reportValidationProgress(count)
+                }
+                return try totals.result()
+            }
+        } catch {
+            await self.failValidation(error.localizedDescription)
+            return nil
         }
-        
-        let finalLoss = count > 0 ? totalLoss / Float(count) : 0
-        let finalAcc = count > 0 ? totalAcc / Float(count) : 0
-        return (finalLoss, finalAcc)
     }
-    
+
+    private func failValidation(_ message: String) {
+        state = .failed
+        workPhase = .failed
+        log("Validation failed: \(message)")
+    }
+
     // MARK: - Helpers (MainActor for UI)
     
     private func waitForTrainingWork() async -> Bool {
-        await workerLifecycle.waitUntilRunnable()
+        guard state != .failed else { return false }
+        return await workerLifecycle.waitUntilRunnable()
     }
 
     private func setWorkPhase(_ phase: TrainingWorkPhase) {
@@ -929,8 +932,10 @@ public class TrainingSessionManager: ObservableObject {
             batchIndex: batchIndex,
             trainingLoss: loss,
             validationLoss: nil, 
-            accuracy: accuracy, // Store accuracy
-            timestamp: Date()
+            accuracy: config.lossFunction == .crossEntropy ? accuracy : nil,
+            timestamp: Date(),
+            cosineSimilarity: config.lossFunction != .crossEntropy ? accuracy : nil,
+            evaluationVersion: TrainingEvaluationPolicy.version
         )
         self.metrics.append(metric)
         
@@ -940,7 +945,7 @@ public class TrainingSessionManager: ObservableObject {
         }
     }
     
-    private func reportValidationMetric(loss: Float, accuracy: Float, step: Int, epoch: Int) {
+    internal func reportValidationMetric(_ result: ValidationResult, step: Int, epoch: Int) {
         // We add a special metric point for validation, or attach it to the latest?
         // Charts usually expect x-axis alignment.
         // We can just emit a metric with nil training loss? No, chart might break.
@@ -953,9 +958,15 @@ public class TrainingSessionManager: ObservableObject {
                 epoch: last.epoch,
                 batchIndex: last.batchIndex,
                 trainingLoss: last.trainingLoss,
-                validationLoss: loss,
-                accuracy: accuracy, // Passed from validation
-                timestamp: last.timestamp
+                validationLoss: result.loss,
+                accuracy: last.accuracy,
+                timestamp: last.timestamp,
+                cosineSimilarity: last.cosineSimilarity,
+                validationCosineSimilarity: result.cosineSimilarity,
+                validationAccuracy: result.top1,
+                validationTop5Accuracy: result.top5,
+                validationSampleCount: result.sampleCount,
+                evaluationVersion: TrainingEvaluationPolicy.version
             )
             self.metrics.append(updated)
         }
@@ -979,7 +990,10 @@ public class TrainingSessionManager: ObservableObject {
     }
     
     private func finishSession() async {
-        if !shouldStop {
+        if state == .failed {
+            currentRun?.status = "Failed"
+            log("Training ended after validation failure; saved checkpoints were preserved.")
+        } else if !shouldStop {
             self.state = .completed
             self.workPhase = .completed
             self.currentRun?.status = "Completed"
@@ -1285,7 +1299,9 @@ public class TrainingSessionManager: ObservableObject {
             self.model = loadedModel
             self.modelWrapper = SignLanguageModuleWrapper(model: loadedModel)
             self.checkpointSpecification = checkpoint.specification
-            self.config = originalConfig
+            var correctedConfig = originalConfig
+            correctedConfig.validationInterval = 0
+            self.config = correctedConfig
             self.optimizer = Adam(learningRate: originalConfig.learningRate)
             self.currentEpoch = checkpoint.epoch
             self.currentBatch = 0
@@ -1293,13 +1309,14 @@ public class TrainingSessionManager: ObservableObject {
             self.lastLoss = checkpoint.loss ?? 0
             let recoveredRun = TrainingRun(
                 name: "Resume \(Date().formatted(date: .omitted, time: .shortened)) \(UUID().uuidString.prefix(8))",
-                config: originalConfig, status: "Resuming")
+                config: correctedConfig, status: "Resuming")
             self.currentRun = recoveredRun
             modelContext.insert(recoveredRun)
             self.modelContext = modelContext
             self.log("Verified checkpoint at epoch \(checkpoint.epoch); \(loadedConfig.poolingType.rawValue) pooling, \(loadedConfig.numHeads) heads, \(loadedConfig.outputMode.rawValue) output.")
             self.log("Source run preserved: \(run.name). Continuing in \(recoveredRun.name).")
             self.log("Starting at the next epoch with a new optimizer and new metrics; optimizer state was not restored.")
+            self.log("Corrected word targets and evaluation mode; full validation runs once at epoch end. New recognition metrics are not comparable to legacy cosine-labelled accuracy.")
             self.startTraining(datasetPath: FileManager.default.documentsDirectory, modelContext: modelContext, targetDatasetName: targetDatasetName)
         })
     }

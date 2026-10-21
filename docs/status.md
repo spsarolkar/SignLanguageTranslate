@@ -1,5 +1,70 @@
 # Status
 
+## Word targets, evaluation mode and validation cadence — 2026-10-21
+
+Assigned scope: [training-evaluation-correctness](plans/training-evaluation-correctness.md),
+after the user stopped training to apply the proposed corrections. Read-only
+metadata confirms the resumed run is Stopped and its logs end with "Training
+stopped." The newest saved checkpoint is epoch 13, recorded valLoss 1.5435872
+(legacy evaluation semantics). Both run directories were backed up to
+`/tmp/slt-evaluation-checkpoints-backup-20261021` before device testing.
+
+Implemented changes:
+
+- Training snapshots exactly one explicit word label per clip, with valid
+  384-value nonzero finite targets in embedding mode. Category/relationship
+  order cannot choose the target. Classification uses word indices without
+  requiring a text embedding. Missing/ambiguous targets and conflicting word
+  embeddings are rejected/countable rather than silently substituted.
+- Validation ranks the entire usable word vocabulary of the selected dataset,
+  with deterministic ties and sample-weighted top-1/top-5 scores. Cosine
+  similarity is stored separately. Classification ranks its saved class order.
+  Full validation defaults to epoch end, including newly resumed child runs;
+  old configs/checkpoints remain intact. Optional positive batch intervals are
+  guarded and do not duplicate validation at the same epoch-end update.
+- A scoped evaluation mode disables dropout/training behavior and restores
+  every module's previous mode on completion, Stop or error. Validation
+  loss/similarity are weighted by actual examples, including the last partial
+  batch. Empty/non-finite validation fails explicitly and cannot fabricate a
+  zero loss/accuracy. The failure state survives session cleanup.
+- Optional metric fields preserve legacy JSON decoding, keep train/validation
+  values separate, and distinguish cosine from recognition. Charts no longer
+  display embedding similarity as a recognition percentage. Dashboard shows
+  validation word top-1/top-5, cosine, epoch/batch and cumulative updates;
+  losses are labelled per-batch versus unsmoothed epoch validation. Continued
+  child runs record word-target/evaluation contract markers and vocabulary.
+
+Verification:
+
+- Initial targeted Simulator: 37 passed, zero failed, 4 physical-only skips
+  (41 total), before one additional train/validation separation regression.
+  `/tmp/slt-evaluation-targeted-20261021.xcresult`.
+- Full Simulator: **702 tests, 688 passed, 2 failed, 12 skipped** (exit 65).
+  Failures remain the previously recorded network-dependent
+  `DownloadIntegrationTests.test_pauseSingleTask` and
+  `test_queueProcessesNextTaskAfterCompletion`. All 18 new evaluation tests
+  either pass (14) or require GPU hardware (4); no existing test was removed.
+  `/tmp/slt-evaluation-full-20261021.xcresult` / `.log`.
+- Resolved MLX 0.30.6 checkout still matches the lockfile revision. Module
+  `training`, `namedModules()` and recursive `train(_:)` behavior were inspected
+  before using them. Simulator build passed.
+- Physical iPad: **32 passed, zero failed/skipped**, including all 18 evaluation
+  tests, 13 checkpoint compatibility tests and one temporary read-only dataset
+  acceptance check. The real validation fixture exercises partial batches,
+  empty-input failure, dropout and mode restoration on completion/error/Stop.
+  `/tmp/slt-evaluation-device-20261021.xcresult` / `.log`. The acceptance helper
+  confirmed usable word targets and a consistent 384-value vocabulary in the
+  existing INCLUDE metadata; it was removed from the target before delivery.
+- Final generic-device build passed after helper removal:
+  `/tmp/slt-evaluation-final-device-20261021.log`. No user training was started.
+
+Limits: this corrects validation and target selection, not the open landmark-ID
+preprocessing contract or signer-independent split audit. Full-vocabulary
+scores describe this dataset's recorded validation split. Old cosine-labelled
+accuracy, validation losses with dropout enabled and prior target selection
+are not directly comparable with these new metrics. Loss smoothing, model
+architecture, learning rate and scheduler behavior are otherwise unchanged.
+
 ## Checkpoint configuration compatibility and epoch-8 recovery — 2026-10-21
 
 The user approved extending [training-live-resume](plans/training-live-resume.md)

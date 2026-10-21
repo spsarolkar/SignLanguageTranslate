@@ -7,6 +7,8 @@ nonisolated struct CheckpointModelSpecification: Codable, Sendable {
     let family: String
     let config: SignLanguageModelConfig?
     let classNames: [String]
+    var targetContract: String? = nil
+    var evaluationContract: String? = nil
 
     init(config: SignLanguageModelConfig?, classNames: [String], family: String = "transformer") {
         self.version = 1

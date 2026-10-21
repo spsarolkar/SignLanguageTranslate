@@ -21,8 +21,8 @@ This is a focused addition, not completion of the remaining screen restyles.
   actor. Confine navigation to Documents, reject symlink escapes, and handle
   changing/missing files. No delete/rename/move/re-extraction actions.
 - Keep the running iPad extraction untouched: no install, hardware test or
-  app relaunch until the user reports completion. Prepare and verify on Mac
-  and Simulator; leave deployment explicitly pending.
+  app relaunch until the user reports completion or explicitly authorizes
+  closing the stalled app. Prepare and verify on Mac and Simulator first.
 
 ## File list
 
@@ -64,4 +64,8 @@ SwiftData schema, extraction/training service or project-file changes.
       found in the first capture was fixed and checked in a second run. The
       render helper was removed; its source and captures remain in /tmp.
 - [x] Document behavior/limits and save focused local commits.
-- [ ] Install/verify on iPad only after extraction has finished (pending user).
+- [x] Install and verify app launch on iPad after the user explicitly selected
+      "Force-close and install" for the stalled training session, acknowledging
+      loss of unsaved progress. Installed with the training worker fix on
+      2026-10-21; saved dataset and feature files remain in the app container.
+      On-device browser interaction/video playback acceptance remains pending.

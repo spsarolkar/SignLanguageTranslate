@@ -22,7 +22,8 @@ Do not promise mid-epoch disk recovery from an in-memory resume fix.
 
 Preserve the running iPad app. Read-only checkpoint inventory/backup is allowed;
 no install, test, launch, termination or debugger attachment on the iPad until
-the user confirms the active session has ended. Verify new
+the user confirms the active session has ended or explicitly authorizes closing
+the stalled app after acknowledging unsaved progress will be lost. Verify new
 worker behavior using deterministic fake batches on Simulator, without MLX.
 
 ## Files
@@ -71,4 +72,10 @@ project-file changes, runtime-language-mode changes or silent-audio extensions.
       complete: 15 lifecycle tests pass; full suite 652 passed, 1 known download
       failure, 5 existing skips (658 total). Final generic iOS Debug build passed.
 - [x] Document limits and save small focused local commits.
-- [ ] Deploy/verify on hardware only after the user ends the current session.
+- [x] Deploy and verify launch on hardware after explicit user authorization.
+      Stop remained unresponsive; the user selected "Force-close and install"
+      after being informed that unsaved progress would be discarded. Terminated
+      the old process, updated the app in place and confirmed the new process
+      running. Saved dataset/features and epoch-8 checkpoint files remain.
+      No training or checkpoint restoration was started. Real GPU training
+      pause/resume/stop acceptance remains a separate pending check.

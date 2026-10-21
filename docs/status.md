@@ -31,10 +31,10 @@ Changes:
   before reading weights. If the worker cannot park, the previous checkpoint
   remains untouched. This is not a claim of fully durable background recovery.
 
-Current-run preservation:
+Checkpoint preservation and authorized deployment:
 
-- Only read-only `devicectl` inventory/copy calls were made against the iPad.
-  No install, test, launch, termination or debugger attachment was performed.
+- Before deployment approval, only read-only `devicectl` inventory/copy calls
+  were made against the iPad; the stalled session was left untouched.
 - Saved checkpoint files were copied to
   `/tmp/slt-stalled-checkpoint-backup-20261021`. The weights file is 13,746,535
   bytes; its safetensors header parses with 70 entries. SHA256:
@@ -43,9 +43,20 @@ Current-run preservation:
   `2026-10-21T02:44:21Z` (8:14 AM IST). Config and metadata were copied too.
   Header parsing does not establish architecture/config compatibility, tensor
   integrity, restored predictions or recoverability of later unsaved steps.
-- The source app remains the older installed build. A source change cannot
-  repair its already-launched workers in place. Deployment awaits an ended
-  session; the previously prepared local-file browser is pending with it.
+- Stop remained unresponsive. After a second inventory confirmed no newer
+  checkpoint, the user explicitly selected **Force-close and install**, having
+  acknowledged loss of unsaved training progress. The old app process (1232)
+  was terminated and the prepared Debug build was installed in place, without
+  uninstalling the app. Launch succeeded and the updated executable was
+  observed running as process 1575. Dataset videos, feature JSON files and
+  the epoch-8 checkpoint/config/metadata remain in the data container; checkpoint
+  sizes/modification dates match the pre-update inventory. No new training or
+  checkpoint restoration was started. The local-file browser is included.
+  Device reports: `/tmp/slt-training-fix-install-20261021.json`,
+  `/tmp/slt-training-fix-launch-20261021.json`,
+  `/tmp/slt-training-fix-processes-20261021.json`,
+  `/tmp/slt-training-fix-checkpoints-20261021.json` and
+  `/tmp/slt-training-fix-datasets-20261021.json`.
 
 Verification:
 
@@ -122,11 +133,12 @@ Verification:
   `/tmp/slt-local-files-device-build-20261021.log`. Simulator renders/tests
   and the device build use Xcode 27.1; target iOS 26.2 and Swift 5 are unchanged.
 
-**Deployment held:** the user reported feature extraction is running. No
-physical-iPad installation, test, launch or termination was performed for this
-browser. It is not available on the iPad until deployed after extraction has
-finished. Physical video playback and browsing the user's completed artifacts
-remain device acceptance checks. See the feature's
+**Deployed 2026-10-21:** installation was initially held while extraction and
+training were active. After Stop remained unresponsive, the user authorized
+force-closing the stalled app and installing the prepared update. Installation
+and launch succeeded with the training fix; saved dataset/feature files remain.
+Open **Local files** from Pipeline or Settings. Physical video playback and
+browsing the user's completed artifacts remain device acceptance checks. See the feature's
 [README](../SignLanguageTranslate/Features/LocalFiles/README.md) for usage/limits.
 
 ## Empty feature extraction and analysis recovery — 2026-10-20

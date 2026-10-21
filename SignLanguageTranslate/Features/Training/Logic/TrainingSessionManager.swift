@@ -51,9 +51,17 @@ public class TrainingSessionManager: ObservableObject {
     @Published public var currentLearningRate: Float = 0
     @Published public private(set) var workPhase: TrainingWorkPhase = .idle
     @Published public private(set) var validationBatchesCompleted = 0
+    @Published public private(set) var isThermallyPaused = false
     private var phaseBeforePause: TrainingWorkPhase = .training
+    private enum PauseReason { case user, background, thermal }
+    private var pauseReasons: Set<PauseReason> = []
+    public var isManuallyPaused: Bool { pauseReasons.contains(.user) }
 
     public var activityDescription: String {
+        if state == .paused, isManuallyPaused { return "Paused by you · explicit Resume required" }
+        if state == .paused, isThermallyPaused {
+            return "Cooling down · auto-resume after 30 seconds continuously at Normal or Warm"
+        }
         if workPhase == .validating {
             return "Validating · \(validationBatchesCompleted) batches processed"
         }
@@ -76,8 +84,8 @@ public class TrainingSessionManager: ObservableObject {
     private var cancellables = Set<AnyCancellable>()
     private let workerLifecycle: TrainingWorkerLifecycle
     private let notificationCenter: NotificationCenter
+    private let thermalProtection: TrainingThermalProtection
     private var backgroundObserversInstalled = false
-    private var resumeWhenForegrounded = false
     private var isPaused: Bool { workerLifecycle.isPaused }
     private var shouldStop: Bool { workerLifecycle.isStopping }
 
@@ -102,14 +110,17 @@ public class TrainingSessionManager: ObservableObject {
         self.config = .default
         self.workerLifecycle = TrainingWorkerLifecycle()
         self.notificationCenter = .default
+        self.thermalProtection = TrainingThermalProtection()
     }
 
     /// For testing purposes only
     internal init(config: TrainingConfig, workerLifecycle: TrainingWorkerLifecycle? = nil,
-                  notificationCenter: NotificationCenter = .default) {
+                  notificationCenter: NotificationCenter = .default,
+                  thermalProtection: TrainingThermalProtection? = nil) {
         self.config = config
         self.workerLifecycle = workerLifecycle ?? TrainingWorkerLifecycle()
         self.notificationCenter = notificationCenter
+        self.thermalProtection = thermalProtection ?? TrainingThermalProtection(notificationCenter: notificationCenter)
     }
 
     nonisolated deinit {}
@@ -485,7 +496,14 @@ public class TrainingSessionManager: ObservableObject {
             
             // CHECK: Continuation / Fine-tuning
             // 2. Launch Background Training
-            workerLifecycle.start(onCompletion: { self.objectWillChange.send() }) {
+            workerLifecycle.start(onCompletion: {
+                self.finishThermalMonitoring()
+                self.objectWillChange.send()
+            }) {
+                guard await self.waitForTrainingWork() else {
+                    await self.finishSession()
+                    return
+                }
                 if let run = self.currentRun {
                     await self.setupCallbacks(for: run.name)
                 }
@@ -501,6 +519,7 @@ public class TrainingSessionManager: ObservableObject {
 
                 await self.runTrainingLoop(samples: trainingSamples, vocabulary: vocabulary)
             }
+            startThermalMonitoring()
         } catch {
             log("Error fetching data: \(error)")
             self.state = .failed
@@ -510,12 +529,9 @@ public class TrainingSessionManager: ObservableObject {
     }
     
     public func pauseTraining() {
-        guard workerLifecycle.pause() else { return }
-        phaseBeforePause = workPhase
-        workPhase = .paused
-        resumeWhenForegrounded = false
-        self.state = .paused
-        self.currentRun?.status = "Paused"
+        guard workerLifecycle.hasWorker, !shouldStop, state != .failed else { return }
+        guard pauseReasons.insert(.user).inserted else { return }
+        reconcilePauseReasons()
         // Persist metrics
         if let run = currentRun {
             run.metrics = self.metrics
@@ -527,16 +543,58 @@ public class TrainingSessionManager: ObservableObject {
     /// Resume the existing in-memory worker, without rebuilding data, model,
     /// optimizer, splits or callbacks, and without advancing the epoch.
     public func resumeTraining() {
-        guard workerLifecycle.resume() else {
+        guard workerLifecycle.hasWorker, isPaused, !shouldStop, state != .failed else {
             log("No paused live worker to resume. Disk restoration is a separate action.")
             return
         }
-        resumeWhenForegrounded = false
-        state = .training
-        workPhase = phaseBeforePause
-        currentRun?.status = "Resumed"
-        UIApplication.shared.isIdleTimerDisabled = true
-        log("Resumed existing worker at epoch \(currentEpoch), batch \(currentBatch).")
+        thermalProtection.refresh()
+        pauseReasons.remove(.user)
+        pauseReasons.remove(.background)
+        reconcilePauseReasons()
+        if isThermallyPaused { log("Resume requested; waiting for thermal cooldown.") }
+    }
+
+    /// One gate, with independent owners so cooling cannot override a user or
+    /// background-save pause. Never creates a worker or reloads a checkpoint.
+    private func reconcilePauseReasons() {
+        guard workerLifecycle.hasWorker, !shouldStop, state != .failed else { return }
+        if !pauseReasons.isEmpty {
+            if !isPaused {
+                phaseBeforePause = workPhase
+                workerLifecycle.pause()
+            }
+            state = .paused
+            workPhase = .paused
+            currentRun?.status = isManuallyPaused ? "Paused" : (isThermallyPaused ? "Cooling" : "Paused for background save")
+        } else if workerLifecycle.resume() {
+            state = .training
+            workPhase = phaseBeforePause
+            currentRun?.status = "Resumed"
+            UIApplication.shared.isIdleTimerDisabled = true
+            log("Resumed existing worker at epoch \(currentEpoch), batch \(currentBatch).")
+        }
+    }
+
+    internal func startThermalMonitoring() {
+        guard workerLifecycle.hasWorker, !shouldStop else { return }
+        thermalProtection.start { [weak self] cooling in
+            guard let self, self.workerLifecycle.hasWorker, !self.shouldStop, self.state != .failed else { return }
+            self.isThermallyPaused = cooling
+            if cooling {
+                self.pauseReasons.insert(.thermal)
+                self.log("Thermal pause requested (Hot/Critical). Current operation will finish before parking; auto-resume needs 30 seconds continuously at Normal/Warm.")
+            } else {
+                self.pauseReasons.remove(.thermal)
+                self.log("Thermal cooldown complete. Other pause reasons, if any, remain in effect.")
+            }
+            self.reconcilePauseReasons()
+        }
+    }
+
+    private func finishThermalMonitoring() {
+        thermalProtection.stop()
+        pauseReasons.removeAll()
+        isThermallyPaused = false
     }
     
     public func stopTraining() {
@@ -549,7 +607,7 @@ public class TrainingSessionManager: ObservableObject {
             return
         }
         guard workerLifecycle.stop() else { return }
-        resumeWhenForegrounded = false
+        finishThermalMonitoring()
         self.state = .completing
         self.workPhase = .stopping
         self.currentRun?.status = "Stopping"
@@ -700,7 +758,8 @@ public class TrainingSessionManager: ObservableObject {
                     samples: trainSamples,
                     batchSize: batchSize,
                     augment: augment,
-                    temporalAugment: config.enableTemporalAugmentation // Pass config
+                    temporalAugment: config.enableTemporalAugmentation,
+                    waitForWork: { [weak self] in await self?.waitForDataWork() ?? false }
                 ) {
                     
                     guard await self.waitForTrainingWork() else { break }
@@ -839,7 +898,8 @@ public class TrainingSessionManager: ObservableObject {
                     let vectors = MLXArray(vocabulary.embeddings.flatMap { $0 }, [vocabulary.words.count, 384])
                     candidates = vectors / sqrt(sum(vectors * vectors, axis: -1, keepDims: true) + 1e-6)
                 } else { candidates = nil }
-                for await batch in await pipeline.batchStream(samples: samples, batchSize: config.batchSize, shuffle: false, augment: false, temporalAugment: false) {
+                for await batch in await pipeline.batchStream(samples: samples, batchSize: config.batchSize, shuffle: false, augment: false, temporalAugment: false,
+                    waitForWork: { [weak self] in await self?.waitForDataWork() ?? false }) {
                     guard await self.waitForTrainingWork() else { return nil }
                     await self.setWorkPhase(.validating)
                     guard let labels = batch.labels else { throw TrainingEvaluationError.invalid("Validation batch is missing word indices.") }
@@ -884,6 +944,15 @@ public class TrainingSessionManager: ObservableObject {
     private func waitForTrainingWork() async -> Bool {
         guard state != .failed else { return false }
         return await workerLifecycle.waitUntilRunnable()
+    }
+
+    /// Pause producer work too, without claiming the GPU worker is parked.
+    /// Only its own cooperative boundary may acknowledge a safe weight save.
+    internal func waitForDataWork() async -> Bool {
+        while workerLifecycle.hasWorker, isPaused, !shouldStop, state != .failed, !Task.isCancelled {
+            do { try await Task.sleep(for: .milliseconds(50)) } catch { return false }
+        }
+        return workerLifecycle.hasWorker && !shouldStop && state != .failed && !Task.isCancelled
     }
 
     private func setWorkPhase(_ phase: TrainingWorkPhase) {
@@ -990,6 +1059,7 @@ public class TrainingSessionManager: ObservableObject {
     }
     
     private func finishSession() async {
+        finishThermalMonitoring()
         if state == .failed {
             currentRun?.status = "Failed"
             log("Training ended after validation failure; saved checkpoints were preserved.")
@@ -1109,12 +1179,8 @@ public class TrainingSessionManager: ObservableObject {
     /// Called when BG processing task is expiring or app goes to background.
     private func saveAndStop() async {
         guard workerLifecycle.hasWorker, state == .training || state == .paused else { return }
-        let wasUserPaused = state == .paused && !resumeWhenForegrounded
-        if !isPaused { phaseBeforePause = workPhase }
-        workerLifecycle.pause()
-        resumeWhenForegrounded = !wasUserPaused
-        state = .paused
-        workPhase = .paused
+        pauseReasons.insert(.background)
+        reconcilePauseReasons()
         log("⚠️ Saving training state...")
 
         // Never snapshot live parameters concurrently with an update. If the
@@ -1151,11 +1217,13 @@ public class TrainingSessionManager: ObservableObject {
         }
 
         if workerLifecycle.hasWorker, isPaused {
-            guard resumeWhenForegrounded else {
-                log("Training was paused by the user; waiting for explicit Resume.")
+            guard pauseReasons.remove(.background) != nil else {
+                log(isManuallyPaused ? "Training was paused by the user; waiting for explicit Resume." : "Cooling pause remains active; waiting for thermal cooldown.")
                 return
             }
-            resumeTraining()
+            thermalProtection.refresh()
+            reconcilePauseReasons()
+            if isManuallyPaused { log("Training was paused by the user; waiting for explicit Resume.") }
             return
         }
 

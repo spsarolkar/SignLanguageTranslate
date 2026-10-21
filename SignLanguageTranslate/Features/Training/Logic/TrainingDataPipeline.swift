@@ -57,9 +57,10 @@ actor TrainingDataPipeline {
     ///   - batchSize: Number of samples per batch
     ///   - shuffle: Whether to shuffle the data before batching
     /// - Returns: An async stream of TrainingBatch
-    func batchStream(samples: [SampleInfo], batchSize: Int, shuffle: Bool = true, augment: Bool = false, temporalAugment: Bool = true) -> AsyncStream<TrainingBatch> {
+    func batchStream(samples: [SampleInfo], batchSize: Int, shuffle: Bool = true, augment: Bool = false, temporalAugment: Bool = true,
+                     waitForWork: (@Sendable () async -> Bool)? = nil) -> AsyncStream<TrainingBatch> {
         AsyncStream { continuation in
-            Task {
+            let producer = Task {
                 var processingSamples = samples
                 if shuffle {
                     processingSamples.shuffle()
@@ -68,6 +69,8 @@ actor TrainingDataPipeline {
                 // Process in chunks (Manual stride)
                 var startIndex = 0
                 while startIndex < processingSamples.count {
+                    guard !Task.isCancelled else { break }
+                    if let waitForWork, !(await waitForWork()) { break }
                     let endIndex = min(startIndex + batchSize, processingSamples.count)
                     let batchSamples = processingSamples[startIndex..<endIndex]
                     startIndex = endIndex
@@ -100,6 +103,8 @@ actor TrainingDataPipeline {
                     }
                     
                     if batchData.isEmpty { continue }
+                    guard !Task.isCancelled else { break }
+                    if let waitForWork, !(await waitForWork()) { break }
                     
                     // Separate into columns
                     let inputs = batchData.map { $0.inputs }
@@ -113,6 +118,7 @@ actor TrainingDataPipeline {
                 
                 continuation.finish()
             }
+            continuation.onTermination = { @Sendable _ in producer.cancel() }
         }
     }
     

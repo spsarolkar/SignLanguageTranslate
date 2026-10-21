@@ -1,5 +1,57 @@
 # Status
 
+## Automatic thermal pause/resume — 2026-10-21
+
+Assigned scope: [training-thermal-protection](plans/training-thermal-protection.md).
+The user confirmed iPad training is running; device installation/testing remains
+held while Simulator checks and the normal device build are prepared.
+
+- A session-owned monitor observes ProcessInfo independently of dashboard
+  visibility, reads the initial state before observing and prevents the first
+  batch when already Hot/Critical. The existing worker parks cooperatively;
+  an in-flight operation is allowed to finish. No second worker is created.
+- Automatic resume needs 30 continuous seconds at Normal/Warm and a fresh
+  thermal-state check. Reheating cancels the timer. Session/timer identities
+  reject stale callbacks after Stop or restart; completion removes monitoring.
+- Separate user, background-save and thermal pause reasons prevent cooling
+  or foreground events from overriding a manual Pause or a pending background
+  save. Manual Resume queues intent while thermal protection remains active.
+- The data producer checks the pause gate before loading/tensor creation and
+  cancels on stream termination. Its gate cannot acknowledge GPU quiescence;
+  background weight saves still require the actual worker's parked boundary.
+  Buffering/preprocessing and numerical training remain unchanged.
+- The dashboard shows cooling guidance and a Keep paused action. Thermal
+  pauses preserve only the live in-memory session; recovery after power loss
+  still depends on saved checkpoint files. No silent-audio extensions, battery
+  policies, model/LR changes, dependencies or schema changes were added.
+
+Verification:
+
+- Focused lifecycle/evaluation pass: **55 passed, zero failed, four GPU-only
+  skipped** (59 total), `/tmp/slt-thermal-focused-v4-20261021.xcresult`. The
+  subsequent full suite includes an additional controller-release regression.
+- Full Simulator: **720 tests, 706 passed, two failed, 12 skipped** (exit 65),
+  `/tmp/slt-thermal-full-20261021.xcresult` / `.log`. All 18 thermal tests pass.
+  The only failures are the previously recorded network-dependent download
+  checks: `DownloadIntegrationTests.test_pauseSingleTask` and
+  `test_queueProcessesNextTaskAfterCompletion`. No tests were removed.
+- Regressions cover already-hot startup, heat during work, continuous cooling,
+  reheating, current-state recheck, duplicate/stale notifications and timers,
+  Stop/restart, manual/background precedence and CPU producer gating without
+  falsely acknowledging a safe GPU save boundary.
+- Simulator runs exposed and corrected the toolchain's isolated-deinit cleanup
+  crash in the new controller using the existing nonisolated-deinit pattern;
+  release is explicitly tested. An initial run also exhausted Mac disk space;
+  only disposable task/build caches were removed, preserving all source files,
+  device data and checkpoint backups. Later test results above saved normally.
+
+- Generic iOS Debug build passed: `/tmp/slt-thermal-device-build-v2-20261021.log`.
+  The first link attempt ran out of disk space. After removing only completed
+  simulator products/object caches, the retry passed with source and results
+  intact. Device installation/testing remains held for the user's running
+  training session. Hardware thermal cycles have not been measured or tested
+  by deliberately heating the device.
+
 ## Word targets, evaluation mode and validation cadence — 2026-10-21
 
 Assigned scope: [training-evaluation-correctness](plans/training-evaluation-correctness.md),

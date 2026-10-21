@@ -114,6 +114,13 @@ struct TrainingDashboardView: View {
                         .frame(maxWidth: .infinity, alignment: .leading)
                         .padding(.horizontal, Spacing.xl)
                 }
+                if trainingManager.isThermallyPaused {
+                    Text("Heat protection is active. The current operation finishes before pausing. Cooling preserves this live session in memory; a saved checkpoint is needed after power loss.")
+                        .font(Typo.caption)
+                        .foregroundStyle(Palette.warning)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                        .padding(.horizontal, Spacing.xl)
+                }
 
                 // Tab selector
                 Picker("View", selection: $selectedTab) {
@@ -937,13 +944,22 @@ struct TrainingDashboardView: View {
             } else {
                 HStack(spacing: 12) {
                     if trainingManager.state == .paused {
-                        Button(action: resumeTraining) {
-                            SwiftUI.Label("Resume", systemImage: "play.fill")
-                                .frame(maxWidth: .infinity)
-                                .padding()
+                        if trainingManager.isThermallyPaused && !trainingManager.isManuallyPaused {
+                            Button(action: trainingManager.pauseTraining) {
+                                SwiftUI.Label("Keep paused", systemImage: "pause.fill")
+                                    .frame(maxWidth: .infinity, minHeight: Metrics.touchTarget)
+                                    .padding(Spacing.md)
+                            }
+                            .buttonStyle(.bordered)
+                        } else {
+                            Button(action: resumeTraining) {
+                                SwiftUI.Label(trainingManager.isThermallyPaused ? "Resume when cool" : "Resume", systemImage: "play.fill")
+                                    .frame(maxWidth: .infinity, minHeight: Metrics.touchTarget)
+                                    .padding(Spacing.md)
+                            }
+                            .buttonStyle(.borderedProminent)
+                            .tint(Palette.accent)
                         }
-                        .buttonStyle(.borderedProminent)
-                        .tint(.green)
                     } else if trainingManager.state == .training {
                         Button(action: trainingManager.pauseTraining) {
                             SwiftUI.Label("Pause", systemImage: "pause.fill")

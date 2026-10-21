@@ -51,6 +51,10 @@ Verification:
   intact. Device installation/testing remains held for the user's running
   training session. Hardware thermal cycles have not been measured or tested
   by deliberately heating the device.
+- Implementation/tests committed locally as `afcb8c8`. The signed update is
+  ready; the user was asked to finish an epoch/checkpoint save, Stop and confirm
+  the stopped log before installation. No device app termination, test launch,
+  normal launch or replacement was performed during this active session.
 
 ## Word targets, evaluation mode and validation cadence — 2026-10-21
 

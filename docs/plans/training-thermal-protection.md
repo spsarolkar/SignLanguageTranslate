@@ -49,7 +49,9 @@ This is a focused follow-up to the completed live-resume and evaluation plans.
       Focused: 55 passed, four GPU-only skipped. Full: 706 passed, two recorded
       pre-existing download failures, 12 skipped (720 total); all 18 new thermal
       regressions passed, including controller release. Generic iOS build passed.
-- [ ] Record results and save focused commits.
+- [x] Record results and save focused commits.
+      Implementation/tests: `afcb8c8`. Deployment is waiting for confirmation
+      that the active training session has stopped; no iPad process was touched.
 - [ ] Install/launch only after the current training session is safely stopped.
 
 Thermal cooldown is an application policy, not a measured hardware temperature.

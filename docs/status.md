@@ -45,8 +45,9 @@ Verification:
   include embedding/classification output and full parameter equality after
   save/reload, legacy recovery, wrong-config rejection, repeated callback
   overwrite and checksum mismatch rejection. One temporary read-only actual-run
-  helper strictly loaded all 70 parameters of the user's preserved epoch-8
-  checkpoint, verified finite 384-value output and numerical save/reload
+  helper strictly loaded all 69 tensor parameters of the user's preserved
+  epoch-8 checkpoint (70 header entries including `__metadata__`), verified
+  finite 384-value output on deterministic synthetic input and numerical save/reload
   agreement within 1e-6. Original config/weights/metadata fingerprints were
   unchanged. `/tmp/slt-checkpoint-compatibility-device2-20261021.xcresult` / `.log`.
   Initial device attempt failed to compile only the temporary helper (missing
@@ -54,11 +55,20 @@ Verification:
   at `/tmp/slt-checkpoint-recovery-device-check-20261021.swift` and removed from
   the repository/test target.
 - Generic iOS Debug build passed before the temporary device helper was added:
-  `/tmp/slt-checkpoint-compatibility-device-build-20261021.log`. Final build and
-  normal app deployment after helper removal are pending. MLX 0.30.6 checkout
+  `/tmp/slt-checkpoint-compatibility-device-build-20261021.log`. **Final generic
+  iOS build passed** after helper removal and final resume guidance updates:
+  `/tmp/slt-checkpoint-compatibility-final-20261021.log`. MLX 0.30.6 checkout
   matches lockfile revision `6ba4827fb82c97d012eec9ab4b2de21f85c3b33d`; the
   throwing verified update API was checked directly in that source. No package,
   Swift language mode, deployment target or project-file changes were made.
+- **Installed in place and launched on the connected iPad**, with the updated
+  executable observed running. No uninstall, user training or automatic resume
+  was performed. Reports: `/tmp/slt-checkpoint-compatibility-install-20261021.json`,
+  `/tmp/slt-checkpoint-compatibility-launch-20261021.json` and
+  `/tmp/slt-checkpoint-compatibility-running-20261021.json`. To continue, choose
+  **Training → Configuration → Run to Resume → Transformer Run 7:37 AM**, then
+  tap Resume. The saved epoch-8 weights are the starting point for epoch 9 in
+  a distinct run with a fresh optimizer and fresh metric history.
 
 Limits: the actual checkpoint test proves strict loading and reproducible
 evaluation output from preserved weights, not model accuracy or a resumed

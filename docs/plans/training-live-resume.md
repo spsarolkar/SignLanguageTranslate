@@ -106,7 +106,10 @@ correction is ready and replacement is authorized.
       Final Simulator: 664 passed, 2 known download failures, 5 existing skips
       (671 total); all 24 lifecycle tests pass. Generic iOS Debug build passed.
       Deployment remains held for the confirmed configuration mismatch below.
-- [ ] Deploy only after current-session status/authorization allows replacement.
+- [x] Deploy only after current-session status/authorization allows replacement.
+      The user confirmed it was still Preparing and no training had started.
+      Isolated device checks passed, followed by a normal in-place app update
+      and successful launch. No user training was started automatically.
 
 ### Approved extension: checkpoint/configuration compatibility
 
@@ -151,5 +154,9 @@ recovery and numerical-training changes remain excluded.
       is retained in `/tmp/slt-checkpoint-recovery-device-check-20261021.swift`
       and removed from the test target. Full Simulator: 674 passed, 2 known
       download failures, 8 skips (684 total, three new GPU-only skips).
-- [ ] Build/test, verify the actual saved run read-only when device status allows,
+- [x] Build/test, verify the actual saved run read-only when device status allows,
       document limits, commit and deploy the correction.
+      Actual recovery and fixture tests passed as above; final generic iOS build
+      passed after removing the temporary helper. Installed and launched on the
+      connected iPad; the updated process remained running. Source files remain
+      intact. Real resumed optimizer-step acceptance remains unverified.

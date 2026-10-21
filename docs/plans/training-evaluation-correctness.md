@@ -66,6 +66,10 @@ rewrite, dependency or project-file changes. Do not start user training.
       checks and one temporary read-only dataset acceptance check. Full Simulator:
       688 passed, 2 recorded pre-existing download failures, 12 skipped (702).
       Final generic-device build passed after removing the acceptance helper.
-- [ ] Save focused commits, install/launch and document remaining limits.
+- [x] Save focused commits, install/launch and document remaining limits.
+      Implementation: `689c68b`. In-place device install and launch succeeded
+      (PID 1697). All seven original checkpoint files retained their paths,
+      sizes and modification dates. Training remains stopped; the user can
+      choose the epoch-13 saved run to continue with corrected evaluation.
 
 Paths above are relative to `SignLanguageTranslate/` unless fully qualified.

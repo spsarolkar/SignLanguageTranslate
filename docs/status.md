@@ -57,6 +57,16 @@ Verification:
   existing INCLUDE metadata; it was removed from the target before delivery.
 - Final generic-device build passed after helper removal:
   `/tmp/slt-evaluation-final-device-20261021.log`. No user training was started.
+- Installed in place and launched on the connected M1 iPad (PID 1697), then
+  confirmed the app process remained present. Install/launch/process reports:
+  `/tmp/slt-evaluation-{install,launch,process}-20261021.json`. All seven
+  original checkpoint files retained their paths, sizes and modification dates
+  against the pre-test inventory (`/tmp/slt-evaluation-after-checkpoints-20261021.json`).
+  Implementation commit: `689c68b`. Training remains stopped. To continue,
+  select `Resume 10:11 AM F7950030` under Configuration's saved-run selection
+  and Resume; the preserved epoch-13 weights continue at epoch 14 in a new
+  child run with a fresh optimizer. Validation cards populate after its first
+  completed epoch; per-batch training metrics continue updating meanwhile.
 
 Limits: this corrects validation and target selection, not the open landmark-ID
 preprocessing contract or signer-independent split audit. Full-vocabulary

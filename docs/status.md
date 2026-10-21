@@ -1,5 +1,98 @@
 # Status
 
+## BiLSTM v2 experiment — 2026-10-21
+
+Assigned scope: [bilstm-v2](plans/bilstm-v2.md). The running v1 model's
+read-only logs show validation word top-1 6.25% at epoch 17 and 6.94% at
+epoch 18, with epoch-18 loss 1.8702. Its batch size is eight, hidden width
+64 and objective InfoNCE. Thermal pauses also add wall time. These observations
+do not isolate a single cause of weak recognition.
+
+- Preserve the original two-layer v1 architecture. Add a separately versioned
+  v2 experiment: frame projection/LayerNorm/GELU, one BiLSTM by default (96
+  units in each direction), learned temporal attention over all states,
+  LayerNorm/dropout 0.1 and a direct output projection. Embedding output is
+  384 values with L2 normalization; classification output is raw word logits.
+  One/two layers, recurrent width and dropout are configurable for new runs.
+- Batch-independent normalization, the all-frame summary and removal of the
+  narrow dense bottleneck are hypotheses to test, not measured accuracy gains.
+  Keep the same features, vocabulary, split, batch size, LR and objective for
+  the first comparison. A v2 run must start fresh; v1 weights cannot be reused.
+- Recurrent training now obtains loss and pre-update predictions from one MLX
+  auxiliary-output gradient call. The resolved MLX 0.30.6 implementation seeds
+  only the first output; predictions are stop-gradient auxiliaries. This avoids
+  the extra metric forward and its second v1 BatchNorm-stat update. Gradient
+  norm reductions are combined before one host read. Norms are still reported
+  without clipping, matching existing behavior. Transformer training is unchanged.
+- Saved JSON without a recurrent version decodes as v1. V2 metadata records
+  the exact architecture and classifier class order; restoration checks the
+  fingerprint and every parameter key/shape before applying weights. Verified
+  Resume creates a child run with a new optimizer and new metrics, preserving
+  the source. V1 disk restore remains unsupported. The Transformer-only
+  Fine-tune path is disabled for v2; use its verified Resume instead.
+- Model views show actual v2 stages/shapes for the current or recorded model;
+  idle settings are labelled previews. The standalone inference engine remains
+  Transformer-only; this pass adds recurrent training, validation and saved-run
+  continuation, not an inference/export integration.
+
+Verification so far:
+
+- Focused Simulator: **40 passed, zero failed, 11 physical-GPU checks skipped**
+  (51 tests), `/tmp/slt-bilstm-focused-v4-20261021.xcresult`.
+- New diagram inspected at 360 and 760 pt; text and shapes fit at both widths.
+  Temporary renders are `/tmp/slt-bilstm-diagram-{narrow,wide}.png`.
+- Full Simulator: **747 tests, 725 passed, one failed, 21 skipped** (exit 65),
+  `/tmp/slt-bilstm-full-20261021.xcresult`. This includes a temporary diagram
+  render check and a skipped device timing helper. Only the pre-existing
+  `DownloadIntegrationTests.test_pauseSingleTask` fails (Failed versus Paused);
+  the previously recorded queue-completion test passed in this run.
+- Generic iOS app build passed, `/tmp/slt-bilstm-device-build-v2-20261021.log`.
+  Build-for-testing initially lacked its app host; building the app first
+  resolved preparation. No project or dependency settings were changed.
+- User confirmed stopped before device work. Read-only metadata confirms
+  `Legacy Run 1:07 PM` is Stopped. Last complete validation is epoch 23,
+  loss 1.8041, word top-1 8.06%, top-5 30.83% (720 samples). All 14 checkpoint
+  files, including this epoch-23 checkpoint, were backed up to
+  `/tmp/slt-bilstm-checkpoints-backup-20261021`; SHA256 manifest is
+  `/tmp/slt-bilstm-checkpoints-sha256-20261021.json`.
+- Permanent physical-iPad checks: **51 passed, zero failed/skipped**,
+  `/tmp/slt-bilstm-device-v2-20261021.xcresult`. This includes all 14 new tests:
+  eight GPU tests cover finite normalized embeddings/companion invariance,
+  raw classifier logits and partial batches, one-forward loss/gradient
+  equivalence, recurrent/attention gradients, four-class synthetic overfit,
+  a full 8×60×180 InfoNCE update, strict checkpoint round-trip/tampering
+  rejection and the public preserved-source Resume path. Existing checkpoint
+  and worker lifecycle regressions passed too.
+- The first device run exposed Float accumulation error in the independent
+  CPU gradient-norm reference. Accumulating its squares in Double resolved it;
+  production gradient code and tolerances were not weakened. Final rerun is
+  green. Temporary render/timing helpers were removed from the target and
+  retained at `/tmp/slt-bilstm-acceptance-check-20261021.swift`.
+- Final installation/preservation checks are pending.
+- Simulator installation initially failed for insufficient Mac storage.
+  Removed only discarded Simulator containers from its `Caches/.../Dead`
+  directory; source, live app data and checkpoint backups were retained.
+  Build products remain in the disposable external-drive cache.
+
+Device checks require the current session to be stopped. Synthetic overfit,
+finite-gradient, batch-invariance and checkpoint checks establish functionality;
+only a new INCLUDE run on the same split can establish recognition gains.
+
+Isolated timing on the M1 iPad, batch eight, 60 frames, 180 features, InfoNCE,
+Adam at 1e-4: one warm-up then five timed steps per variant. Thermal state was
+Normal before and after. Medians from the retained JSON attachment in
+`/tmp/slt-bilstm-device-20261021.xcresult`:
+
+| Variant | Median seconds per step |
+| --- | ---: |
+| Original v1, original two-forward step | 0.3801 |
+| Original v1, single-forward step | 0.2909 |
+| BiLSTM v2 (one layer, width 96), single-forward step | 0.1699 |
+
+The combined v2 change was about 2.24× faster in this short isolated compute
+fixture. It excludes data loading, full validation, checkpoint writing and
+sustained thermal behavior; it does not establish epoch time or accuracy gains.
+
 ## Transformer Model diagram — 2026-10-21
 
 Assigned scope: [transformer-model-diagram](plans/transformer-model-diagram.md).

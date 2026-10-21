@@ -73,6 +73,9 @@ public class TrainingSessionManager: ObservableObject {
     internal var instantiatedTransformerConfig: SignLanguageModelConfig? {
         (model as? SignLanguageModel)?.config
     }
+    internal var instantiatedBiLSTMConfig: BiLSTMModelConfig? {
+        (model as? BiLSTMSignLanguageModel)?.config
+    }
     public var isPreparingCheckpoint: Bool { checkpointPreparationID != nil }
     private var checkpointPreparationID: UUID?
 
@@ -162,11 +165,19 @@ public class TrainingSessionManager: ObservableObject {
         
         let model: any SignLanguageModelProtocol
         if config.useLegacyModel {
-            guard config.lossFunction != .crossEntropy else {
-                throw CheckpointCompatibility.Error.incompatible("BiLSTM classification checkpoints are unsupported; use Transformer classification.")
+            if config.bilstmVersion == 2 {
+                let effective = try BiLSTMModelConfig.effective(training: config, numClasses: numClasses)
+                model = try BiLSTMSignLanguageModel(config: effective)
+                checkpointSpecification = CheckpointModelSpecification(config: nil, classNames: classNames,
+                    family: "bilstm-v2", bilstmConfig: effective)
+                log("BiLSTM v2: projection/hidden \(effective.hiddenDim), \(effective.numLayers) layer(s), temporal attention, LayerNorm; fresh architecture experiment.")
+            } else {
+                guard config.bilstmVersion == 1, config.lossFunction != .crossEntropy else {
+                    throw CheckpointCompatibility.Error.incompatible("Legacy BiLSTM v1 supports embedding training only. Select v2 for classification.")
+                }
+                model = LegacySignLanguageModel(inputDim: 180, numClasses: 384, hiddenDim: config.hiddenDim)
+                checkpointSpecification = CheckpointModelSpecification(config: nil, classNames: [], family: "bilstm")
             }
-            model = LegacySignLanguageModel(inputDim: 180, numClasses: 384, hiddenDim: config.hiddenDim)
-            checkpointSpecification = CheckpointModelSpecification(config: nil, classNames: [], family: "bilstm")
         } else {
             let effective = try CheckpointCompatibility.effectiveConfig(training: config, numClasses: numClasses)
             model = SignLanguageModel(config: effective)
@@ -348,7 +359,8 @@ public class TrainingSessionManager: ObservableObject {
         
         // Create new Run if starting fresh
         if self.currentRun == nil {
-            let runName = config.useLegacyModel ? "Legacy Run \(Date().formatted(date: .omitted, time: .shortened))" : "Transformer Run \(Date().formatted(date: .omitted, time: .shortened))"
+            let recurrentName = config.bilstmVersion == 2 ? "BiLSTM v2" : "Legacy"
+            let runName = config.useLegacyModel ? "\(recurrentName) Run \(Date().formatted(date: .omitted, time: .shortened))" : "Transformer Run \(Date().formatted(date: .omitted, time: .shortened))"
             let newRun = TrainingRun(
                 name: runName,
                 config: config,
@@ -401,12 +413,12 @@ public class TrainingSessionManager: ObservableObject {
             if checkpointSpecification == nil {
                 try initializeModel(numClasses: classNames.count, classNames: classNames)
             } else if let specification = checkpointSpecification,
-                      specification.config?.outputMode == .classification,
+                      specification.outputMode == .classification,
                       specification.classNames != classNames {
                 throw CheckpointCompatibility.Error.incompatible("This dataset's class order differs from the saved classifier. Resume with its original dataset.")
             }
             if let previous = checkpointSpecification {
-                var specification = CheckpointModelSpecification(config: previous.config, classNames: classNames, family: previous.family)
+                var specification = CheckpointModelSpecification(config: previous.config, classNames: classNames, family: previous.family, bilstmConfig: previous.bilstmConfig)
                 specification.targetContract = TrainingEvaluationPolicy.targetContract
                 specification.evaluationContract = TrainingEvaluationPolicy.evaluationContract
                 checkpointSpecification = specification
@@ -698,6 +710,7 @@ public class TrainingSessionManager: ObservableObject {
             }
             
             let lg = valueAndGrad(model: wrapper, lossFn)
+            let recurrentLG = config.useLegacyModel ? RecurrentTrainingStep.gradient(model: wrapper, config: config) : nil
 
             // CALLBACK: onTrainBegin
             if let run = await self.currentRun {
@@ -783,6 +796,20 @@ public class TrainingSessionManager: ObservableObject {
                              }
                         } else {
                              targetTensor = batch.targets
+                        }
+
+                        if let recurrentLG {
+                            let (values, gradients) = recurrentLG(wrapper, [batch.inputs, targetTensor])
+                            let loss = values[0]
+                            let metric = RecurrentTrainingStep.metric(predictions: values[1], targets: targetTensor, config: config)
+                            let norm = RecurrentTrainingStep.gradientNorm(gradients)
+                            optimizer.update(model: wrapper, gradients: gradients)
+                            MLX.eval(wrapper, optimizer, loss, metric, norm)
+                            let normValue = norm.item(Float.self)
+                            #if DEBUG
+                            if normValue > gradClipNorm { print("[BiLSTM] Gradient norm \(normValue); reporting only, clipping unchanged.") }
+                            #endif
+                            return (loss.item(Float.self), metric.item(Float.self))
                         }
 
                         let (loss, rawGrads) = lg(wrapper, batch.inputs, targetTensor)
@@ -1108,6 +1135,10 @@ public class TrainingSessionManager: ObservableObject {
     
     /// Prepares the session for fine-tuning based on a previous run
     public func prepareFineTuning(run: TrainingRun) {
+        guard !(run.config?.useLegacyModel == true && run.config?.bilstmVersion == 2) else {
+            log("BiLSTM v2 supports verified Resume into a new run; Fine-tune is not available yet.")
+            return
+        }
         guard !workerLifecycle.hasWorker, !isPreparingCheckpoint else {
             log("Finish the live worker before preparing another run.")
             return
@@ -1366,31 +1397,52 @@ public class TrainingSessionManager: ObservableObject {
             guard let url = await persistence.preferredCheckpointURL() else {
                 throw ModelPersistence.PersistenceError.loadFailed("No checkpoint found for \(run.name)")
             }
-            return try await persistence.loadModel(from: url, legacyTrainingConfig: run.configData)
-        }, start: { loadedModel, loadedConfig, checkpoint in
-            self.model = loadedModel
-            self.modelWrapper = SignLanguageModuleWrapper(model: loadedModel)
-            self.checkpointSpecification = checkpoint.specification
+            if originalConfig.useLegacyModel {
+                guard originalConfig.bilstmVersion == 2 else {
+                    throw CheckpointCompatibility.Error.incompatible("Legacy BiLSTM v1 restore remains unsupported; its files are preserved. Start a separate v2 experiment.")
+                }
+                let (model, metadata) = try BiLSTMCheckpointStore.load(metadataURL: url)
+                let expected = try BiLSTMModelConfig.effective(training: originalConfig, numClasses: metadata.specification.classNames.count)
+                guard expected == model.config else { throw ModelPersistence.PersistenceError.configMismatch }
+                return RestoredTrainingModel(model: model, specification: metadata.specification, epoch: metadata.epoch, loss: metadata.value,
+                    detail: "BiLSTM v2 with temporal attention and \(model.config.hiddenDim) units per direction")
+            }
+            let (model, config, checkpoint) = try await persistence.loadModel(from: url, legacyTrainingConfig: run.configData)
+            guard let specification = checkpoint.specification else { throw ModelPersistence.PersistenceError.configMismatch }
+            return RestoredTrainingModel(model: model, specification: specification, epoch: checkpoint.epoch, loss: checkpoint.loss,
+                detail: "\(config.poolingType.rawValue) pooling, \(config.numHeads) heads, \(config.outputMode.rawValue) output")
+        }, start: { loaded in
+            self.model = loaded.model
+            self.modelWrapper = SignLanguageModuleWrapper(model: loaded.model)
+            self.checkpointSpecification = loaded.specification
             var correctedConfig = originalConfig
             correctedConfig.validationInterval = 0
             self.config = correctedConfig
             self.optimizer = Adam(learningRate: originalConfig.learningRate)
-            self.currentEpoch = checkpoint.epoch
+            self.currentEpoch = loaded.epoch
             self.currentBatch = 0
             self.metrics = [] // New optimizer/run: do not mix later unsaved metrics with epoch-8 weights.
-            self.lastLoss = checkpoint.loss ?? 0
+            self.lastLoss = loaded.loss ?? 0
             let recoveredRun = TrainingRun(
                 name: "Resume \(Date().formatted(date: .omitted, time: .shortened)) \(UUID().uuidString.prefix(8))",
                 config: correctedConfig, status: "Resuming")
             self.currentRun = recoveredRun
             modelContext.insert(recoveredRun)
             self.modelContext = modelContext
-            self.log("Verified checkpoint at epoch \(checkpoint.epoch); \(loadedConfig.poolingType.rawValue) pooling, \(loadedConfig.numHeads) heads, \(loadedConfig.outputMode.rawValue) output.")
+            self.log("Verified checkpoint at epoch \(loaded.epoch); \(loaded.detail).")
             self.log("Source run preserved: \(run.name). Continuing in \(recoveredRun.name).")
             self.log("Starting at the next epoch with a new optimizer and new metrics; optimizer state was not restored.")
             self.log("Corrected word targets and evaluation mode; full validation runs once at epoch end. New recognition metrics are not comparable to legacy cosine-labelled accuracy.")
             self.startTraining(datasetPath: FileManager.default.documentsDirectory, modelContext: modelContext, targetDatasetName: targetDatasetName)
         })
+    }
+
+    private struct RestoredTrainingModel {
+        let model: any SignLanguageModelProtocol
+        let specification: CheckpointModelSpecification
+        let epoch: Int
+        let loss: Float?
+        let detail: String
     }
 
     /// Clear persisted state (call when training completes normally or is explicitly stopped)
@@ -1456,8 +1508,10 @@ public class TrainingSessionManager: ObservableObject {
         try encoder.encode(specification).write(to: folder.appendingPathComponent("model-specification.json"), options: .atomic)
         if let effective = specification.config {
             try encoder.encode(effective).write(to: folder.appendingPathComponent("config.json"), options: .atomic)
+        } else if let effective = specification.bilstmConfig {
+            try encoder.encode(effective).write(to: folder.appendingPathComponent("config.json"), options: .atomic)
         }
-        if specification.config?.outputMode == .classification {
+        if specification.outputMode == .classification {
             try encoder.encode(specification.classNames).write(to: folder.appendingPathComponent("classes.json"), options: .atomic)
         }
     }

@@ -32,6 +32,10 @@ struct TrainingDashboardView: View {
     // Model Arch Overrides
     @State private var dropout: Float = 0.1
     @State private var customNeurons: Int = 256
+    @State private var bilstmVersion = 2
+    @State private var bilstmLayers = 1
+    @State private var bilstmWidth = 96
+    @State private var bilstmDropout: Float = 0.1
     @State private var customLayers: Int = 4
     
     // UI State
@@ -250,7 +254,7 @@ struct TrainingDashboardView: View {
                 
                 // Active Model Badge
                 if trainingManager.state == .training {
-                     Text(trainingManager.config.useLegacyModel ? "Legacy LSTM" : "Transformer")
+                     Text(trainingManager.config.useLegacyModel ? "BiLSTM v\(trainingManager.config.bilstmVersion)" : "Transformer")
                         .font(.caption2.bold())
                         .padding(6)
                         .background(Color.blue.opacity(0.1))
@@ -399,7 +403,10 @@ struct TrainingDashboardView: View {
     private var modelView: some View {
         Group {
             if previewConfig.useLegacyModel {
-                NeuralNetVisualizer(config: previewConfig).frame(height: Metrics.legacyNetworkHeight)
+                if previewConfig.bilstmVersion == 2 {
+                    BiLSTMConfigurationDiagramView(training: previewConfig,
+                        instantiatedConfig: trainingManager.hasLiveWorker ? trainingManager.instantiatedBiLSTMConfig : nil)
+                } else { NeuralNetVisualizer(config: previewConfig).frame(height: Metrics.legacyNetworkHeight) }
             } else {
                 TransformerConfigurationDiagramView(training: previewConfig,
                     instantiatedConfig: trainingManager.hasLiveWorker ? trainingManager.instantiatedTransformerConfig : nil)
@@ -429,13 +436,14 @@ struct TrainingDashboardView: View {
             validationSplitRatio: validationSplit,
             patience: patience,
             patienceLR: patienceLR,
-            numLayers: useLegacy ? 2 : customLayers,
-            hiddenDim: useLegacy ? 64 : customNeurons,
+            numLayers: useLegacy ? (bilstmVersion == 1 ? 2 : bilstmLayers) : customLayers,
+            hiddenDim: useLegacy ? (bilstmVersion == 1 ? 64 : bilstmWidth) : customNeurons,
             numHeads: useLegacy ? nil : modelConfig.numHeads,
-            dropout: useLegacy ? 0.2 : dropout,
+            dropout: useLegacy ? (bilstmVersion == 1 ? 0.2 : bilstmDropout) : dropout,
             lossFunction: trainingManager.config.lossFunction,
             contrastiveTemperature: trainingManager.config.contrastiveTemperature,
-            enableTemporalAugmentation: trainingManager.config.enableTemporalAugmentation
+            enableTemporalAugmentation: trainingManager.config.enableTemporalAugmentation,
+            bilstmVersion: bilstmVersion
         )
     }
     
@@ -471,6 +479,12 @@ struct TrainingDashboardView: View {
                             self.dropout = pastConfig.dropout
                             
                             trainingManager.config.useLegacyModel = pastConfig.useLegacyModel
+                            self.bilstmVersion = pastConfig.bilstmVersion
+                            if pastConfig.useLegacyModel && pastConfig.bilstmVersion == 2 {
+                                self.bilstmWidth = pastConfig.hiddenDim
+                                self.bilstmLayers = pastConfig.numLayers
+                                self.bilstmDropout = pastConfig.dropout
+                            }
                             trainingManager.config.lossFunction = pastConfig.lossFunction
                             trainingManager.config.contrastiveTemperature = pastConfig.contrastiveTemperature
                             trainingManager.config.enableTemporalAugmentation = pastConfig.enableTemporalAugmentation
@@ -569,7 +583,7 @@ struct TrainingDashboardView: View {
                 
                 Picker("Model Type", selection: $trainingManager.config.useLegacyModel) {
                     Text("Transformer").tag(false)
-                    Text("Legacy LSTM").tag(true)
+                    Text("BiLSTM").tag(true)
                 }
                 .pickerStyle(.segmented)
                 
@@ -626,9 +640,21 @@ struct TrainingDashboardView: View {
                     .padding(.top, 4)
                     
                 } else {
-                    Text("Keras-style LSTM (2 Layers, 64 Units)")
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
+                    Picker("BiLSTM architecture", selection: $bilstmVersion) {
+                        Text("Revised v2").tag(2)
+                        Text("Legacy v1").tag(1)
+                    }.pickerStyle(.segmented)
+                    if bilstmVersion == 2 {
+                        LabeledContent("Recurrent layers") { Stepper("\(bilstmLayers)", value: $bilstmLayers, in: 1...2).font(Typo.monoCaption) }
+                        LabeledContent("Units per direction") { Stepper("\(bilstmWidth)", value: $bilstmWidth, in: 32...256, step: 32).font(Typo.monoCaption) }
+                        LabeledContent("Dropout") { Text(String(format: "%.2f", bilstmDropout)).font(Typo.monoCaption) }
+                        Slider(value: $bilstmDropout, in: 0...0.5, step: 0.05).accessibilityLabel("BiLSTM dropout")
+                        Text("LayerNorm + temporal attention + direct output head. Start a new run; legacy weights cannot be used for v2. Keep the same split and objective for comparison.")
+                            .font(Typo.caption).foregroundStyle(Palette.textSecondary)
+                    } else {
+                        Text("Keras-style BiLSTM: two layers, 64 units. Legacy disk resume remains unsupported.")
+                            .font(Typo.caption).foregroundStyle(Palette.textTertiary)
+                    }
                 }
             }
             .padding()
@@ -876,7 +902,10 @@ struct TrainingDashboardView: View {
                             
                             let checkpoints = await persistence.listCheckpoints()
                             let preferredURL = await persistence.preferredCheckpointURL()
-                            let resolvedEpoch = checkpoints.first { $0.url == preferredURL }?.epoch ?? 0
+                            let resolvedEpoch: Int
+                            if runToResume.config?.useLegacyModel == true, runToResume.config?.bilstmVersion == 2 {
+                                resolvedEpoch = (try? BiLSTMCheckpointStore.readMetadata(at: runDir.appendingPathComponent("best_metadata.json")).epoch) ?? 0
+                            } else { resolvedEpoch = checkpoints.first { $0.url == preferredURL }?.epoch ?? 0 }
 
                             // If the checkpoint is already at or past the configured epochs, alert the user
                             if resolvedEpoch >= epochs {
@@ -1063,13 +1092,14 @@ struct TrainingDashboardView: View {
 
             patience: patience,
             patienceLR: patienceLR,
-            numLayers: useLegacy ? 2 : customLayers,
-            hiddenDim: useLegacy ? 64 : customNeurons,
+            numLayers: useLegacy ? (bilstmVersion == 1 ? 2 : bilstmLayers) : customLayers,
+            hiddenDim: useLegacy ? (bilstmVersion == 1 ? 64 : bilstmWidth) : customNeurons,
             numHeads: useLegacy ? nil : modelConfig.numHeads,
-            dropout: useLegacy ? 0.2 : dropout,
+            dropout: useLegacy ? (bilstmVersion == 1 ? 0.2 : bilstmDropout) : dropout,
             lossFunction: trainingManager.config.lossFunction,
             contrastiveTemperature: trainingManager.config.contrastiveTemperature,
-            enableTemporalAugmentation: trainingManager.config.enableTemporalAugmentation
+            enableTemporalAugmentation: trainingManager.config.enableTemporalAugmentation,
+            bilstmVersion: bilstmVersion
         )
         
         // FIX: Must call prepare() to reinitialize model with new config

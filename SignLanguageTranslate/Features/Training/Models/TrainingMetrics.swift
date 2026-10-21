@@ -66,6 +66,8 @@ public struct TrainingConfig: Codable, Sendable {
     public var validationInterval: Int // 0: epoch end only; positive: additional batch interval
     public var device: String // "gpu" or "cpu"
     public var useLegacyModel: Bool = false
+    /// Missing in saved configs means the original Keras-style architecture.
+    public var bilstmVersion: Int = 2
     public var augmentData: Bool = false
     public var validationSplitRatio: Double = 0.2 // Default 20%
     public var patience: Int = 5 // Default 5 epochs for early stopping
@@ -122,7 +124,8 @@ public struct TrainingConfig: Codable, Sendable {
         labelSmoothing: Float = 0.1,
         warmupEpochs: Int = 2,
         weightDecay: Float = 0.01,
-        scheduler: SchedulerType = .reduceOnPlateau
+        scheduler: SchedulerType = .reduceOnPlateau,
+        bilstmVersion: Int = 2
     ) {
         self.batchSize = batchSize
         self.learningRate = learningRate
@@ -130,6 +133,7 @@ public struct TrainingConfig: Codable, Sendable {
         self.validationInterval = validationInterval
         self.device = device
         self.useLegacyModel = useLegacyModel
+        self.bilstmVersion = bilstmVersion
         self.augmentData = augmentData
         self.validationSplitRatio = validationSplitRatio
         self.patience = patience
@@ -158,6 +162,7 @@ public struct TrainingConfig: Codable, Sendable {
         validationInterval = try container.decodeIfPresent(Int.self, forKey: .validationInterval) ?? 0
         device = try container.decodeIfPresent(String.self, forKey: .device) ?? "gpu"
         useLegacyModel = try container.decodeIfPresent(Bool.self, forKey: .useLegacyModel) ?? false
+        bilstmVersion = try container.decodeIfPresent(Int.self, forKey: .bilstmVersion) ?? 1
         augmentData = try container.decodeIfPresent(Bool.self, forKey: .augmentData) ?? false
         validationSplitRatio = try container.decodeIfPresent(Double.self, forKey: .validationSplitRatio) ?? 0.2
         patience = try container.decodeIfPresent(Int.self, forKey: .patience) ?? 10

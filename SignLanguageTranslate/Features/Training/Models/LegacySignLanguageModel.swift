@@ -110,7 +110,7 @@ public class LegacySignLanguageModel: @unchecked Sendable {
 
 /// Bidirectional LSTM wrapper
 /// Not a Module itself, but contains modules.
-public class BiLSTM: @unchecked Sendable {
+nonisolated public class BiLSTM: @unchecked Sendable {
     public let forwardLSTM: LSTM
     public let backwardLSTM: LSTM
     public let hiddenDim: Int

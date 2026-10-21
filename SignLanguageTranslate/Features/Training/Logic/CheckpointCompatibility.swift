@@ -7,14 +7,32 @@ nonisolated struct CheckpointModelSpecification: Codable, Sendable {
     let family: String
     let config: SignLanguageModelConfig?
     let classNames: [String]
+    var bilstmConfig: BiLSTMModelConfig? = nil
     var targetContract: String? = nil
     var evaluationContract: String? = nil
 
-    init(config: SignLanguageModelConfig?, classNames: [String], family: String = "transformer") {
+    init(config: SignLanguageModelConfig?, classNames: [String], family: String = "transformer", bilstmConfig: BiLSTMModelConfig? = nil) {
         self.version = 1
         self.family = family
         self.config = config
         self.classNames = classNames
+        self.bilstmConfig = bilstmConfig
+    }
+
+    var outputMode: SignLanguageModelConfig.OutputMode? { config?.outputMode ?? bilstmConfig?.outputMode }
+
+    func validatedBiLSTMConfig() throws -> BiLSTMModelConfig {
+        guard version == 1, family == "bilstm-v2", case nil = config, let bilstmConfig else {
+            throw CheckpointCompatibility.Error.incompatible("Only versioned BiLSTM v2 checkpoints can be restored. Legacy v1 files are preserved but unsupported.")
+        }
+        try bilstmConfig.validate()
+        if bilstmConfig.outputMode == .classification {
+            guard classNames.count == bilstmConfig.numClasses, Set(classNames).count == classNames.count,
+                  classNames.allSatisfy({ !$0.isEmpty }) else {
+                throw CheckpointCompatibility.Error.incompatible("BiLSTM classifier is missing its exact class order.")
+            }
+        }
+        return bilstmConfig
     }
 
     func validatedConfig() throws -> SignLanguageModelConfig {

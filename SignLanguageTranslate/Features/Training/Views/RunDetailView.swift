@@ -35,7 +35,8 @@ struct RunDetailView: View {
                     if let config = run.config {
                         Group {
                             if config.useLegacyModel {
-                                NeuralNetVisualizer(config: config).frame(height: Metrics.legacyNetworkHeight)
+                                if config.bilstmVersion == 2 { SavedBiLSTMDiagramView(run: run) }
+                                else { NeuralNetVisualizer(config: config).frame(height: Metrics.legacyNetworkHeight) }
                             } else { SavedTransformerDiagramView(run: run) }
                         }
                         .padding(.horizontal, Spacing.lg)
@@ -91,6 +92,8 @@ struct RunDetailView: View {
             }
             .buttonStyle(.bordered)
             .tint(.orange)
+            .disabled(run.config?.useLegacyModel == true && run.config?.bilstmVersion == 2)
+            .help("For BiLSTM v2, use Resume in the training dashboard to continue a verified checkpoint.")
             
             if let config = run.config {
                 Text(config.device.uppercased())
@@ -185,7 +188,7 @@ struct RunDetailView: View {
     private var configView: some View {
         VStack(spacing: 12) {
             if let config = run.config {
-                configRow(label: "Model Type", value: config.useLegacyModel ? "LSTM" : "Transformer")
+                configRow(label: "Model Type", value: config.useLegacyModel ? "BiLSTM v\(config.bilstmVersion)" : "Transformer")
                 configRow(label: "Batch Size", value: "\(config.batchSize)")
                 configRow(label: "Learning Rate", value: String(format: "%.0e", config.learningRate))
                 configRow(label: "Epochs", value: "\(config.epochs)")

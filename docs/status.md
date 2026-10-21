@@ -1,5 +1,42 @@
 # Status
 
+## Saved-run resume stays Preparing — 2026-10-21
+
+Assigned follow-up: [training-live-resume](plans/training-live-resume.md).
+Screenshot logs end after the epoch-8 checkpoint initializes. Static inspection
+establishes that `resumeFromRun` leaves state Preparing and invokes
+`startTraining`, whose Idle-only guard silently returns without starting a
+worker. The prepared fix owns checkpoint preparation, hands a successful load
+to Start in Idle, reports loading errors as Failed, and lets Stop invalidate
+late load results. A superseded result cannot overwrite a newer preparation.
+Configuration and ordinary start/prepare actions are guarded during loading.
+No optimizer, preprocessing, model math or checkpoint format changes were made.
+
+- Initial focused lifecycle suite: **23 passed**, zero failures/skips:
+  `/tmp/slt-checkpoint-handoff-targeted-20261021.xcresult`.
+- Final full Simulator suite: **671 tests, 664 passed, 2 failed, 5 skipped**
+  (exit 65). All **24 lifecycle tests pass**, including nine new preparation
+  regressions. Failures are the previously recorded network-dependent
+  `DownloadIntegrationTests.test_pauseSingleTask` and
+  `test_queueProcessesNextTaskAfterCompletion`; no tests were removed/disabled.
+  Report: `/tmp/slt-checkpoint-handoff-full-20261021.xcresult` / `.log`.
+- **Generic iOS Debug build passed** (exit 0):
+  `/tmp/slt-checkpoint-handoff-device-20261021.log`. Existing warnings remain;
+  deployment target, language mode, packages and project file are unchanged.
+
+**Deployment held for a confirmed compatibility issue.** Read-only inspection
+of the preserved epoch-8 backup shows `config.json` specifies mean pooling,
+classification and 100 classes. Its weights contain attention-pooling keys
+(`trainableLayers.5.query`, key/value projections) and output projection
+`trainableLayers.3.weight` shape `[384, 256]`, bias `[384]`.
+The loader currently applies arrays without strict key/shape validation.
+Fixing the state guard alone does not establish a faithful restored model.
+The current plan excludes configuration fidelity, so extending the repair to
+effective configuration, checkpoint validation and explicit legacy recovery
+is awaiting user scope approval. The running iPad app has not been terminated,
+updated, tested or attached to a debugger during this investigation. The
+original checkpoint/backup remain untouched; no resumed GPU training is claimed.
+
 ## Local files rejects Documents on iPad — 2026-10-21
 
 Follow-up scope: [local-files-browser](plans/local-files-browser.md). The user

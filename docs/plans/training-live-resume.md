@@ -79,3 +79,50 @@ project-file changes, runtime-language-mode changes or silent-audio extensions.
       running. Saved dataset/features and epoch-8 checkpoint files remain.
       No training or checkpoint restoration was started. Real GPU training
       pause/resume/stop acceptance remains a separate pending check.
+
+## Follow-up: saved-run resume remains Preparing — 2026-10-21
+
+The user loaded the epoch-8 saved run. Logs stop after successful checkpoint
+initialization. `resumeFromRun` sets Preparing and calls `startTraining`, whose
+Idle guard silently rejects it. Repair this preparation-to-start transition
+and terminal states on loading failure or Stop. Keep a single preparation
+owner; late results after Stop must not start a worker or replace model state.
+Cover the handoff with injected fake loading/start operations so Simulator
+tests require no GPU. Keep the previously reviewed checkpoint formats,
+model/configuration fidelity, optimizer restoration and numerical behavior
+outside this fix; do not claim exact continuation or repair them incidentally.
+
+Use the existing manager, dashboard if needed for preparation locking/errors,
+worker regression tests, this plan and `docs/status.md`. Do not change MLX APIs,
+dependencies or schema. Preserve the currently preparing iPad app until the
+correction is ready and replacement is authorized.
+
+- [x] Fix saved-run preparation handoff, failure/Stop cleanup and duplicate guard.
+- [x] Add success/failure/Stop/duplicate preparation regressions without MLX.
+      Nine new tests cover the successful Idle handoff, load failure/retry,
+      Stop with a pending result, duplicates/live-worker guards, task
+      cancellation, a superseded load and the public missing-checkpoint path.
+- [x] Run focused/full tests and device build; record limits and known failures.
+      Final Simulator: 664 passed, 2 known download failures, 5 existing skips
+      (671 total); all 24 lifecycle tests pass. Generic iOS Debug build passed.
+      Deployment remains held for the confirmed configuration mismatch below.
+- [ ] Deploy only after current-session status/authorization allows replacement.
+
+### Proposed extension: checkpoint/configuration compatibility (approval pending)
+
+Read-only inspection of the backed-up epoch-8 run confirms its config declares
+mean pooling and classification with 100 classes; its safetensors header has
+attention-pooling parameters and an output projection of shape [384, 256].
+`ModelPersistence` currently loads without validating all parameter keys/shapes.
+The state fix alone must not be deployed as a claim of reliable restoration.
+
+Proposed additional scope: derive/persist one effective Transformer specification
+for training and reject incomplete/incompatible checkpoints before applying
+weights. Recover this legacy saved run only when its actual architecture can
+be established from the original run configuration, initializer and weight
+keys/shapes; preserve the original files and make any migration explicit.
+Verify matching output before/after save/reload on a physical device with an
+isolated small fixture. Do not restore optimizer/RNG state or claim exact
+mid-epoch continuation. Additional files would include ModelPersistence,
+effective model configuration and dedicated checkpoint regression tests.
+This extends the configuration/checkpoint exclusion above and awaits the user.

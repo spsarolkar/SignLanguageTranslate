@@ -739,7 +739,7 @@ struct TrainingDashboardView: View {
             .cornerRadius(12)
         }
         .padding(.horizontal)
-        .disabled(trainingManager.hasLiveWorker)
+        .disabled(trainingManager.hasLiveWorker || trainingManager.isPreparingCheckpoint)
     }
     
     // MARK: - Testing View
@@ -914,6 +914,8 @@ struct TrainingDashboardView: View {
                                         modelContext: modelContext,
                                         targetDatasetName: targetDataset?.name
                                     )
+                                } catch is CancellationError {
+                                    // Stop cancelled checkpoint preparation.
                                 } catch {
                                     errorMessage = "Failed to resume: \(error.localizedDescription)"
                                     showingError = true
@@ -942,6 +944,8 @@ struct TrainingDashboardView: View {
                                         modelContext: modelContext,
                                         targetDatasetName: targetDataset?.name
                                     )
+                                } catch is CancellationError {
+                                    // Stop cancelled checkpoint preparation.
                                 } catch {
                                     errorMessage = "Failed to resume: \(error.localizedDescription)"
                                     showingError = true
@@ -1057,7 +1061,7 @@ struct TrainingDashboardView: View {
     // MARK: - Actions
 
     private func startTraining() {
-        guard !trainingManager.hasLiveWorker else { return }
+        guard !trainingManager.hasLiveWorker, !trainingManager.isPreparingCheckpoint else { return }
         // FIX: Respect existing useLegacyModel selection from UI Picker
         let useLegacy = trainingManager.config.useLegacyModel
         

@@ -61,6 +61,8 @@ public class TrainingSessionManager: ObservableObject {
     }
 
     public var hasLiveWorker: Bool { workerLifecycle.hasWorker }
+    public var isPreparingCheckpoint: Bool { checkpointPreparationID != nil }
+    private var checkpointPreparationID: UUID?
 
     // MARK: - Configuration
     public var config: TrainingConfig
@@ -114,8 +116,8 @@ public class TrainingSessionManager: ObservableObject {
     // MARK: - Setup
     
     public func prepare() async {
-        guard !workerLifecycle.hasWorker else {
-            log("A live training worker already exists; preparation skipped.")
+        guard !workerLifecycle.hasWorker, !isPreparingCheckpoint else {
+            log("A training operation already exists; preparation skipped.")
             return
         }
         self.state = .preparing
@@ -332,6 +334,10 @@ public class TrainingSessionManager: ObservableObject {
     }
 
     public func startTraining(datasetPath: URL, modelContext: ModelContext, targetDatasetName: String? = nil) {
+        guard !isPreparingCheckpoint else {
+            log("Checkpoint loading is still in progress; start skipped.")
+            return
+        }
         if state == .paused {
             resumeTraining()
             return
@@ -340,7 +346,10 @@ public class TrainingSessionManager: ObservableObject {
             log("A training worker already exists; duplicate start ignored.")
             return
         }
-        guard state == .idle else { return }
+        guard state == .idle else {
+            log("Cannot start training while session is \(state.rawValue).")
+            return
+        }
 
         self.modelContext = modelContext
         self.currentDatasetName = targetDatasetName ?? "All" // Store for state persistence
@@ -630,6 +639,14 @@ public class TrainingSessionManager: ObservableObject {
     }
     
     public func stopTraining() {
+        if isPreparingCheckpoint || (state == .preparing && !workerLifecycle.hasWorker) {
+            checkpointPreparationID = nil
+            state = .idle
+            workPhase = .idle
+            UIApplication.shared.isIdleTimerDisabled = false
+            log("Checkpoint preparation stopped. Saved files were not changed.")
+            return
+        }
         guard workerLifecycle.stop() else { return }
         resumeWhenForegrounded = false
         self.state = .completing
@@ -1099,7 +1116,7 @@ public class TrainingSessionManager: ObservableObject {
     
     /// Prepares the session for fine-tuning based on a previous run
     public func prepareFineTuning(run: TrainingRun) {
-        guard !workerLifecycle.hasWorker else {
+        guard !workerLifecycle.hasWorker, !isPreparingCheckpoint else {
             log("Finish the live worker before preparing another run.")
             return
         }
@@ -1292,7 +1309,7 @@ public class TrainingSessionManager: ObservableObject {
     /// Restore training state from disk and resume
     /// Call this from TrainingDashboardView when user wants to resume
     public func restoreAndResume(modelContext: ModelContext) async {
-        guard !workerLifecycle.hasWorker else {
+        guard !workerLifecycle.hasWorker, !isPreparingCheckpoint else {
             log("A live worker already exists; disk restoration skipped. Use Resume for a paused session.")
             return
         }
@@ -1371,79 +1388,103 @@ public class TrainingSessionManager: ObservableObject {
     }
 
     // MARK: - Manual Resume (From Dashboard)
+
+    /// Own checkpoint preparation until its result can be handed to the normal
+    /// Idle-only start path. Stop invalidates the result without deleting files.
+    /// Loading may finish after Stop, but cannot apply a model or start work.
+    internal func prepareCheckpointResume<Loaded>(
+        load: @MainActor () async throws -> Loaded,
+        start: @MainActor (Loaded) -> Void
+    ) async throws {
+        guard !workerLifecycle.hasWorker, !isPreparingCheckpoint else {
+            throw ModelPersistence.PersistenceError.loadFailed("A training operation is already active.")
+        }
+        let preparationID = UUID()
+        checkpointPreparationID = preparationID
+        state = .preparing
+        workPhase = .preparing
+        do {
+            let loaded = try await load()
+            guard checkpointPreparationID == preparationID, !Task.isCancelled else {
+                throw CancellationError()
+            }
+            // No suspension between releasing preparation and invoking start.
+            // startTraining's Idle guard must accept this successful handoff.
+            checkpointPreparationID = nil
+            state = .idle
+            workPhase = .idle
+            start(loaded)
+        } catch {
+            guard checkpointPreparationID == preparationID else { throw CancellationError() }
+            checkpointPreparationID = nil
+            state = error is CancellationError ? .idle : .failed
+            workPhase = error is CancellationError ? .idle : .failed
+            UIApplication.shared.isIdleTimerDisabled = false
+            log("Checkpoint preparation \(error is CancellationError ? "cancelled" : "failed"): \(error.localizedDescription)")
+            throw error
+        }
+    }
     
     /// Resumes an arbitrary previous training run from its last checkpoint
     public func resumeFromRun(_ run: TrainingRun, modelContext: ModelContext, targetDatasetName: String?) async throws {
-        guard !workerLifecycle.hasWorker else {
-            throw ModelPersistence.PersistenceError.loadFailed("Finish the live training worker before restoring another run.")
-        }
-        self.state = .preparing
-        self.log("Manual resume from run: \(run.name)")
-        
-        // Ensure we load and initialize on the main thread since we publish state
-        let runDir = getRunCheckpointDirectory(runName: run.name)
-        let persistence = ModelPersistence(modelsDirectory: runDir)
-        
-        // 1. Load the latest checkpoint for this run
-        let result: (any SignLanguageModelProtocol, SignLanguageModelConfig, ModelPersistence.ModelCheckpoint)?
-        
-        // Try to load best model first, if it fails, try latest
-        if let best = try? await persistence.loadBestModel() {
-            result = (best.0, best.1, best.2)
-        } else if let latest = try? await persistence.loadLatestCheckpoint() {
-            result = (latest.0, latest.1, latest.2)
-        } else {
+        try await prepareCheckpointResume(load: { () async throws -> (any SignLanguageModelProtocol, SignLanguageModelConfig, ModelPersistence.ModelCheckpoint) in
+            self.log("Manual resume from run: \(run.name)")
+            let runDir = self.getRunCheckpointDirectory(runName: run.name)
+            let persistence = ModelPersistence(modelsDirectory: runDir)
+            if let best = try? await persistence.loadBestModel() {
+                return (best.0, best.1, best.2)
+            }
+            if let latest = try? await persistence.loadLatestCheckpoint() {
+                return (latest.0, latest.1, latest.2)
+            }
             throw ModelPersistence.PersistenceError.loadFailed("No valid checkpoint found in \(runDir.lastPathComponent)")
-        }
+        }, start: { loadedModel, loadedConfig, checkpoint in
+            // 2. Restore state
+            self.model = loadedModel
+            self.modelWrapper = SignLanguageModuleWrapper(model: loadedModel)
         
-        guard let (loadedModel, loadedConfig, checkpoint) = result else {
-            throw ModelPersistence.PersistenceError.loadFailed("Failed to unpack checkpoint")
-        }
+            if let runConfig = run.config {
+                self.config = runConfig
+            } else {
+                // Reconstruct config from the saved config.json
+                self.config = TrainingConfig(
+                    batchSize: 8, // Sensible defaults if missing
+                    learningRate: 1e-4,
+                    epochs: 50,
+                    validationInterval: 10,
+                    device: "gpu",
+                    useLegacyModel: false,
+                    augmentData: false,
+                    validationSplitRatio: 0.2,
+                    patience: 10,
+                    patienceLR: 5,
+                    numLayers: loadedConfig.numLayers,
+                    hiddenDim: loadedConfig.modelDim,
+                    numHeads: loadedConfig.numHeads,
+                    dropout: loadedConfig.dropout,
+                    lossFunction: loadedConfig.outputMode == .classification ? .crossEntropy : .contrastive,
+                    contrastiveTemperature: 0.07,
+                    enableTemporalAugmentation: false
+                )
+            }
         
-        // 2. Restore state
-        self.model = loadedModel
-        self.modelWrapper = SignLanguageModuleWrapper(model: loadedModel)
+            self.optimizer = Adam(learningRate: self.config.learningRate)
         
-        if let runConfig = run.config {
-            self.config = runConfig
-        } else {
-            // Reconstruct config from the saved config.json
-            self.config = TrainingConfig(
-                batchSize: 8, // Sensible defaults if missing
-                learningRate: 1e-4,
-                epochs: 50,
-                validationInterval: 10,
-                device: "gpu",
-                useLegacyModel: false,
-                augmentData: false,
-                validationSplitRatio: 0.2,
-                patience: 10,
-                patienceLR: 5,
-                numLayers: loadedConfig.numLayers,
-                hiddenDim: loadedConfig.modelDim,
-                numHeads: loadedConfig.numHeads,
-                dropout: loadedConfig.dropout,
-                lossFunction: loadedConfig.outputMode == .classification ? .crossEntropy : .contrastive,
-                contrastiveTemperature: 0.07,
-                enableTemporalAugmentation: false
-            )
-        }
+            self.currentRun = run
+            self.currentEpoch = checkpoint.epoch
+            self.metrics = run.metrics // Restore metrics array
+            self.lastLoss = checkpoint.loss ?? 0.0
         
-        self.optimizer = Adam(learningRate: self.config.learningRate)
+            run.status = "Resuming from Epoch \(checkpoint.epoch)"
+            try? modelContext.save()
         
-        self.currentRun = run
-        self.currentEpoch = checkpoint.epoch
-        self.metrics = run.metrics // Restore metrics array
-        self.lastLoss = checkpoint.loss ?? 0.0
+            self.log("Model initialized from checkpoint at Epoch \(checkpoint.epoch)")
+            self.log("Starting from saved weights at the next epoch with a new optimizer; optimizer state was not restored.")
         
-        run.status = "Resuming from Epoch \(checkpoint.epoch)"
-        try? modelContext.save()
-        
-        self.log("Model initialized from checkpoint at Epoch \(checkpoint.epoch)")
-        
-        // 3. Start training without wiping models
-        self.modelContext = modelContext
-        self.startTraining(datasetPath: FileManager.default.documentsDirectory, modelContext: modelContext, targetDatasetName: targetDatasetName)
+            // 3. Start training without wiping models
+            self.modelContext = modelContext
+            self.startTraining(datasetPath: FileManager.default.documentsDirectory, modelContext: modelContext, targetDatasetName: targetDatasetName)
+        })
     }
 
     /// Clear persisted state (call when training completes normally or is explicitly stopped)

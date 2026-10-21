@@ -4,6 +4,187 @@ import SwiftData
 
 @MainActor
 final class TrainingWorkerLifecycleTests: XCTestCase {
+    func test_checkpointPreparationHandsOffInIdleAndStartsExactlyOnce() async throws {
+        let worker = TrainingWorkerLifecycle()
+        let manager = TrainingSessionManager(config: .default, workerLifecycle: worker)
+        var starts = 0
+        var loadedEpoch: Int?
+        try await manager.prepareCheckpointResume(load: {
+            XCTAssertEqual(manager.state, .preparing)
+            XCTAssertTrue(manager.isPreparingCheckpoint)
+            return 8
+        }, start: { epoch in
+            XCTAssertEqual(manager.state, .idle, "The real startTraining guard only accepts Idle")
+            XCTAssertFalse(manager.isPreparingCheckpoint)
+            loadedEpoch = epoch
+            manager.state = .training
+            worker.start { starts += 1 }
+        })
+        try await wait { !worker.hasWorker }
+        XCTAssertEqual(loadedEpoch, 8)
+        XCTAssertEqual(starts, 1)
+    }
+
+    func test_checkpointLoadingFailureReleasesPreparationForRetry() async throws {
+        let manager = TrainingSessionManager(config: .default)
+        do {
+            try await manager.prepareCheckpointResume(load: { () async throws -> Int in
+                throw NSError(domain: "CheckpointFixture", code: 1)
+            }, start: { _ in XCTFail("A failed load must not start") })
+            XCTFail("Expected loading error")
+        } catch { }
+        XCTAssertEqual(manager.state, .failed)
+        XCTAssertEqual(manager.workPhase, .failed)
+        XCTAssertFalse(manager.isPreparingCheckpoint)
+        var retried = false
+        try await manager.prepareCheckpointResume(load: { 8 }, start: { _ in retried = true })
+        XCTAssertTrue(retried)
+        XCTAssertEqual(manager.state, .idle)
+    }
+
+    func test_stopDuringCheckpointLoadDiscardsLateResult() async throws {
+        let manager = TrainingSessionManager(config: .default)
+        var pending: CheckedContinuation<Int, Never>?
+        var starts = 0
+        let preparation = Task {
+            try await manager.prepareCheckpointResume(load: {
+                await withCheckedContinuation { pending = $0 }
+            }, start: { _ in starts += 1 })
+        }
+        try await wait { pending != nil }
+        manager.stopTraining()
+        XCTAssertEqual(manager.state, .idle)
+        XCTAssertFalse(manager.isPreparingCheckpoint)
+        try XCTUnwrap(pending).resume(returning: 8)
+        do {
+            try await preparation.value
+            XCTFail("Stopped preparation must be cancelled")
+        } catch is CancellationError { }
+        XCTAssertEqual(starts, 0)
+        XCTAssertFalse(manager.hasLiveWorker)
+        XCTAssertEqual(manager.state, .idle)
+    }
+
+    func test_duplicateCheckpointPreparationCannotLoadOrReplaceExistingOperation() async throws {
+        let manager = TrainingSessionManager(config: .default)
+        var pending: CheckedContinuation<Int, Never>?
+        let preparation = Task {
+            try await manager.prepareCheckpointResume(load: {
+                await withCheckedContinuation { pending = $0 }
+            }, start: { _ in XCTFail("Stopped operation must not start") })
+        }
+        try await wait { pending != nil }
+        do {
+            try await manager.prepareCheckpointResume(load: {
+                XCTFail("Duplicate must be rejected before loading")
+                return 9
+            }, start: { _ in XCTFail("Duplicate must not start") })
+            XCTFail("Expected duplicate rejection")
+        } catch { }
+        XCTAssertTrue(manager.isPreparingCheckpoint)
+        XCTAssertEqual(manager.state, .preparing)
+        let container = try TestContainerFactory.makeContainer()
+        manager.startTraining(datasetPath: FileManager.default.temporaryDirectory, modelContext: container.mainContext)
+        await manager.prepare()
+        XCTAssertFalse(manager.logs.contains { $0.contains("Fetching training data") || $0.contains("Initializing model") })
+        XCTAssertEqual(manager.state, .preparing)
+        manager.stopTraining()
+        try XCTUnwrap(pending).resume(returning: 8)
+        do { try await preparation.value } catch is CancellationError { }
+    }
+
+    func test_checkpointPreparationRejectsLiveWorkerWithoutChangingItsState() async throws {
+        let worker = TrainingWorkerLifecycle()
+        let manager = TrainingSessionManager(config: .default, workerLifecycle: worker)
+        manager.state = .training
+        worker.start { manager.pauseTraining(); _ = await worker.waitUntilRunnable() }
+        defer { worker.stop() }
+        try await wait { worker.isParked }
+        do {
+            try await manager.prepareCheckpointResume(load: {
+                XCTFail("Must not load over a live worker")
+                return 8
+            }, start: { _ in XCTFail("Must not start") })
+            XCTFail("Expected live-worker rejection")
+        } catch { }
+        XCTAssertEqual(manager.state, .paused)
+        XCTAssertTrue(worker.isParked)
+        worker.stop()
+        try await wait { !worker.hasWorker }
+    }
+
+    func test_cancelledCheckpointTaskDoesNotHandOffToTraining() async throws {
+        let manager = TrainingSessionManager(config: .default)
+        var pending: CheckedContinuation<Int, Never>?
+        let preparation = Task {
+            try await manager.prepareCheckpointResume(load: {
+                await withCheckedContinuation { pending = $0 }
+            }, start: { _ in XCTFail("Cancelled task must not start") })
+        }
+        try await wait { pending != nil }
+        preparation.cancel()
+        try XCTUnwrap(pending).resume(returning: 8)
+        do { try await preparation.value } catch is CancellationError { }
+        XCTAssertEqual(manager.state, .idle)
+        XCTAssertFalse(manager.isPreparingCheckpoint)
+    }
+
+    func test_stopClearsPreparingWhenNoWorkerWasEverStarted() {
+        let manager = TrainingSessionManager(config: .default)
+        manager.state = .preparing
+        manager.stopTraining()
+        XCTAssertEqual(manager.state, .idle)
+        XCTAssertEqual(manager.workPhase, .idle)
+        XCTAssertFalse(manager.hasLiveWorker)
+    }
+
+    func test_stoppedLoadCannotClearNewerCheckpointPreparation() async throws {
+        let manager = TrainingSessionManager(config: .default)
+        var oldPending: CheckedContinuation<Int, Never>?
+        var newPending: CheckedContinuation<Int, Never>?
+        let oldPreparation = Task {
+            try await manager.prepareCheckpointResume(load: {
+                await withCheckedContinuation { oldPending = $0 }
+            }, start: { _ in XCTFail("Stopped load must not start") })
+        }
+        try await wait { oldPending != nil }
+        manager.stopTraining()
+        var loadedEpoch: Int?
+        let newPreparation = Task {
+            try await manager.prepareCheckpointResume(load: {
+                await withCheckedContinuation { newPending = $0 }
+            }, start: { loadedEpoch = $0 })
+        }
+        try await wait { newPending != nil }
+        try XCTUnwrap(oldPending).resume(returning: 8)
+        do { try await oldPreparation.value } catch is CancellationError { }
+        XCTAssertTrue(manager.isPreparingCheckpoint)
+        XCTAssertEqual(manager.state, .preparing)
+        try XCTUnwrap(newPending).resume(returning: 9)
+        try await newPreparation.value
+        XCTAssertEqual(loadedEpoch, 9)
+        XCTAssertFalse(manager.isPreparingCheckpoint)
+        XCTAssertEqual(manager.state, .idle)
+    }
+
+    func test_resumeFromRunWithoutCheckpointFailsAndExitsPreparing() async throws {
+        let manager = TrainingSessionManager(config: .default)
+        let container = try TestContainerFactory.makeContainer()
+        let run = TrainingRun(name: "checkpoint-regression-\(UUID())", config: .default)
+        container.mainContext.insert(run)
+        let folder = manager.getRunCheckpointDirectory(runName: run.name)
+        defer { try? FileManager.default.removeItem(at: folder) }
+        do {
+            try await manager.resumeFromRun(run, modelContext: container.mainContext, targetDatasetName: "Fixture")
+            XCTFail("Expected missing-checkpoint error")
+        } catch { }
+        XCTAssertEqual(manager.state, .failed)
+        XCTAssertEqual(manager.workPhase, .failed)
+        XCTAssertFalse(manager.isPreparingCheckpoint)
+        XCTAssertFalse(manager.hasLiveWorker)
+        XCTAssertNil(manager.currentRunId)
+    }
+
     func test_resumeContinuesSameWorkerAndBatchPosition() async throws {
         let worker = TrainingWorkerLifecycle()
         var starts = 0

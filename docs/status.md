@@ -68,7 +68,18 @@ Verification so far:
   production gradient code and tolerances were not weakened. Final rerun is
   green. Temporary render/timing helpers were removed from the target and
   retained at `/tmp/slt-bilstm-acceptance-check-20261021.swift`.
-- Final installation/preservation checks are pending.
+- Final normal iOS build and signature verification passed,
+  `/tmp/slt-bilstm-final-build-20261021.log`. Implementation/tests committed
+  locally as `bfa236b`; no push performed.
+- Installed in place, `/tmp/slt-bilstm-install-20261021.json`. All 14 original
+  checkpoint files have matching SHA256 fingerprints afterward; no missing,
+  changed or extra files, `/tmp/slt-bilstm-preservation-20261021.json`.
+  Dataset/feature/label counts and all four user runs' config/metrics/status
+  also match the pre-test snapshot,
+  `/tmp/slt-bilstm-metadata-preservation-20261021.json`. No user training started.
+- The normal post-install launch was denied because the iPad had locked
+  (`FBSOpenApplicationErrorDomain: Locked`). Installation and GPU checks passed;
+  final normal-launch confirmation is waiting for the user to unlock it.
 - Simulator installation initially failed for insufficient Mac storage.
   Removed only discarded Simulator containers from its `Caches/.../Dead`
   directory; source, live app data and checkpoint backups were retained.
@@ -92,6 +103,12 @@ Normal before and after. Medians from the retained JSON attachment in
 The combined v2 change was about 2.24× faster in this short isolated compute
 fixture. It excludes data loading, full validation, checkpoint writing and
 sustained thermal behavior; it does not establish epoch time or accuracy gains.
+
+New-run protocol: Configuration → Model Type → BiLSTM → Revised v2, choose
+a new session rather than a saved v1 run, retain the existing INCLUDE split,
+batch eight, LR 1e-4 and InfoNCE for the first comparison. Defaults are one
+layer, 96 units per direction and dropout 0.1. Judge progress by epoch-end word
+top-1/top-5 and validation loss, separately from per-batch loss or cosine.
 
 ## Transformer Model diagram — 2026-10-21
 

@@ -69,3 +69,30 @@ SwiftData schema, extraction/training service or project-file changes.
       loss of unsaved progress. Installed with the training worker fix on
       2026-10-21; saved dataset and feature files remain in the app container.
       On-device browser interaction/video playback acceptance remains pending.
+
+## Follow-up: Documents rejected on iPad — 2026-10-21
+
+The installed home screen reports that its own Documents folder is outside
+Documents. Repair URL normalization/containment in the existing filesystem
+service, preserving read-only behavior and rejection of escapes. Exercise the
+real app Documents URL in addition to temporary fixture roots. Verify shortcut
+destinations against the actual generated paths. The user confirmed neither
+training nor feature extraction is running, so the corrected build may be
+installed and launched after verification.
+
+- [x] Reproduce the rejection with the real Documents URL; add path regressions.
+      The new real-Documents test failed with `outsideDocuments` on the physical
+      iPad before the fix. All 17 browser tests pass on that iPad after the fix.
+- [x] Fix canonical containment and any verified shortcut destination mismatch.
+      Canonicalize listed URLs as well as the root and compare path components;
+      retain traversal/symlink escape rejection. Training state previews the
+      actual `TrainingState.json` file rather than a nonexistent folder.
+- [x] Run regression tests, required build/suite checks and record results.
+      Physical browser tests: 17 passed. Full Simulator: 655 passed, 2 known
+      download failures, 5 existing skips (662 total). Final generic iOS Debug
+      build passed. Reports and limitations are recorded in `docs/status.md`.
+- [x] Install/launch the correction and record hardware verification limits.
+      Updated the idle iPad app in place on 2026-10-21; launch succeeded and
+      the updated executable was observed running. No training/restoration was
+      started. Service tests prove real Documents listing/preview on hardware;
+      manual browser navigation/video playback acceptance remains unverified.

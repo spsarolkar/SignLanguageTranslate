@@ -42,6 +42,9 @@ struct LocalFileBrowserView: View {
                         LocalFilePreviewView(path: entry.path, store: store, onClose: { dismiss() })
                     }
                 }
+                .navigationDestination(for: String.self) { path in
+                    LocalFilePreviewView(path: path, store: store, onClose: { dismiss() })
+                }
         }
         .tint(Palette.accent)
         .preferredColorScheme(.dark)
@@ -89,7 +92,9 @@ struct LocalDirectoryView: View {
                     shortcut("Downloads", subtitle: "Downloaded archives and transfer files", icon: "arrow.down.circle", to: .folder("Downloads"))
                     shortcut("Models", subtitle: "Weights, configurations and saved runs", icon: "brain", to: .folder("Models"))
                     shortcut("Checkpoints", subtitle: "Training resume artifacts", icon: "clock.arrow.circlepath", to: .folder("Checkpoints"))
-                    shortcut("Training state", subtitle: "Saved session state", icon: "doc.text", to: .folder("TrainingState"))
+                    NavigationLink(value: "TrainingState.json") {
+                        shortcutRow("Training state", subtitle: "Saved session state", icon: "doc.text")
+                    }
                 }
                 .listRowBackground(Palette.surface)
             }
@@ -142,16 +147,20 @@ struct LocalDirectoryView: View {
 
     private func shortcut(_ title: String, subtitle: String, icon: String, to destination: LocalFileLocation) -> some View {
         NavigationLink(value: destination) {
-            HStack(spacing: Spacing.md) {
-                Image(systemName: icon).font(Typo.title2).foregroundStyle(Palette.accent)
-                    .frame(width: Metrics.touchTarget)
-                VStack(alignment: .leading, spacing: Spacing.xxs) {
-                    Text(title).font(Typo.headline).foregroundStyle(Palette.textPrimary)
-                    Text(subtitle).font(Typo.caption).foregroundStyle(Palette.textSecondary)
-                }
-            }
-            .frame(minHeight: Metrics.touchTarget)
+            shortcutRow(title, subtitle: subtitle, icon: icon)
         }
+    }
+
+    private func shortcutRow(_ title: String, subtitle: String, icon: String) -> some View {
+        HStack(spacing: Spacing.md) {
+            Image(systemName: icon).font(Typo.title2).foregroundStyle(Palette.accent)
+                .frame(width: Metrics.touchTarget)
+            VStack(alignment: .leading, spacing: Spacing.xxs) {
+                Text(title).font(Typo.headline).foregroundStyle(Palette.textPrimary)
+                Text(subtitle).font(Typo.caption).foregroundStyle(Palette.textSecondary)
+            }
+        }
+        .frame(minHeight: Metrics.touchTarget)
     }
 
     private func refresh() async {

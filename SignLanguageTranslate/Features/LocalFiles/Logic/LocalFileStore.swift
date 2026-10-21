@@ -164,18 +164,27 @@ actor LocalFileStore {
     private func resolvedURL(path: String) throws -> URL {
         guard !path.hasPrefix("/") else { throw BrowserError.outsideDocuments }
         let url = root.appendingPathComponent(path).standardizedFileURL.resolvingSymlinksInPath()
-        guard url.path == root.path || url.path.hasPrefix(root.path + "/") else {
-            throw BrowserError.outsideDocuments
-        }
+        _ = try relativePath(of: url)
         return url
+    }
+
+    private func relativePath(of url: URL) throws -> String {
+        // FileManager can return /private/var URLs even when the canonical root
+        // uses /var (or vice versa). Normalize both sides before containment and
+        // compare components so similarly named sibling directories cannot pass.
+        let components = url.standardizedFileURL.resolvingSymlinksInPath().pathComponents
+        let rootComponents = root.pathComponents
+        guard components.starts(with: rootComponents) else { throw BrowserError.outsideDocuments }
+        return components.dropFirst(rootComponents.count).joined(separator: "/")
     }
 
     private func entry(at url: URL) throws -> LocalFileEntry? {
         let values = try url.resourceValues(forKeys: keys)
         guard values.isSymbolicLink != true,
               values.isDirectory == true || values.isRegularFile == true else { return nil }
-        guard url.path.hasPrefix(root.path + "/") else { throw BrowserError.outsideDocuments }
-        return LocalFileEntry(path: String(url.path.dropFirst(root.path.count + 1)),
+        let path = try relativePath(of: url)
+        guard !path.isEmpty else { return nil }
+        return LocalFileEntry(path: path,
                               name: url.lastPathComponent, isDirectory: values.isDirectory == true,
                               size: Int64(values.fileSize ?? 0), modified: values.contentModificationDate)
     }

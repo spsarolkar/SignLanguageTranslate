@@ -1,5 +1,47 @@
 # Status
 
+## Local files rejects Documents on iPad — 2026-10-21
+
+Follow-up scope: [local-files-browser](plans/local-files-browser.md). The user
+reported an `outsideDocuments` error on the browser home screen. A new test
+using the real app Documents URL reproduced the error on the connected iPad
+before the fix (`/tmp/slt-documents-repro-20261021.xcresult`). Earlier tests used
+temporary roots and missed the on-device URL representation difference.
+
+`FileManager` can return a filesystem alias such as `/private/var` while the
+normalized root uses `/var`. Listings compared unnormalized child paths to
+the root with a string prefix. Both sides now use canonical URLs and path
+components before containment and relative-path derivation. Absolute paths,
+traversal and symlink escapes remain rejected. The Training state shortcut
+also now previews the actual `TrainingState.json` file rather than navigating
+to a nonexistent `TrainingState` directory. No stored files are migrated.
+
+- **Physical iPad: all 17 browser tests pass**, zero failures/skips. Includes
+  real Documents root listing/nested preview, a symlink root, trailing slash
+  and Unicode/space names, similarly named sibling rejection, feature indexing,
+  bounds and existing traversal/symlink tests. The real-Documents test writes
+  and removes only its uniquely named fixture. Report:
+  `/tmp/slt-documents-device-fixed-20261021.xcresult` / `.log`.
+- **Full Simulator suite: 662 tests, 655 passed, 2 failed, 5 skipped** (exit 65).
+  The failures are the previously recorded network-dependent
+  `DownloadIntegrationTests.test_pauseSingleTask` and
+  `test_queueProcessesNextTaskAfterCompletion`. All 17 browser tests pass;
+  no existing test was removed/disabled. Report:
+  `/tmp/slt-documents-full-20261021.xcresult` / `.log`.
+
+- **Final generic iOS Debug build passed** (exit 0):
+  `/tmp/slt-documents-device-build-20261021.log`. Existing compiler warnings
+  remain. No dependency, model schema, deployment target or project-file change.
+- **Installed and launched on the physical iPad.** The user confirmed neither
+  training nor extraction is running. Updated the app in place without
+  uninstalling it; launch succeeded and the corrected executable was observed
+  running. No training or checkpoint restoration was started. Reports:
+  `/tmp/slt-documents-install-20261021.json`,
+  `/tmp/slt-documents-launch-20261021.json` and
+  `/tmp/slt-documents-processes-20261021.json`. Service tests establish real
+  Documents listing/preview on hardware; manual browser navigation and video
+  playback acceptance remain unverified.
+
 ## Live training Resume starts another loop — 2026-10-21
 
 Assigned scope: [training-live-resume](plans/training-live-resume.md). The user

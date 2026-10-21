@@ -7,8 +7,9 @@ cancel downloads, extraction or training.
 - **All features** recursively indexes `Documents/Datasets/Features`, matching
   the pipeline's `*_features.json` filenames. Search matches names and relative
   paths across datasets. Empty and corrupt files remain visible for inspection.
-- Folder shortcuts open datasets, feature folders, downloads, models,
-  checkpoints and training state. The home folder also lists every visible
+- Folder shortcuts open datasets, feature folders, downloads, models and
+  checkpoints. **Training state** previews `Documents/TrainingState.json`.
+  The home folder also lists every visible
   file/folder in the app's Documents directory. A folder that has not been
   created yet shows an unavailable-folder message; browsing does not create it.
 - Feature inspection shows saved frame count/model names, frame selection,
@@ -34,10 +35,14 @@ files that move/disappear produce a recoverable preview error.
 
 `LocalFileStore` performs filesystem work in an actor and returns immutable
 metadata/preview snapshots. No SwiftData context is passed to it. Paths are
-relative to a supplied Documents root, resolved and checked against that root.
+relative to a supplied Documents root. Both the root and returned file URLs are
+canonicalized before comparing path components, so filesystem aliases such as
+`/var` and `/private/var` do not incorrectly reject files inside Documents.
 Directory listings omit symlinks; navigation/preview rejects escapes outside
 the root. The browser does not expose the app's Library/Keychain or other apps.
 
 No delete, move, rename, upload, archive expansion or re-extraction action is
-available here. Tests use isolated temporary folders and verify that reads
-preserve original bytes and modification timestamps.
+available here. Tests use isolated temporary folders, plus one uniquely named
+fixture in the real app Documents directory that is removed after the test.
+They verify canonical paths, escape rejection and preservation of original
+bytes and modification timestamps.

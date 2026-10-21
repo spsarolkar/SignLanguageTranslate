@@ -3,6 +3,25 @@ import XCTest
 
 @MainActor
 final class LocalFileStoreTests: XCTestCase {
+    func test_appDocumentsRootListsAndPreviewsItsOwnFiles() async throws {
+        // Temporary roots do not reproduce every on-device Documents URL alias.
+        // Only this uniquely named fixture is written/removed in the real container.
+        let documents = FileManager.default.documentsDirectory
+        let fixtureName = "browser-regression-\(UUID())"
+        let fixture = documents.appendingPathComponent(fixtureName, isDirectory: true)
+        defer { try? FileManager.default.removeItem(at: fixture) }
+        try write("browser fixture", to: "sample.txt", root: fixture)
+        let store = LocalFileStore(root: documents)
+
+        let home = try await store.list(directory: "")
+        XCTAssertTrue(home.contains { $0.path == fixtureName && $0.isDirectory })
+        let files = try await store.list(directory: fixtureName)
+        XCTAssertEqual(files.map(\.path), ["\(fixtureName)/sample.txt"])
+        let preview = try await store.preview(path: "\(fixtureName)/sample.txt")
+        guard case .text(let text, _, _) = preview.content else { return XCTFail("Expected text preview") }
+        XCTAssertEqual(text, "browser fixture")
+    }
+
     func test_folderListingShowsRealSizesAndFoldersFirst() async throws {
         let (root, store) = try storage()
         defer { try? FileManager.default.removeItem(at: root) }
@@ -16,6 +35,55 @@ final class LocalFileStoreTests: XCTestCase {
         XCTAssertTrue(entries[0].isDirectory)
         XCTAssertEqual(entries[1].size, 3)
         XCTAssertNotNil(entries[1].modified)
+    }
+
+    func test_directoryURLWithTrailingSlashPreservesRelativePaths() async throws {
+        let (root, _) = try storage()
+        defer { try? FileManager.default.removeItem(at: root) }
+        try write("abc", to: "folder with spaces/日本語.txt", root: root)
+        let store = LocalFileStore(root: URL(fileURLWithPath: root.path + "/", isDirectory: true))
+
+        let entries = try await store.list(directory: "folder with spaces")
+
+        XCTAssertEqual(entries.map(\.path), ["folder with spaces/日本語.txt"])
+        let preview = try await store.preview(path: entries[0].path)
+        guard case .text(let text, _, _) = preview.content else { return XCTFail("Expected text") }
+        XCTAssertEqual(text, "abc")
+    }
+
+    func test_symlinkRootCanListIndexAndPreviewItsCanonicalChildren() async throws {
+        let (root, _) = try storage()
+        let alias = root.deletingLastPathComponent().appendingPathComponent("browser-alias-\(UUID())")
+        defer {
+            try? FileManager.default.removeItem(at: alias)
+            try? FileManager.default.removeItem(at: root)
+        }
+        let path = "Datasets/Features/clip_AppleVision_features.json"
+        try write("[]", to: path, root: root)
+        try FileManager.default.createSymbolicLink(at: alias, withDestinationURL: root)
+        let store = LocalFileStore(root: alias)
+
+        let home = try await store.list(directory: "")
+        XCTAssertEqual(home.map(\.path), ["Datasets"])
+        let features = try await store.allFeatures()
+        XCTAssertEqual(features.map(\.path), [path])
+        let preview = try await store.preview(path: path)
+        guard case .features = preview.content else { return XCTFail("Expected features") }
+    }
+
+    func test_similarlyNamedSiblingCannotBeReachedThroughSymlink() async throws {
+        let (root, store) = try storage()
+        let sibling = root.deletingLastPathComponent().appendingPathComponent(root.lastPathComponent + "-other")
+        defer {
+            try? FileManager.default.removeItem(at: root)
+            try? FileManager.default.removeItem(at: sibling)
+        }
+        try write("private", to: "file.txt", root: sibling)
+        try FileManager.default.createSymbolicLink(at: root.appendingPathComponent("sibling"), withDestinationURL: sibling)
+        do {
+            _ = try await store.preview(path: "sibling/file.txt")
+            XCTFail("A sibling sharing the root prefix is still outside Documents")
+        } catch LocalFileStore.BrowserError.outsideDocuments { }
     }
 
     func test_allFeaturesIndexesNestedDatasetsWithoutOtherFiles() async throws {

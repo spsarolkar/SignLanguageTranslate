@@ -397,11 +397,15 @@ struct TrainingDashboardView: View {
     // MARK: - Model View (Phase 8)
     
     private var modelView: some View {
-        NeuralNetVisualizer(config: previewConfig)
-            .frame(height: 500)
-            .cornerRadius(12)
-            .padding(.horizontal)
-            .shadow(color: .black.opacity(0.1), radius: 5)
+        Group {
+            if previewConfig.useLegacyModel {
+                NeuralNetVisualizer(config: previewConfig).frame(height: Metrics.legacyNetworkHeight)
+            } else {
+                TransformerConfigurationDiagramView(training: previewConfig,
+                    instantiatedConfig: trainingManager.hasLiveWorker ? trainingManager.instantiatedTransformerConfig : nil)
+            }
+        }
+        .padding(.horizontal, Spacing.lg)
     }
 
     /// Live preview config derived from UI selection (before training starts)

@@ -33,9 +33,12 @@ struct RunDetailView: View {
                     metricsView
                 case .architecture:
                     if let config = run.config {
-                        NeuralNetVisualizer(config: config)
-                            .frame(height: 500)
-                            .padding(.horizontal)
+                        Group {
+                            if config.useLegacyModel {
+                                NeuralNetVisualizer(config: config).frame(height: Metrics.legacyNetworkHeight)
+                            } else { SavedTransformerDiagramView(run: run) }
+                        }
+                        .padding(.horizontal, Spacing.lg)
                     } else {
                         ContentUnavailableView("No Data", systemImage: "cpu", description: Text("Configuration missing for this run."))
                     }

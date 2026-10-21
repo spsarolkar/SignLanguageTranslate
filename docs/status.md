@@ -1,5 +1,57 @@
 # Status
 
+## Transformer Model diagram — 2026-10-21
+
+Assigned scope: [transformer-model-diagram](plans/transformer-model-diagram.md).
+Replaced the generic dense-neuron/300-output drawing for Transformer uses with
+a forward-pass diagram: pose sequence, linear input projection/LayerNorm,
+sinusoidal positions/dropout, encoder stack, output LayerNorm, configured
+pooling, output projection and L2 normalization. Expandable encoder details
+show both pre-norm residual branches, multi-head attention, GELU MLP expansion,
+dropout and optional LayerScale. No training/model math was changed.
+
+- Dashboard reads the instantiated model's config for a live worker. Idle
+  settings are labelled Configuration preview and apply the same head-count
+  correction as the training initializer. An unresolved classifier shows C,
+  not a guessed vocabulary size. Embedding output is taken from the config.
+- Saved-run Model reads bounded recorded specifications without allocating a
+  model or reading weights. Complete legacy run settings can reconstruct a
+  labelled legacy diagram; malformed/incomplete data cannot fall back to an
+  invented default. View state clears when switching saved runs.
+- The diagram describes implementation facts: first-timestep pooling does not
+  insert a CLS token; sinusoidal position is active; relative position bias is
+  not wired; stochastic depth is disabled; L2 normalization applies to both
+  output modes. No fake weight/activation displays or parameter counts.
+- The existing Model tab, navigation and BiLSTM drawing are retained. New
+  content uses design tokens and adapts title/shape layout to available width.
+
+Verification:
+
+- Targeted Simulator: **21 passed, zero failed, three GPU-only skipped** (24),
+  including all 11 new diagram tests and checkpoint compatibility regressions;
+  `/tmp/slt-diagram-focused-20261021.xcresult`.
+- Full Simulator: **732 tests, 718 passed, two failed, 12 skipped** (exit 65),
+  `/tmp/slt-diagram-full-20261021.xcresult` / `.log`. This includes all 11 new
+  permanent tests and one temporary render acceptance check. Only the previously
+  recorded network-dependent `DownloadIntegrationTests.test_pauseSingleTask`
+  and `test_queueProcessesNextTaskAfterCompletion` fail. No tests were removed.
+- Inspected collapsed/expanded diagrams at 360 and 760 pt; fixed clipped text
+  and verified wrapping/readable shapes. Screenshots are `/tmp/slt-diagram-*.png`.
+  The temporary render helper is retained in
+  `/tmp/slt-diagram-render-check-20261021.swift` and removed from the target.
+- Disposable build cache is on the external drive at
+  `/Volumes/SunilSProjects/.codex-build-cache/SignLanguageTranslate`; logs/results
+  stay in /tmp. Old internal compiled build artifacts were removed; source,
+  resolved dependency checkouts, checkpoint backups and test reports remain.
+
+- Generic iOS device build passed after removing the temporary render helper;
+  `/tmp/slt-diagram-device-build-20261021.log`. Signature verification passed.
+
+The user confirmed training is stopped, also verified against read-only device
+metadata for `Resume 11:48 AM CC0F47EB`. Installation/launch is pending; no user
+training has been started. The diagram is structural documentation, not a live
+tensor inspection or verification of saved checkpoint weight files.
+
 ## Automatic thermal pause/resume — 2026-10-21
 
 Assigned scope: [training-thermal-protection](plans/training-thermal-protection.md).

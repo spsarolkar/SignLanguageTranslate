@@ -69,6 +69,10 @@ public class TrainingSessionManager: ObservableObject {
     }
 
     public var hasLiveWorker: Bool { workerLifecycle.hasWorker }
+    /// Read-only value snapshot for the architecture view; never reads tensors.
+    internal var instantiatedTransformerConfig: SignLanguageModelConfig? {
+        (model as? SignLanguageModel)?.config
+    }
     public var isPreparingCheckpoint: Bool { checkpointPreparationID != nil }
     private var checkpointPreparationID: UUID?
 

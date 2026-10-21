@@ -24,6 +24,14 @@ struct NeuralNetVisualizer: View {
     }
     
     var body: some View {
+        if !config.useLegacyModel {
+            TransformerConfigurationDiagramView(training: config)
+        } else {
+            legacyDiagram
+        }
+    }
+
+    private var legacyDiagram: some View {
         GeometryReader { geometry in
             ZStack {
                 // Background Grid

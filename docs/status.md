@@ -1,5 +1,82 @@
 # Status
 
+## Live training Resume starts another loop — 2026-10-21
+
+Assigned scope: [training-live-resume](plans/training-live-resume.md). The user
+reported a stationary dashboard after Resume. Screenshots show step 3160 then
+3436; they do not identify the precise GPU/runtime point where work stopped.
+User-provided logs establish the lifecycle defect: Pause at 8:36:23 AM was
+followed by data refetch, a new split and callback registration, then epoch 11
+while the previous worker had reached epoch 10. Three identical foreground
+resume messages also demonstrate duplicate notification observers.
+
+Changes:
+
+- One retained `TrainingWorkerLifecycle` owns each live operation. Explicit
+  Resume releases its pause gate; it preserves the existing iterator, run,
+  dataset, optimizer/model, callbacks and epoch/batch position. A compatibility
+  call to Start while paused also uses live Resume; repeated starts cannot
+  launch another worker. Preparing/restoring another model rejects a live
+  worker rather than replacing its mutable parameters. Configuration stays
+  locked while a live worker exists, including pause/cleanup; an ownership
+  completion event refreshes the dashboard when that lock can be released.
+- Callback registration completes before training starts. Batch metrics are
+  published in order through awaited MainActor updates. Validation checks the
+  same pause/stop gate per batch and publishes processed-batch counts; stopping
+  skips remaining validation/epoch callbacks. The dashboard reports the actual
+  training, validation, epoch-callback or checkpoint phase.
+- Lifecycle observers register once and are released with the manager.
+  Foreground events respect a deliberate user pause. Background saves wait up
+  to two seconds for a parked worker, then recheck its pause state synchronously
+  before reading weights. If the worker cannot park, the previous checkpoint
+  remains untouched. This is not a claim of fully durable background recovery.
+
+Current-run preservation:
+
+- Only read-only `devicectl` inventory/copy calls were made against the iPad.
+  No install, test, launch, termination or debugger attachment was performed.
+- Saved checkpoint files were copied to
+  `/tmp/slt-stalled-checkpoint-backup-20261021`. The weights file is 13,746,535
+  bytes; its safetensors header parses with 70 entries. SHA256:
+  `cbd5eb34c9ed3a81f0cc66a9d63c322d078183ef9b6bf93655417544efeebf3d`.
+  The copied metadata records epoch 8, valLoss 1.6671373, timestamp
+  `2026-10-21T02:44:21Z` (8:14 AM IST). Config and metadata were copied too.
+  Header parsing does not establish architecture/config compatibility, tensor
+  integrity, restored predictions or recoverability of later unsaved steps.
+- The source app remains the older installed build. A source change cannot
+  repair its already-launched workers in place. Deployment awaits an ended
+  session; the previously prepared local-file browser is pending with it.
+
+Verification:
+
+- **15 deterministic lifecycle tests passed on Simulator**, with no MLX model
+  initialization. They cover same-worker continuation, position preservation,
+  repeated actions, stop while paused, checkpoint-boundary acknowledgement and
+  timeout, worker release/notification, manager prepare/start guards, background
+  pause/foreground resume, manual pause retention and observer behavior with
+  notification delivery from a background thread.
+- **Final full Simulator suite: 658 tests, 652 passed, 1 failed, 5 skipped**
+  (exit 65). The sole failure is the already recorded network-dependent
+  `DownloadIntegrationTests.test_pauseSingleTask` (`Failed` vs `Paused`). The
+  previously flaky queue-advance test passed in the final run. The five existing
+  hardware-only skips are unchanged. No test was removed/disabled.
+  Final report: `/tmp/slt-training-resume-release-20261021.xcresult` / `.log`.
+  Initial focused report: `/tmp/slt-training-resume-targeted2-20261021.xcresult`.
+- **Final generic iOS Debug build passed** (exit 0), without deployment:
+  `/tmp/slt-training-resume-ready-device-20261021.log`. Xcode 27.1, target iOS
+  26.2 and Swift 5 are unchanged. Resolved MLX 0.30.6 and the local checkout
+  both remain at `6ba4827fb82c97d012eec9ab4b2de21f85c3b33d`. Existing compiler
+  actor-isolation/deprecation warnings remain; this is not a warning-free build.
+
+Limits: these tests do not run a real GPU optimizer or establish the exact
+runtime cause of the already-stalled session. Saved-configuration fidelity,
+force-cast checkpoint restoration, optimizer/random/split recovery, evaluation
+mode and callback SwiftData ownership remain open review findings. No new
+claim of model accuracy, exact restart or numerically identical recovery is
+made. Data-loader prefetch/cancellation is unchanged (R6); the new owner controls
+the training operation, not every producer task. Real-device pause/resume/stop
+acceptance remains pending.
+
 ## Local datasets and pipeline file browser — 2026-10-21
 
 Assigned scope: [local-files-browser](plans/local-files-browser.md). Added a

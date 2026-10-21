@@ -106,6 +106,13 @@ struct TrainingDashboardView: View {
                     SystemStatsView(monitor: systemMonitor)
                         .padding(.horizontal)
                 }
+                if trainingManager.state == .training || trainingManager.state == .paused || trainingManager.state == .completing {
+                    Text(trainingManager.activityDescription)
+                        .font(Typo.monoCaption)
+                        .foregroundStyle(Palette.textSecondary)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                        .padding(.horizontal, Spacing.xl)
+                }
 
                 // Tab selector
                 Picker("View", selection: $selectedTab) {
@@ -425,7 +432,7 @@ struct TrainingDashboardView: View {
     /// Live preview config derived from UI selection (before training starts)
     private var previewConfig: TrainingConfig {
         // If training, show actual config. If idle, show selection.
-        if trainingManager.state == .training {
+        if trainingManager.hasLiveWorker {
             return trainingManager.config
         }
         
@@ -732,7 +739,7 @@ struct TrainingDashboardView: View {
             .cornerRadius(12)
         }
         .padding(.horizontal)
-        .disabled(trainingManager.state == .training)
+        .disabled(trainingManager.hasLiveWorker)
     }
     
     // MARK: - Testing View
@@ -1050,6 +1057,7 @@ struct TrainingDashboardView: View {
     // MARK: - Actions
 
     private func startTraining() {
+        guard !trainingManager.hasLiveWorker else { return }
         // FIX: Respect existing useLegacyModel selection from UI Picker
         let useLegacy = trainingManager.config.useLegacyModel
         
@@ -1092,8 +1100,7 @@ struct TrainingDashboardView: View {
     }
 
     private func resumeTraining() {
-        let dummyPath = URL(fileURLWithPath: NSTemporaryDirectory())
-        trainingManager.startTraining(datasetPath: dummyPath, modelContext: modelContext)
+        trainingManager.resumeTraining()
     }
 }
 

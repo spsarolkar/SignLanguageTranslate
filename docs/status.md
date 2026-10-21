@@ -46,11 +46,20 @@ Verification:
 
 - Generic iOS device build passed after removing the temporary render helper;
   `/tmp/slt-diagram-device-build-20261021.log`. Signature verification passed.
+- Final incremental iOS build passed: `/tmp/slt-diagram-final-device-20261021.log`.
+  Implementation/tests committed as `9ead21f`. Installed in place, launched
+  successfully and confirmed the process running (PID 1753);
+  `/tmp/slt-diagram-{install,launch,process}-20261021.json`.
+- Read-only pre-install metadata confirms `Resume 11:48 AM CC0F47EB` is
+  Stopped. Checkpoints were backed up to
+  `/tmp/slt-diagram-checkpoints-backup-20261021`. All 11 original files match
+  their SHA256 fingerprints after installation/launch;
+  `/tmp/slt-diagram-preservation-20261021.json`. No user training was started.
 
-The user confirmed training is stopped, also verified against read-only device
-metadata for `Resume 11:48 AM CC0F47EB`. Installation/launch is pending; no user
-training has been started. The diagram is structural documentation, not a live
-tensor inspection or verification of saved checkpoint weight files.
+The diagram is structural documentation, not a live tensor inspection or a
+checkpoint-weight compatibility check. Layout was inspected using Simulator
+renders; on-device launch/process presence was verified without claiming a
+manual Model-tab walkthrough on the user's iPad.
 
 ## Automatic thermal pause/resume — 2026-10-21
 

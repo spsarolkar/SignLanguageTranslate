@@ -59,4 +59,8 @@ file, training math, checkpoint writes or unrelated view changes.
       failures, 12 skips (732 total, including a temporary render check).
       Inspected collapsed/expanded renders at 360/760 pt and removed the helper
       before delivery. Generic iOS build and signature verification passed.
-- [ ] Commit and document; install/launch when session status permits.
+- [x] Commit and document; install/launch when session status permits.
+      Implementation: `9ead21f`. The user confirmed training is stopped;
+      read-only metadata agrees. Final normal device build passed, installed
+      in place and launched (PID 1753). All 11 original checkpoint files match
+      their pre-install SHA256 fingerprints. No user training was started.

@@ -158,7 +158,7 @@ struct TrainingDashboardView: View {
         .navigationBarTitleDisplayMode(.inline)
         #endif
         .task {
-            // Repair any missing configs from previous runs
+            // Report missing metadata without inventing configurations for old weights.
             trainingManager.ensureConfigsAreSaved(modelContext: modelContext)
             
             // Only prepare if idle - don't reset an active training session
@@ -469,7 +469,7 @@ struct TrainingDashboardView: View {
                 VStack(alignment: .leading, spacing: 12) {
                     Text("Resume Past Session")
                         .font(.headline)
-                    Text("Select a previous run to restore its configuration and pick up where it left off.")
+                    Text("Continue from a saved epoch in a new run. Optimizer and metrics restart; the original run is kept.")
                         .font(.caption)
                         .foregroundStyle(.secondary)
                     
@@ -834,14 +834,14 @@ struct TrainingDashboardView: View {
         VStack(spacing: 12) {
             if trainingManager.state == .idle || trainingManager.state == .completed || trainingManager.state == .failed {
                 // Check for resumable session
-                if let summary = trainingManager.getResumableSummary() {
+                if selectedResumeRun == nil, let summary = trainingManager.getResumableSummary() {
                     // Show resume previous session option
                     VStack(spacing: 8) {
                         HStack {
                             Image(systemName: "arrow.counterclockwise.circle.fill")
                                 .foregroundStyle(.orange)
                             VStack(alignment: .leading, spacing: 2) {
-                                Text("Previous Session Available")
+                                Text("Interrupted Session Found")
                                     .font(.subheadline.bold())
                                 Text("\(summary.datasetName) - \(summary.progress)")
                                     .font(.caption)
@@ -854,10 +854,10 @@ struct TrainingDashboardView: View {
                         .cornerRadius(12)
 
                         HStack(spacing: 12) {
-                            Button(action: resumePreviousSession) {
+                            Button(action: chooseSavedRun) {
                                 HStack {
                                     Image(systemName: "play.circle.fill")
-                                    Text("Resume Previous")
+                                    Text("Choose Saved Run")
                                 }
                                 .font(.headline)
                                 .frame(maxWidth: .infinity)
@@ -895,13 +895,10 @@ struct TrainingDashboardView: View {
                             let runDir = trainingManager.getRunCheckpointDirectory(runName: runToResume.name)
                             let persistence = ModelPersistence(modelsDirectory: runDir)
                             
-                            var resolvedEpoch = 0
-                            if let best = try? await persistence.loadBestModel() {
-                                resolvedEpoch = best.2.epoch
-                            } else if let latest = try? await persistence.loadLatestCheckpoint() {
-                                resolvedEpoch = latest.2.epoch
-                            }
-                            
+                            let checkpoints = await persistence.listCheckpoints()
+                            let preferredURL = await persistence.preferredCheckpointURL()
+                            let resolvedEpoch = checkpoints.first { $0.url == preferredURL }?.epoch ?? 0
+
                             // If the checkpoint is already at or past the configured epochs, alert the user
                             if resolvedEpoch >= epochs {
                                 maxEpochsResumeRun = runToResume
@@ -1000,10 +997,8 @@ struct TrainingDashboardView: View {
         .padding(.horizontal)
     }
 
-    private func resumePreviousSession() {
-        Task {
-            await trainingManager.restoreAndResume(modelContext: modelContext)
-        }
+    private func chooseSavedRun() {
+        selectedTab = .config
     }
     
     // MARK: - History & Logs (Simplified for brevity)

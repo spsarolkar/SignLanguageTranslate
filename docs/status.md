@@ -1,5 +1,73 @@
 # Status
 
+## Checkpoint configuration compatibility and epoch-8 recovery — 2026-10-21
+
+The user approved extending [training-live-resume](plans/training-live-resume.md)
+to checkpoint compatibility. The original saved run's recorded training config
+was inspected from a read-only local metadata copy: width 256, four layers,
+six requested heads, dropout 0.1, contrastive loss, Transformer, 50 epochs.
+The historical initializer corrected that head count to four and used attention
+pooling with 384-value embedding output. This agrees with the preserved weights;
+its old `config.json` incorrectly specified mean pooling/classification.
+
+- `CheckpointCompatibility` derives the effective Transformer configuration
+  once, validates dimensions/class order, checks all parameter keys/shapes,
+  bounds safetensors headers and calculates streaming SHA256 fingerprints.
+  New specifications record family/version, actual instantiated model config
+  and classification class order. No placeholder model is allocated in Prepare.
+  The real label mapping precedes initialization/persistence. The former config
+  "self-healing" now only reports missing files, without inventing architecture.
+- `ModelPersistence` requires weights and complete metadata. Versioned weights
+  must match their digest and model specification. Legacy recovery requires
+  recorded architecture fields, reconstructs the historical initializer and
+  verifies every key/shape before applying arrays with MLX `verify: .all`.
+  No partial/random parameter initialization is accepted. Save rejects a config
+  that differs from the instantiated Transformer. Unsupported checkpoint model
+  families and missing classification class order fail explicitly.
+- Saved-run Resume selects metadata without preloading a second model, loads
+  through the verified path, exits Preparing correctly, then continues in a
+  distinct run/directory at the next epoch with a new optimizer/metrics. The
+  original run/files are preserved. The callback writes temporary weights,
+  replaces them and commits digest-bound metadata after a successful write.
+- The unsafe forced-cast raw snapshot restore was removed. Older background
+  snapshots lacking verified metadata are preserved and rejected explicitly.
+  The interrupted-session control opens Configuration to choose a saved run;
+  an explicitly selected run takes precedence over that old snapshot banner.
+
+Verification:
+
+- **Full Simulator: 684 tests, 674 passed, 2 failed, 8 skipped** (exit 65).
+  The same previously recorded network-dependent pause and queue-advance tests
+  fail; all compatibility/lifecycle regressions pass. Three new MLX device-only
+  skips join the five existing skips. No existing test was removed/disabled.
+  `/tmp/slt-checkpoint-compatibility-full-20261021.xcresult` / `.log`.
+- **Physical iPad: 14 passed, zero failures/skips.** Thirteen permanent tests
+  include embedding/classification output and full parameter equality after
+  save/reload, legacy recovery, wrong-config rejection, repeated callback
+  overwrite and checksum mismatch rejection. One temporary read-only actual-run
+  helper strictly loaded all 70 parameters of the user's preserved epoch-8
+  checkpoint, verified finite 384-value output and numerical save/reload
+  agreement within 1e-6. Original config/weights/metadata fingerprints were
+  unchanged. `/tmp/slt-checkpoint-compatibility-device2-20261021.xcresult` / `.log`.
+  Initial device attempt failed to compile only the temporary helper (missing
+  MLXNN import), corrected before this successful run. Helper source is retained
+  at `/tmp/slt-checkpoint-recovery-device-check-20261021.swift` and removed from
+  the repository/test target.
+- Generic iOS Debug build passed before the temporary device helper was added:
+  `/tmp/slt-checkpoint-compatibility-device-build-20261021.log`. Final build and
+  normal app deployment after helper removal are pending. MLX 0.30.6 checkout
+  matches lockfile revision `6ba4827fb82c97d012eec9ab4b2de21f85c3b33d`; the
+  throwing verified update API was checked directly in that source. No package,
+  Swift language mode, deployment target or project-file changes were made.
+
+Limits: the actual checkpoint test proves strict loading and reproducible
+evaluation output from preserved weights, not model accuracy or a resumed
+optimizer step. Optimizer/RNG/scheduler/callback state is reset, and old
+background snapshots do not provide exact mid-epoch recovery. Existing
+training/inference preprocessing and evaluation-mode findings remain separate.
+No user training was started. The user confirmed Preparing had never progressed
+to training before the isolated physical checks replaced the preparing app.
+
 ## Saved-run resume stays Preparing — 2026-10-21
 
 Assigned follow-up: [training-live-resume](plans/training-live-resume.md).
@@ -33,8 +101,8 @@ The loader currently applies arrays without strict key/shape validation.
 Fixing the state guard alone does not establish a faithful restored model.
 The current plan excludes configuration fidelity, so extending the repair to
 effective configuration, checkpoint validation and explicit legacy recovery
-is awaiting user scope approval. The running iPad app has not been terminated,
-updated, tested or attached to a debugger during this investigation. The
+was subsequently approved and implemented above. Before that approval the
+running iPad app was not terminated, updated, tested or attached to a debugger. The
 original checkpoint/backup remain untouched; no resumed GPU training is claimed.
 
 ## Local files rejects Documents on iPad — 2026-10-21

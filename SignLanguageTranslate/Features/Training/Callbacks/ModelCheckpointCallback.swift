@@ -32,7 +32,7 @@ public final class ModelCheckpointCallback: TrainingCallback, @unchecked Sendabl
     public let saveFreq: Int
     
     /// Callback when a checkpoint is saved (for cloud sync).
-    public var onCheckpointSaved: ((URL, Int, Float) async -> Void)?
+    public var onCheckpointSaved: ((URL, Int, Float) async throws -> Void)?
     
     // MARK: - State
     
@@ -109,21 +109,25 @@ public final class ModelCheckpointCallback: TrainingCallback, @unchecked Sendabl
             print("[ModelCheckpoint] Epoch \(epoch): Saving checkpoint with \(monitor)=\(value) to \(checkpointURL.lastPathComponent)")
             
             // Create a metadata file as placeholder
+            // Commit metadata only after a successful weights write. The digest
+            // detects an interrupted overwrite paired with older metadata.
+            guard let onCheckpointSaved else { throw ModelPersistence.PersistenceError.saveFailed("No weights writer registered") }
+            try await onCheckpointSaved(checkpointURL, epoch, value)
+            let specificationData = try Data(contentsOf: checkpointDirectory.appendingPathComponent("model-specification.json"))
             let metadata: [String: Any] = [
                 "epoch": epoch,
                 "monitor": monitor,
                 "value": value,
-                "timestamp": ISO8601DateFormatter().string(from: Date())
+                "timestamp": ISO8601DateFormatter().string(from: Date()),
+                "weightsSHA256": try CheckpointCompatibility.fingerprint(checkpointURL),
+                "specification": try JSONSerialization.jsonObject(with: specificationData)
             ]
             
             let metadataURL = checkpointDirectory.appendingPathComponent(
                 saveBestOnly ? "best_metadata.json" : "epoch_\(epoch)_metadata.json"
             )
             let metadataData = try JSONSerialization.data(withJSONObject: metadata, options: .prettyPrinted)
-            try metadataData.write(to: metadataURL)
-            
-            // Notify listener (for cloud sync)
-            await onCheckpointSaved?(checkpointURL, epoch, value)
+            try metadataData.write(to: metadataURL, options: .atomic)
             
         } catch {
             print("[ModelCheckpoint] Error saving checkpoint: \(error)")
@@ -134,17 +138,20 @@ public final class ModelCheckpointCallback: TrainingCallback, @unchecked Sendabl
     
     /// Save model weights to the checkpoint directory.
     /// Call this from TrainingSessionManager when you have access to the model.
-    public func saveModelWeights(_ parameters: NestedDictionary<String, MLXArray>, epoch: Int) {
+    public func saveModelWeights(_ parameters: NestedDictionary<String, MLXArray>, epoch: Int) throws {
         let filename = saveBestOnly ? "best.safetensors" : "epoch_\(epoch).safetensors"
         let checkpointURL = checkpointDirectory.appendingPathComponent(filename)
         
-        do {
-            let arrays = Dictionary(uniqueKeysWithValues: parameters.flattened())
-            try save(arrays: arrays, url: checkpointURL)
-            print("[ModelCheckpoint] Saved weights to \(checkpointURL.lastPathComponent)")
-        } catch {
-            print("[ModelCheckpoint] Error saving weights: \(error)")
+        let temporary = checkpointDirectory.appendingPathComponent(".weights-\(UUID()).safetensors")
+        defer { try? FileManager.default.removeItem(at: temporary) }
+        let arrays = Dictionary(uniqueKeysWithValues: parameters.flattened())
+        try save(arrays: arrays, url: temporary)
+        if FileManager.default.fileExists(atPath: checkpointURL.path) {
+            _ = try FileManager.default.replaceItemAt(checkpointURL, withItemAt: temporary)
+        } else {
+            try FileManager.default.moveItem(at: temporary, to: checkpointURL)
         }
+        print("[ModelCheckpoint] Saved weights to \(checkpointURL.lastPathComponent)")
     }
     
     /// Get the best checkpoint URL.

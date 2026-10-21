@@ -70,6 +70,7 @@ public class TrainingSessionManager: ObservableObject {
     // MARK: - Internal Components
     private var model: (any SignLanguageModelProtocol)?
     private var modelWrapper: SignLanguageModuleWrapper?
+    private var checkpointSpecification: CheckpointModelSpecification?
     private var optimizer: Adam?
     private var pipeline: TrainingDataPipeline?
     private var cancellables = Set<AnyCancellable>()
@@ -123,15 +124,20 @@ public class TrainingSessionManager: ObservableObject {
         self.state = .preparing
         log("Preparing training session...")
         
-        // Use consolidated initialization logic
-        // Placeholder numClasses (will be updated in startTraining)
-        initializeModel(numClasses: 100)
-        
+        // Allocate only after the real label mapping is available in startTraining.
+        model = nil
+        modelWrapper = nil
+        optimizer = nil
+        checkpointSpecification = nil
+        currentRun = nil
+        currentEpoch = 0
+        currentBatch = 0
+        metrics = []
         // Callbacks will be setup in startTraining once run name is known
         self.state = .idle
     }
     
-    private func initializeModel(numClasses: Int) {
+    private func initializeModel(numClasses: Int, classNames: [String]) throws {
         log("Initializing model (Classes: \(numClasses), Loss: \(config.lossFunction.rawValue))...")
         
         // Force free existing MLX graphs/parameters before allocating new massive models
@@ -139,56 +145,19 @@ public class TrainingSessionManager: ObservableObject {
         self.modelWrapper = nil
         self.optimizer = nil
         
-        // Output dimension for embeddings (fixed)
-        let outputDim = 384
-        
-        // Validate numHeads
-        var numHeads = config.numHeads ?? 4
-        let modelDim = config.hiddenDim
-        
-        // Auto-correct numHeads if not divisible
-        if modelDim % numHeads != 0 {
-             let preferredHeads = [4, 6, 8, 2, 1]
-             for heads in preferredHeads {
-                 if modelDim % heads == 0 {
-                     numHeads = heads
-                     break
-                 }
-             }
-        }
-        
         let model: any SignLanguageModelProtocol
-        
         if config.useLegacyModel {
-             log("Initializing Legacy LSTM Model")
-             model = LegacySignLanguageModel(
-                 inputDim: 180,
-                 numClasses: outputDim,
-                 hiddenDim: config.hiddenDim
-             )
+            guard config.lossFunction != .crossEntropy else {
+                throw CheckpointCompatibility.Error.incompatible("BiLSTM classification checkpoints are unsupported; use Transformer classification.")
+            }
+            model = LegacySignLanguageModel(inputDim: 180, numClasses: 384, hiddenDim: config.hiddenDim)
+            checkpointSpecification = CheckpointModelSpecification(config: nil, classNames: [], family: "bilstm")
         } else {
-             let outputMode: SignLanguageModelConfig.OutputMode = (config.lossFunction == .crossEntropy) ? .classification : .embedding
-             
-             log("Initializing Transformer (Mode: \(outputMode), Dim: \(modelDim), Heads: \(numHeads))")
-             
-             let modelConfig = SignLanguageModelConfig(
-                 inputDim: 180,
-                 modelDim: modelDim,
-                 outputDim: outputDim,
-                 numClasses: numClasses,
-                 numLayers: config.numLayers,
-                 numHeads: numHeads,
-                 dropout: config.dropout,
-                 useLayerScale: true,
-                 layerScaleInit: 1e-4,
-                 poolingType: .attention,
-                 useRelativePositionBias: true,
-                 outputMode: outputMode
-             )
-             
-             model = SignLanguageModel(config: modelConfig)
+            let effective = try CheckpointCompatibility.effectiveConfig(training: config, numClasses: numClasses)
+            model = SignLanguageModel(config: effective)
+            checkpointSpecification = CheckpointModelSpecification(config: effective,
+                classNames: effective.outputMode == .classification ? classNames : [])
         }
-        
         self.model = model
         self.modelWrapper = SignLanguageModuleWrapper(model: model)
         self.optimizer = Adam(learningRate: config.learningRate)
@@ -238,7 +207,7 @@ public class TrainingSessionManager: ObservableObject {
             self.log("Saving epoch \(epoch) checkpoint...")
             print("[TrainingSessionManager] Saving weights for epoch \(epoch)")
             // Use the callback's helper to save weights structure
-            checkpoint.saveModelWeights(wrapper.trainableParameters(), epoch: epoch)
+            try checkpoint.saveModelWeights(wrapper.parameters(), epoch: epoch)
             self.setWorkPhase(.epochCallbacks)
             self.log("Epoch checkpoint callback finished.")
             // Sync status
@@ -362,9 +331,6 @@ public class TrainingSessionManager: ObservableObject {
         // Setup background observers
         installBackgroundObservers()
         
-        // Repair any missing configs
-        ensureConfigsAreSaved(modelContext: modelContext)
-
         // Create new Run if starting fresh
         if self.currentRun == nil {
             let runName = config.useLegacyModel ? "Legacy Run \(Date().formatted(date: .omitted, time: .shortened))" : "Transformer Run \(Date().formatted(date: .omitted, time: .shortened))"
@@ -380,34 +346,6 @@ public class TrainingSessionManager: ObservableObject {
             try? modelContext.save()
             log("Created Training Run: \(runName)")
             
-            // Save config.json to run directory immediately
-            let runDir = getRunCheckpointDirectory(runName: runName)
-            do {
-                try FileManager.default.createDirectory(at: runDir, withIntermediateDirectories: true)
-                
-                // MAP TrainingConfig -> SignLanguageModelConfig for ModelPersistence
-                let modelConfig = SignLanguageModelConfig(
-                    inputDim: 180,
-                    modelDim: config.hiddenDim,
-                    outputDim: 384, // Must match InferenceEngine's text embedding size
-                    numClasses: 100, // Placeholder
-                    numLayers: config.numLayers,
-                    numHeads: config.numHeads ?? 4,
-                    dropout: config.dropout,
-                    useLayerScale: true,
-                    layerScaleInit: 1e-4,
-                    poolingType: .mean,
-                    useRelativePositionBias: false,
-                    outputMode: .classification // Default, will be updated
-                )
-                
-                let configData = try JSONEncoder().encode(modelConfig)
-                let configURL = runDir.appendingPathComponent("config.json")
-                try configData.write(to: configURL)
-                log("Saved config.json (ModelConfig) to \(runDir.lastPathComponent)")
-            } catch {
-                log("Failed to save config.json: \(error)")
-            }
         } else {
             // Resuming
             self.currentRun?.status = "Resumed"
@@ -434,53 +372,19 @@ public class TrainingSessionManager: ObservableObject {
             
             // 2. Class Label Mapping (for Classification)
             var labelMap: [String: Int] = [:]
-            var classNames: [String] = []
-            
+            let classNames = Set(allSamples.compactMap { $0.wordName }.filter { !$0.isEmpty }).sorted()
             if config.lossFunction == .crossEntropy {
-                let uniqueLabels = Set(allSamples.compactMap { $0.wordName }.filter { !$0.isEmpty })
-                classNames = uniqueLabels.sorted()
-                for (index, name) in classNames.enumerated() {
-                    labelMap[name] = index
-                }
-                
+                labelMap = Dictionary(uniqueKeysWithValues: classNames.enumerated().map { ($0.element, $0.offset) })
                 log("Identified \(classNames.count) classes for classification.")
-                
-                // Re-initialize model if starting fresh (New run has status "Running")
-                if self.currentRun?.status == "Running" || self.currentRun?.status == "Created" {
-                    let numClasses = classNames.count
-                    initializeModel(numClasses: numClasses)
-                    
-                    // Update config.json with correct numClasses
-                    if let run = self.currentRun {
-                        let runDir = getRunCheckpointDirectory(runName: run.name)
-                        let configURL = runDir.appendingPathComponent("config.json")
-                        // We can't easily reconstruct the full config struct here without duplicating logic, 
-                        // but we can try to read, modify, and write.
-                        // Or better, just rely on the fact we initialized the model correctly in memory.
-                        // But for persistence, we should update it.
-                        // Let's create a fresh config mirroring the current one but with correct numClasses
-                        var modelConfig = SignLanguageModelConfig(
-                            inputDim: 180,
-                            modelDim: config.hiddenDim,
-                            outputDim: 384,
-                            numClasses: numClasses,
-                            numLayers: config.numLayers,
-                            numHeads: config.numHeads ?? 4,
-                            dropout: config.dropout,
-                            useLayerScale: true,
-                            layerScaleInit: 1e-4,
-                            poolingType: .mean,
-                            useRelativePositionBias: false,
-                            outputMode: .classification
-                        )
-                        
-                        if let data = try? JSONEncoder().encode(modelConfig) {
-                            try? data.write(to: configURL)
-                            log("Updated config.json with numClasses: \(numClasses)")
-                        }
-                    }
-                }
             }
+            if checkpointSpecification == nil {
+                try initializeModel(numClasses: classNames.count, classNames: classNames)
+            } else if let specification = checkpointSpecification,
+                      specification.config?.outputMode == .classification,
+                      specification.classNames != classNames {
+                throw CheckpointCompatibility.Error.incompatible("This dataset's class order differs from the saved classifier. Resume with its original dataset.")
+            }
+            if let run = currentRun { try persistEffectiveSpecification(for: run) }
 
             // Convert to lightweight struct
             let trainingSamples: [TrainingDataPipeline.SampleInfo] = allSamples.compactMap { sample -> TrainingDataPipeline.SampleInfo? in
@@ -1320,71 +1224,11 @@ public class TrainingSessionManager: ObservableObject {
 
         log("Restoring training session: \(persistedState.runName)")
 
-        // Restore configuration
-        self.config = persistedState.config
-        self.currentDatasetName = persistedState.datasetName
-        self.currentEpoch = persistedState.currentEpoch
-        self.currentBatch = persistedState.currentBatch
-        self.lastLoss = persistedState.lastTrainingLoss
-
-        // Find the existing TrainingRun in SwiftData
-        let runId = persistedState.runId
-        let descriptor = FetchDescriptor<TrainingRun>(
-            predicate: #Predicate<TrainingRun> { $0.id == runId }
-        )
-
-        do {
-            if let existingRun = try modelContext.fetch(descriptor).first {
-                self.currentRun = existingRun
-                self.metrics = existingRun.metrics
-                existingRun.status = "Resuming"
-                try modelContext.save()
-                log("Found existing run in database")
-            } else {
-                log("Warning: Could not find run \(runId) in database")
-            }
-        } catch {
-            log("Error fetching run: \(error)")
-        }
-
-        // Prepare model and load checkpoint weights
-        await prepare()
-        await loadResumeCheckpoint()
-
-        // Start training from where we left off
-        self.modelContext = modelContext
-        startTraining(
-            datasetPath: FileManager.default.documentsDirectory, // Not used directly
-            modelContext: modelContext,
-            targetDatasetName: persistedState.datasetName
-        )
-    }
-
-    /// Load model weights from checkpoint
-    private func loadResumeCheckpoint() async {
-        guard let wrapper = self.modelWrapper else {
-            log("No model wrapper to load checkpoint into")
-            return
-        }
-
-        let url = checkpointsDirectory.appendingPathComponent("resume.safetensors")
-        guard FileManager.default.fileExists(atPath: url.path) else {
-            log("No checkpoint file found at \(url.path)")
-            return
-        }
-
-        do {
-            // Load arrays using MLX's safetensors loader
-            let arrays = try MLX.loadArrays(url: url)
-            log("Loaded \(arrays.count) parameters from checkpoint")
-
-            // Update wrapper with loaded parameters
-            // Note: The parameter keys must match the model structure
-            wrapper.update(parameters: ModuleParameters(values: arrays as! [String: NestedItem<String, MLXArray>]))
-            log("Applied checkpoint weights to model")
-        } catch {
-            log("Failed to load checkpoint: \(error)")
-        }
+        // Old raw snapshots have neither a verified model specification nor an
+        // atomic metadata/weight pair. Do not force-cast or silently guess a head.
+        state = .failed
+        workPhase = .failed
+        log("This interrupted-session snapshot cannot be verified. Select its saved run under Configuration → Run to Resume to recover a validated epoch checkpoint. Saved files were preserved.")
     }
 
     // MARK: - Manual Resume (From Dashboard)
@@ -1427,62 +1271,35 @@ public class TrainingSessionManager: ObservableObject {
     
     /// Resumes an arbitrary previous training run from its last checkpoint
     public func resumeFromRun(_ run: TrainingRun, modelContext: ModelContext, targetDatasetName: String?) async throws {
-        try await prepareCheckpointResume(load: { () async throws -> (any SignLanguageModelProtocol, SignLanguageModelConfig, ModelPersistence.ModelCheckpoint) in
+        guard let originalConfig = run.config else {
+            throw ModelPersistence.PersistenceError.loadFailed("The original training-run configuration is missing.")
+        }
+        try await prepareCheckpointResume(load: {
             self.log("Manual resume from run: \(run.name)")
-            let runDir = self.getRunCheckpointDirectory(runName: run.name)
-            let persistence = ModelPersistence(modelsDirectory: runDir)
-            if let best = try? await persistence.loadBestModel() {
-                return (best.0, best.1, best.2)
+            let persistence = ModelPersistence(modelsDirectory: self.getRunCheckpointDirectory(runName: run.name))
+            guard let url = await persistence.preferredCheckpointURL() else {
+                throw ModelPersistence.PersistenceError.loadFailed("No checkpoint found for \(run.name)")
             }
-            if let latest = try? await persistence.loadLatestCheckpoint() {
-                return (latest.0, latest.1, latest.2)
-            }
-            throw ModelPersistence.PersistenceError.loadFailed("No valid checkpoint found in \(runDir.lastPathComponent)")
+            return try await persistence.loadModel(from: url, legacyTrainingConfig: run.configData)
         }, start: { loadedModel, loadedConfig, checkpoint in
-            // 2. Restore state
             self.model = loadedModel
             self.modelWrapper = SignLanguageModuleWrapper(model: loadedModel)
-        
-            if let runConfig = run.config {
-                self.config = runConfig
-            } else {
-                // Reconstruct config from the saved config.json
-                self.config = TrainingConfig(
-                    batchSize: 8, // Sensible defaults if missing
-                    learningRate: 1e-4,
-                    epochs: 50,
-                    validationInterval: 10,
-                    device: "gpu",
-                    useLegacyModel: false,
-                    augmentData: false,
-                    validationSplitRatio: 0.2,
-                    patience: 10,
-                    patienceLR: 5,
-                    numLayers: loadedConfig.numLayers,
-                    hiddenDim: loadedConfig.modelDim,
-                    numHeads: loadedConfig.numHeads,
-                    dropout: loadedConfig.dropout,
-                    lossFunction: loadedConfig.outputMode == .classification ? .crossEntropy : .contrastive,
-                    contrastiveTemperature: 0.07,
-                    enableTemporalAugmentation: false
-                )
-            }
-        
-            self.optimizer = Adam(learningRate: self.config.learningRate)
-        
-            self.currentRun = run
+            self.checkpointSpecification = checkpoint.specification
+            self.config = originalConfig
+            self.optimizer = Adam(learningRate: originalConfig.learningRate)
             self.currentEpoch = checkpoint.epoch
-            self.metrics = run.metrics // Restore metrics array
-            self.lastLoss = checkpoint.loss ?? 0.0
-        
-            run.status = "Resuming from Epoch \(checkpoint.epoch)"
-            try? modelContext.save()
-        
-            self.log("Model initialized from checkpoint at Epoch \(checkpoint.epoch)")
-            self.log("Starting from saved weights at the next epoch with a new optimizer; optimizer state was not restored.")
-        
-            // 3. Start training without wiping models
+            self.currentBatch = 0
+            self.metrics = [] // New optimizer/run: do not mix later unsaved metrics with epoch-8 weights.
+            self.lastLoss = checkpoint.loss ?? 0
+            let recoveredRun = TrainingRun(
+                name: "Resume \(Date().formatted(date: .omitted, time: .shortened)) \(UUID().uuidString.prefix(8))",
+                config: originalConfig, status: "Resuming")
+            self.currentRun = recoveredRun
+            modelContext.insert(recoveredRun)
             self.modelContext = modelContext
+            self.log("Verified checkpoint at epoch \(checkpoint.epoch); \(loadedConfig.poolingType.rawValue) pooling, \(loadedConfig.numHeads) heads, \(loadedConfig.outputMode.rawValue) output.")
+            self.log("Source run preserved: \(run.name). Continuing in \(recoveredRun.name).")
+            self.log("Starting at the next epoch with a new optimizer and new metrics; optimizer state was not restored.")
             self.startTraining(datasetPath: FileManager.default.documentsDirectory, modelContext: modelContext, targetDatasetName: targetDatasetName)
         })
     }
@@ -1533,51 +1350,26 @@ public class TrainingSessionManager: ObservableObject {
     
     // MARK: - Self-Healing
     
-    /// Checks all training runs and ensures config.json exists in their directory
+    /// Audit missing metadata; never manufacture an architecture for old weights.
     public func ensureConfigsAreSaved(modelContext: ModelContext) {
-        do {
-            let runs = try modelContext.fetch(FetchDescriptor<TrainingRun>())
-            for run in runs {
-                let runDir = getRunCheckpointDirectory(runName: run.name)
-                let configURL = runDir.appendingPathComponent("config.json")
-                
-                // Check if config exists and is valid
-                var needsRepair = true
-                if FileManager.default.fileExists(atPath: configURL.path),
-                   let data = try? Data(contentsOf: configURL),
-                   let _ = try? JSONDecoder().decode(SignLanguageModelConfig.self, from: data) {
-                    needsRepair = false
-                }
-                
-                if needsRepair {
-                    if let trainingConfig = run.config {
-                        try? FileManager.default.createDirectory(at: runDir, withIntermediateDirectories: true)
-                        
-                        // Map TrainingConfig -> SignLanguageModelConfig
-                        // We must reconstruct the model config that matches what `prepare()` uses.
-                        let modelConfig = SignLanguageModelConfig(
-                            inputDim: 180,
-                            modelDim: trainingConfig.hiddenDim,
-                            outputDim: 384, // Must match InferenceEngine's text embedding size
-                            numClasses: 100, // Legacy fallback
-                            numLayers: trainingConfig.numLayers,
-                            numHeads: trainingConfig.numHeads ?? 4,
-                            dropout: trainingConfig.dropout,
-                            useLayerScale: true,
-                            layerScaleInit: 1e-4,
-                            poolingType: .mean, // Convenience init defaults to .mean
-                            useRelativePositionBias: false,
-                            outputMode: .classification
-                        )
-                        
-                        let data = try? JSONEncoder().encode(modelConfig)
-                        try? data?.write(to: configURL)
-                        print("[TrainingSessionManager] Self-healed config for run: \(run.name)")
-                    }
-                }
-            }
-        } catch {
-            print("[TrainingSessionManager] Failed to self-heal configs: \(error)")
+        guard let runs = try? modelContext.fetch(FetchDescriptor<TrainingRun>()) else { return }
+        let missing = runs.filter {
+            !FileManager.default.fileExists(atPath: getRunCheckpointDirectory(runName: $0.name).appendingPathComponent("config.json").path)
+        }
+        if !missing.isEmpty { log("\(missing.count) saved runs lack model configuration; verified recovery is required.") }
+    }
+
+    private func persistEffectiveSpecification(for run: TrainingRun) throws {
+        guard let specification = checkpointSpecification else { throw ModelPersistence.PersistenceError.configMismatch }
+        let folder = getRunCheckpointDirectory(runName: run.name)
+        try FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
+        let encoder = JSONEncoder()
+        try encoder.encode(specification).write(to: folder.appendingPathComponent("model-specification.json"), options: .atomic)
+        if let effective = specification.config {
+            try encoder.encode(effective).write(to: folder.appendingPathComponent("config.json"), options: .atomic)
+        }
+        if specification.config?.outputMode == .classification {
+            try encoder.encode(specification.classNames).write(to: folder.appendingPathComponent("classes.json"), options: .atomic)
         }
     }
 }

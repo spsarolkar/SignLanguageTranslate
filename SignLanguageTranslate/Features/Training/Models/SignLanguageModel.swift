@@ -3,7 +3,7 @@ import MLX
 import MLXNN
 
 /// Model configuration for sign language recognition
-public struct SignLanguageModelConfig: Codable, Sendable {
+public struct SignLanguageModelConfig: Codable, Sendable, Equatable {
     public var inputDim: Int
     public var modelDim: Int
     public var outputDim: Int       // Embedding dimension (used in embedding mode)

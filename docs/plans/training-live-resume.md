@@ -108,7 +108,7 @@ correction is ready and replacement is authorized.
       Deployment remains held for the confirmed configuration mismatch below.
 - [ ] Deploy only after current-session status/authorization allows replacement.
 
-### Proposed extension: checkpoint/configuration compatibility (approval pending)
+### Approved extension: checkpoint/configuration compatibility
 
 Read-only inspection of the backed-up epoch-8 run confirms its config declares
 mean pooling and classification with 100 classes; its safetensors header has
@@ -116,7 +116,8 @@ attention-pooling parameters and an output projection of shape [384, 256].
 `ModelPersistence` currently loads without validating all parameter keys/shapes.
 The state fix alone must not be deployed as a claim of reliable restoration.
 
-Proposed additional scope: derive/persist one effective Transformer specification
+The user approved "Include checkpoint compatibility repair" on 2026-10-21.
+Additional scope: derive/persist one effective Transformer specification
 for training and reject incomplete/incompatible checkpoints before applying
 weights. Recover this legacy saved run only when its actual architecture can
 be established from the original run configuration, initializer and weight
@@ -125,4 +126,30 @@ Verify matching output before/after save/reload on a physical device with an
 isolated small fixture. Do not restore optimizer/RNG state or claim exact
 mid-epoch continuation. Additional files would include ModelPersistence,
 effective model configuration and dedicated checkpoint regression tests.
-This extends the configuration/checkpoint exclusion above and awaits the user.
+This supersedes the configuration/checkpoint exclusion above for this repair.
+
+Files: new `Features/Training/Logic/CheckpointCompatibility.swift`, existing
+`TrainingSessionManager.swift`, `ModelPersistence.swift`, model config equality
+in `Models/SignLanguageModel.swift`, checkpoint callback save validation,
+`TrainingDashboardView.swift`, new `SignLanguageTranslateTests/Training/CheckpointCompatibilityTests.swift`,
+and this plan/status. Stop automatic invented-config repair. Persist actual
+model specifications and class order. Recover legacy Transformer runs only
+with recorded architecture fields and exact key/shape agreement; reject
+unsupported model families. Continue in a distinct run directory and preserve
+the source. Legacy raw background snapshots without verified metadata fail
+clearly rather than using the unsafe forced cast. Exact optimizer/background
+recovery and numerical-training changes remain excluded.
+
+- [x] Implement effective specification, strict load/save checks and legacy recovery.
+- [x] Wire preserved-source saved-run continuation and clear preparation errors.
+- [x] Add pure compatibility and isolated physical GPU round-trip regressions.
+      All 13 permanent compatibility tests and the temporary actual-source
+      acceptance check passed on the physical iPad (14 total, zero failures).
+      The latter verified the preserved epoch-8 file through strict loading,
+      finite 384-value forward output and save/reload agreement within 1e-6.
+      The three original source-file fingerprints were unchanged. Helper source
+      is retained in `/tmp/slt-checkpoint-recovery-device-check-20261021.swift`
+      and removed from the test target. Full Simulator: 674 passed, 2 known
+      download failures, 8 skips (684 total, three new GPU-only skips).
+- [ ] Build/test, verify the actual saved run read-only when device status allows,
+      document limits, commit and deploy the correction.

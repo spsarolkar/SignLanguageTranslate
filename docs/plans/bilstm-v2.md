@@ -72,7 +72,7 @@ use the existing disposable external-drive cache.
 - [x] When the active run is safely stopped, back up checkpoints and run isolated
       device learnability/gradient/restore checks without starting user training.
 - [x] Commit, install and report measured results plus a new-run protocol.
-- [ ] Confirm the normal post-install launch after the iPad is unlocked.
+- [x] Confirm the normal post-install launch after the iPad is unlocked.
 
 The legacy run cannot continue with the v2 architecture; it is retained as the
 baseline. Synthetic learnability tests establish functionality, not INCLUDE

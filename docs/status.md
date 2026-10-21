@@ -77,9 +77,11 @@ Verification so far:
   Dataset/feature/label counts and all four user runs' config/metrics/status
   also match the pre-test snapshot,
   `/tmp/slt-bilstm-metadata-preservation-20261021.json`. No user training started.
-- The normal post-install launch was denied because the iPad had locked
-  (`FBSOpenApplicationErrorDomain: Locked`). Installation and GPU checks passed;
-  final normal-launch confirmation is waiting for the user to unlock it.
+- The first normal post-install launch was denied because the iPad had locked
+  (`FBSOpenApplicationErrorDomain: Locked`). After the user unlocked it, launch
+  succeeded and the app process was confirmed running (PID 1937),
+  `/tmp/slt-bilstm-launch-retry-20261021.json` and
+  `/tmp/slt-bilstm-process-20261021.json`. No user training was started.
 - Simulator installation initially failed for insufficient Mac storage.
   Removed only discarded Simulator containers from its `Caches/.../Dead`
   directory; source, live app data and checkpoint backups were retained.

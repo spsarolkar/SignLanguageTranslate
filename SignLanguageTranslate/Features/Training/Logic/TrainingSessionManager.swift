@@ -49,6 +49,18 @@ public class TrainingSessionManager: ObservableObject {
     @Published public var lrChangeEvents: [LRChangeEvent] = []
     /// Current learning rate (updated by callbacks)
     @Published public var currentLearningRate: Float = 0
+    @Published public private(set) var workPhase: TrainingWorkPhase = .idle
+    @Published public private(set) var validationBatchesCompleted = 0
+    private var phaseBeforePause: TrainingWorkPhase = .training
+
+    public var activityDescription: String {
+        if workPhase == .validating {
+            return "Validating · \(validationBatchesCompleted) batches processed"
+        }
+        return workPhase.rawValue
+    }
+
+    public var hasLiveWorker: Bool { workerLifecycle.hasWorker }
 
     // MARK: - Configuration
     public var config: TrainingConfig
@@ -59,8 +71,12 @@ public class TrainingSessionManager: ObservableObject {
     private var optimizer: Adam?
     private var pipeline: TrainingDataPipeline?
     private var cancellables = Set<AnyCancellable>()
-    private var isPaused: Bool = false
-    private var shouldStop: Bool = false
+    private let workerLifecycle: TrainingWorkerLifecycle
+    private let notificationCenter: NotificationCenter
+    private var backgroundObserversInstalled = false
+    private var resumeWhenForegrounded = false
+    private var isPaused: Bool { workerLifecycle.isPaused }
+    private var shouldStop: Bool { workerLifecycle.isStopping }
 
     // MARK: - Current Run Context (for resume)
     private var currentDatasetName: String?
@@ -81,16 +97,27 @@ public class TrainingSessionManager: ObservableObject {
     /// Private initializer to enforce singleton pattern
     private init() {
         self.config = .default
+        self.workerLifecycle = TrainingWorkerLifecycle()
+        self.notificationCenter = .default
     }
 
     /// For testing purposes only
-    internal init(config: TrainingConfig) {
+    internal init(config: TrainingConfig, workerLifecycle: TrainingWorkerLifecycle? = nil,
+                  notificationCenter: NotificationCenter = .default) {
         self.config = config
+        self.workerLifecycle = workerLifecycle ?? TrainingWorkerLifecycle()
+        self.notificationCenter = notificationCenter
     }
+
+    nonisolated deinit {}
     
     // MARK: - Setup
     
     public func prepare() async {
+        guard !workerLifecycle.hasWorker else {
+            log("A live training worker already exists; preparation skipped.")
+            return
+        }
         self.state = .preparing
         log("Preparing training session...")
         
@@ -205,9 +232,13 @@ public class TrainingSessionManager: ObservableObject {
         // IMPORTANT: Wire up the actual weight saving
         checkpoint.onCheckpointSaved = { [weak self] url, epoch, val in
             guard let self = self, let wrapper = self.modelWrapper else { return }
+            self.setWorkPhase(.checkpointing)
+            self.log("Saving epoch \(epoch) checkpoint...")
             print("[TrainingSessionManager] Saving weights for epoch \(epoch)")
             // Use the callback's helper to save weights structure
             checkpoint.saveModelWeights(wrapper.trainableParameters(), epoch: epoch)
+            self.setWorkPhase(.epochCallbacks)
+            self.log("Epoch checkpoint callback finished.")
             // Sync status
             self.currentRun?.status = "Training (Best: \(String(format: "%.4f", val)))"
             try? self.modelContext?.save()
@@ -301,19 +332,26 @@ public class TrainingSessionManager: ObservableObject {
     }
 
     public func startTraining(datasetPath: URL, modelContext: ModelContext, targetDatasetName: String? = nil) {
-        guard state == .idle || state == .paused else { return }
+        if state == .paused {
+            resumeTraining()
+            return
+        }
+        guard !workerLifecycle.hasWorker else {
+            log("A training worker already exists; duplicate start ignored.")
+            return
+        }
+        guard state == .idle else { return }
 
         self.modelContext = modelContext
         self.currentDatasetName = targetDatasetName ?? "All" // Store for state persistence
-        self.shouldStop = false
-        self.isPaused = false
         self.state = .training
+        self.workPhase = .preparing
 
         // Prevent screen sleep
         UIApplication.shared.isIdleTimerDisabled = true
 
         // Setup background observers
-        setupBackgroundObservers()
+        installBackgroundObservers()
         
         // Repair any missing configs
         ensureConfigsAreSaved(modelContext: modelContext)
@@ -365,13 +403,6 @@ public class TrainingSessionManager: ObservableObject {
             // Resuming
             self.currentRun?.status = "Resumed"
             try? modelContext.save()
-        }
-        
-        // Callback setup (deferred to here to use run name)
-        if let run = self.currentRun {
-             Task {
-                 await self.setupCallbacks(for: run.name)
-             }
         }
         
         if self.pipeline == nil {
@@ -529,6 +560,8 @@ public class TrainingSessionManager: ObservableObject {
                      log("- Labels count: \(firstSample.labels.count)")
                  }
                  self.state = .failed
+                 self.workPhase = .failed
+                 UIApplication.shared.isIdleTimerDisabled = false
                  return
             }
             
@@ -542,23 +575,35 @@ public class TrainingSessionManager: ObservableObject {
             
             // CHECK: Continuation / Fine-tuning
             // 2. Launch Background Training
-            Task {
+            workerLifecycle.start(onCompletion: { self.objectWillChange.send() }) {
+                if let run = self.currentRun {
+                    await self.setupCallbacks(for: run.name)
+                }
+                guard await self.workerLifecycle.waitUntilRunnable() else {
+                    await self.finishSession()
+                    return
+                }
                 // CHECK: Continuation / Fine-tuning (Async load inside Task)
                 if let sourceRun = self.continuationSourceRun {
                     await MainActor.run { self.log("🔄 FINE-TUNING MODE: Initializing weights from run: \(sourceRun.name)") }
-                    await loadWeightsForContinuation(sourceRun: sourceRun)
+                    await self.loadWeightsForContinuation(sourceRun: sourceRun)
                 }
 
-                await runTrainingLoop(samples: trainingSamples)
+                await self.runTrainingLoop(samples: trainingSamples)
             }
         } catch {
             log("Error fetching data: \(error)")
             self.state = .failed
+            self.workPhase = .failed
+            UIApplication.shared.isIdleTimerDisabled = false
         }
     }
     
     public func pauseTraining() {
-        self.isPaused = true
+        guard workerLifecycle.pause() else { return }
+        phaseBeforePause = workPhase
+        workPhase = .paused
+        resumeWhenForegrounded = false
         self.state = .paused
         self.currentRun?.status = "Paused"
         // Persist metrics
@@ -568,10 +613,27 @@ public class TrainingSessionManager: ObservableObject {
         }
         log("Training paused.")
     }
+
+    /// Resume the existing in-memory worker, without rebuilding data, model,
+    /// optimizer, splits or callbacks, and without advancing the epoch.
+    public func resumeTraining() {
+        guard workerLifecycle.resume() else {
+            log("No paused live worker to resume. Disk restoration is a separate action.")
+            return
+        }
+        resumeWhenForegrounded = false
+        state = .training
+        workPhase = phaseBeforePause
+        currentRun?.status = "Resumed"
+        UIApplication.shared.isIdleTimerDisabled = true
+        log("Resumed existing worker at epoch \(currentEpoch), batch \(currentBatch).")
+    }
     
     public func stopTraining() {
-        self.shouldStop = true
+        guard workerLifecycle.stop() else { return }
+        resumeWhenForegrounded = false
         self.state = .completing
+        self.workPhase = .stopping
         self.currentRun?.status = "Stopping"
         log("Stopping training...")
     }
@@ -584,6 +646,8 @@ public class TrainingSessionManager: ObservableObject {
               let pipeline = self.pipeline else {
             log("Error: Components not initialized.")
             self.state = .failed
+            self.workPhase = .failed
+            UIApplication.shared.isIdleTimerDisabled = false
             return
         }
         
@@ -694,7 +758,7 @@ public class TrainingSessionManager: ObservableObject {
             }
 
             for epoch in startEpoch...epochs {
-                if await self.shouldStopTraining { break }
+                guard await self.waitForTrainingWork() else { break }
 
                 // Learning Rate Warmup
                 if epoch <= warmupEpochs {
@@ -719,15 +783,11 @@ public class TrainingSessionManager: ObservableObject {
                     temporalAugment: config.enableTemporalAugmentation // Pass config
                 ) {
                     
-                    // Check Pause/Stop
-                    while await self.isTrainingPaused {
-                        try? await Task.sleep(nanoseconds: 100_000_000)
-                        if await self.shouldStopTraining { break }
-                    }
-                    if await self.shouldStopTraining { break }
+                    guard await self.waitForTrainingWork() else { break }
+                    await self.setWorkPhase(.training)
 
                     // Autoreleasepool to ensure temporary tensors are freed
-                    await autoreleasepool {
+                    let batchMetric: (loss: Float, accuracy: Float) = await autoreleasepool {
                         // Optimization Step
                         // Choose targets based on loss function
                         let targetTensor: MLXArray
@@ -784,32 +844,24 @@ public class TrainingSessionManager: ObservableObject {
                         // Explicitly free logits graph
                         MLX.eval(logits)
                         
-                        epochLoss += lossValue
-                        batchCount += 1
-                        globalStep += 1
-                        
-                        // Update Batch Metrics
-                        // Need to dispatch out of autoreleasepool for async
-                        // Capture values to avoid retaining tensors
-                        let l = lossValue
-                        let a = accuracyValue
-                        let b = batchCount
-                        
-                        Task { @MainActor in
-                           self.updateBatchProgress(batchIndex: b, loss: l, accuracy: a)
-                        }
+                        return (lossValue, accuracyValue)
                     }
-
+                    epochLoss += batchMetric.loss
+                    batchCount += 1
+                    globalStep += 1
+                    await self.updateBatchProgress(batchIndex: batchCount, loss: batchMetric.loss,
+                                                   accuracy: batchMetric.accuracy)
                     
                     // Validation Check
                     if globalStep % validationInterval == 0 && !valSamples.isEmpty {
                         // Run Validation
-                        let (valLoss, valAcc) = await self.runValidation(pipeline: pipeline, samples: valSamples, wrapper: wrapper, config: config)
+                        guard let (valLoss, valAcc) = await self.runValidation(pipeline: pipeline, samples: valSamples, wrapper: wrapper, config: config) else { break }
                         
                         // Update Metric with Validation Loss
                         await self.reportValidationMetric(loss: valLoss, accuracy: valAcc, step: batchCount, epoch: epoch)
                     }
                 }
+                guard await self.waitForTrainingWork() else { break }
                 
                 // Epoch Validation (Force run at end of epoch)
                 let avgLoss = batchCount > 0 ? epochLoss / Float(batchCount) : 0
@@ -817,7 +869,7 @@ public class TrainingSessionManager: ObservableObject {
                 var finalValLoss: Float = 0.0
                 var finalValAcc: Float = 0.0
                 if !valSamples.isEmpty {
-                     let (vLoss, vAcc) = await self.runValidation(pipeline: pipeline, samples: valSamples, wrapper: wrapper, config: config)
+                     guard let (vLoss, vAcc) = await self.runValidation(pipeline: pipeline, samples: valSamples, wrapper: wrapper, config: config) else { break }
                      finalValLoss = vLoss
                      finalValAcc = vAcc
                      // FIX: Report validation metric at end of epoch so graph updates every epoch
@@ -825,6 +877,8 @@ public class TrainingSessionManager: ObservableObject {
                 }
                 
                 await self.logEpochCompletion(epoch: epoch, trainLoss: avgLoss, valLoss: finalValLoss)
+                guard await self.waitForTrainingWork() else { break }
+                await self.setWorkPhase(.epochCallbacks)
                 
                 // CALLBACK: onEpochEnd
                 if let run = await self.currentRun {
@@ -849,7 +903,7 @@ public class TrainingSessionManager: ObservableObject {
                     // Handle early stopping
                     if case .stopTraining(let reason) = action {
                         await self.log("Early stopping: \(reason)")
-                        await MainActor.run { self.shouldStop = true }
+                        await self.stopTraining()
                         break
                     }
                 }
@@ -860,13 +914,16 @@ public class TrainingSessionManager: ObservableObject {
     }
     
     // Internal validation runner (runs on background task)
-    nonisolated private func runValidation(pipeline: TrainingDataPipeline, samples: [TrainingDataPipeline.SampleInfo], wrapper: SignLanguageModuleWrapper, config: TrainingConfig) async -> (loss: Float, accuracy: Float) {
+    nonisolated private func runValidation(pipeline: TrainingDataPipeline, samples: [TrainingDataPipeline.SampleInfo], wrapper: SignLanguageModuleWrapper, config: TrainingConfig) async -> (loss: Float, accuracy: Float)? {
         var totalLoss: Float = 0
         var totalAcc: Float = 0
         var count = 0
+        await self.beginValidation()
         
         // No Augmentation, No Shuffle
         for await batch in await pipeline.batchStream(samples: samples, batchSize: config.batchSize, shuffle: false, augment: false, temporalAugment: false) {
+             guard await self.waitForTrainingWork() else { return nil }
+             await self.setWorkPhase(.validating)
              let logits = wrapper(batch.inputs)
              if config.lossFunction == .contrastive {
                  let loss = LossFunctions.contrastiveLoss(predictions: logits, targets: batch.targets, temperature: config.contrastiveTemperature)
@@ -891,6 +948,7 @@ public class TrainingSessionManager: ObservableObject {
                  totalAcc += acc.item(Float.self)
              }
              count += 1
+             await self.reportValidationProgress(count)
         }
         
         let finalLoss = count > 0 ? totalLoss / Float(count) : 0
@@ -900,11 +958,26 @@ public class TrainingSessionManager: ObservableObject {
     
     // MARK: - Helpers (MainActor for UI)
     
-    // Safe accessors for state
-    private var shouldStopTraining: Bool { shouldStop }
-    private var isTrainingPaused: Bool { isPaused }
+    private func waitForTrainingWork() async -> Bool {
+        await workerLifecycle.waitUntilRunnable()
+    }
+
+    private func setWorkPhase(_ phase: TrainingWorkPhase) {
+        if state == .training { workPhase = phase }
+    }
+
+    private func beginValidation() {
+        validationBatchesCompleted = 0
+        setWorkPhase(.validating)
+        log("Validation started at epoch \(currentEpoch), batch \(currentBatch).")
+    }
+
+    private func reportValidationProgress(_ count: Int) {
+        validationBatchesCompleted = count
+    }
     
     private func updateEpochStart(epoch: Int) {
+        setWorkPhase(.training)
         self.currentEpoch = epoch
         self.currentBatch = 0
         self.log("Epoch \(epoch) started.")
@@ -984,13 +1057,15 @@ public class TrainingSessionManager: ObservableObject {
         }
     }
     
-    private func finishSession() {
+    private func finishSession() async {
         if !shouldStop {
             self.state = .completed
+            self.workPhase = .completed
             self.currentRun?.status = "Completed"
             self.log("Training session finished.")
         } else {
             self.state = .idle
+            self.workPhase = .idle
             self.currentRun?.status = "Stopped"
             self.log("Training stopped.")
         }
@@ -1006,9 +1081,7 @@ public class TrainingSessionManager: ObservableObject {
             try? modelContext?.save()
 
             // CALLBACK: onTrainEnd
-            Task {
-                await callbackManager.notifyTrainEnd(run: run)
-            }
+            await callbackManager.notifyTrainEnd(run: run)
         }
 
         // Clear persisted state since training completed/stopped normally
@@ -1026,6 +1099,10 @@ public class TrainingSessionManager: ObservableObject {
     
     /// Prepares the session for fine-tuning based on a previous run
     public func prepareFineTuning(run: TrainingRun) {
+        guard !workerLifecycle.hasWorker else {
+            log("Finish the live worker before preparing another run.")
+            return
+        }
         log("Preparing to fine-tune from run: \(run.name)")
         self.continuationSourceRun = run
         
@@ -1082,28 +1159,41 @@ public class TrainingSessionManager: ObservableObject {
     
     // MARK: - Background Processing
     
-    private func setupBackgroundObservers() {
-        NotificationCenter.default.addObserver(forName: .trainingShouldSaveAndStop, object: nil, queue: .main) { [weak self] _ in
-            Task { @MainActor in self?.saveAndStop() }
-        }
-        
-        NotificationCenter.default.addObserver(forName: .trainingResumeInBackground, object: nil, queue: .main) { [weak self] _ in
+    internal func installBackgroundObservers() {
+        guard !backgroundObserversInstalled else { return }
+        backgroundObserversInstalled = true
+        notificationCenter.publisher(for: .trainingShouldSaveAndStop).sink { @Sendable [weak self] _ in
+            Task { @MainActor in await self?.saveAndStop() }
+        }.store(in: &cancellables)
+
+        notificationCenter.publisher(for: .trainingResumeInBackground).sink { @Sendable [weak self] _ in
             Task { @MainActor in self?.resumeFromBackground() }
-        }
+        }.store(in: &cancellables)
     }
     
     /// Called when BG processing task is expiring or app goes to background.
-    private func saveAndStop() {
+    private func saveAndStop() async {
+        guard workerLifecycle.hasWorker, state == .training || state == .paused else { return }
+        let wasUserPaused = state == .paused && !resumeWhenForegrounded
+        if !isPaused { phaseBeforePause = workPhase }
+        workerLifecycle.pause()
+        resumeWhenForegrounded = !wasUserPaused
+        state = .paused
+        workPhase = .paused
         log("⚠️ Saving training state...")
 
-        // Save full training state to disk for resume
-        saveTrainingState()
-
-        // Save model weights checkpoint
-        saveResumeCheckpoint()
-
-        // Pause the training loop (don't fully stop - allow resume)
-        self.isPaused = true
+        // Never snapshot live parameters concurrently with an update. If the
+        // worker is stuck inside a GPU operation, preserve the previous file.
+        let acknowledged = await workerLifecycle.waitUntilPaused()
+        // Resume/Stop may have arrived while this task awaited acknowledgement.
+        // Recheck synchronously on MainActor immediately before reading weights.
+        let parked = acknowledged && workerLifecycle.isPaused && workerLifecycle.isParked && !workerLifecycle.isStopping
+        if parked {
+            saveResumeCheckpoint()
+            saveTrainingState()
+        } else {
+            log("Worker did not reach a safe pause boundary; previous checkpoint preserved.")
+        }
 
         // Force flush metrics to SwiftData
         if let run = currentRun {
@@ -1112,7 +1202,7 @@ public class TrainingSessionManager: ObservableObject {
             try? modelContext?.save()
         }
 
-        log("Training state saved. Can resume later.")
+        log(parked ? "Background save callback finished; live worker remains paused." : "Pause requested; no new weight checkpoint was written.")
     }
 
     /// Called when BG processing task starts or app returns to foreground.
@@ -1125,11 +1215,12 @@ public class TrainingSessionManager: ObservableObject {
             return
         }
 
-        // If paused (app was suspended but not terminated), just unpause
-        if self.state == .paused || (self.state == .training && self.isPaused) {
-            self.isPaused = false
-            self.state = .training
-            log("Resumed from pause - training loop continues")
+        if workerLifecycle.hasWorker, isPaused {
+            guard resumeWhenForegrounded else {
+                log("Training was paused by the user; waiting for explicit Resume.")
+                return
+            }
+            resumeTraining()
             return
         }
 
@@ -1201,6 +1292,10 @@ public class TrainingSessionManager: ObservableObject {
     /// Restore training state from disk and resume
     /// Call this from TrainingDashboardView when user wants to resume
     public func restoreAndResume(modelContext: ModelContext) async {
+        guard !workerLifecycle.hasWorker else {
+            log("A live worker already exists; disk restoration skipped. Use Resume for a paused session.")
+            return
+        }
         guard let persistedState = TrainingStatePersistence.shared.load() else {
             log("No persisted state to restore")
             return
@@ -1279,6 +1374,9 @@ public class TrainingSessionManager: ObservableObject {
     
     /// Resumes an arbitrary previous training run from its last checkpoint
     public func resumeFromRun(_ run: TrainingRun, modelContext: ModelContext, targetDatasetName: String?) async throws {
+        guard !workerLifecycle.hasWorker else {
+            throw ModelPersistence.PersistenceError.loadFailed("Finish the live training worker before restoring another run.")
+        }
         self.state = .preparing
         self.log("Manual resume from run: \(run.name)")
         
